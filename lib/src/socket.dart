@@ -215,9 +215,9 @@ class PhoenixSocket {
 
   /// [topic] is the name of the channel you wish to join
   /// [parameters] are any options parameters you wish to send
-  void addChannel({
+  PhoenixChannel addChannel({
     @required String topic,
-    Map<String, dynamic> parameters,
+    Map<String, String> parameters,
     Duration timeout,
   }) {
     var channel = PhoenixChannel.fromSocket(
@@ -228,6 +228,7 @@ class PhoenixSocket {
     );
 
     channels[channel.reference] = channel;
+    return channel;
   }
 
   void removeChannel(PhoenixChannel channel) {
