@@ -73,3 +73,15 @@ build/
 !**/ios/**/default.pbxuser
 !**/ios/**/default.perspectivev3
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
+
+# The directory Mix will write compiled artifacts to.
+/test/backend/_build/
+/test/backend/cover/
+/test/backend/deps/
+/test/backend/doc/
+/test/backend/.fetch
+/test/backend/erl_crash.dump
+*.ez
+backend-*.tar
+/test/backend/priv/static/
+/test/backend/config/*.secret.exs
