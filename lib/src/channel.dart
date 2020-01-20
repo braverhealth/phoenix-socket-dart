@@ -38,7 +38,7 @@ class PhoenixChannel {
   Timer _rejoinTimer;
   bool _joinedOnce = false;
   ListMultimap<String, Completer<Message>> _waiters;
-  List<StreamSubscription> _subscriptions;
+  List<StreamSubscription> _subscriptions = [];
   String _reference;
   Push _joinPush;
 
@@ -49,7 +49,7 @@ class PhoenixChannel {
   PhoenixChannel.fromSocket(
     this._socket, {
     this.topic,
-    Map parameters,
+    Map<String, String> parameters,
     Duration timeout,
   })  : this.parameters = parameters ?? {},
         this._controller = StreamController.broadcast(),
@@ -79,7 +79,7 @@ class PhoenixChannel {
   }
 
   Future<Message> onPushReply(replyRef) {
-    Completer completer = Completer();
+    Completer<Message> completer = Completer();
     _waiters[replyRef].add(completer);
     return completer.future;
   }
