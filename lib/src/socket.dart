@@ -163,7 +163,7 @@ class PhoenixSocket {
   /// If the attempt fails, retries will be triggered at intervals specified
   /// by retryAfterIntervalMS
   Future<PhoenixSocket> connect() async {
-    assert(_ws != null);
+    assert(_ws == null);
 
     _ws = WebSocketChannel.connect(_mountPoint);
     _ws.stream.listen(_onSocketData, cancelOnError: true)
