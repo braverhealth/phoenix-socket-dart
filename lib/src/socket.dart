@@ -241,7 +241,7 @@ class PhoenixSocket {
     if (options?.params != null) {
       var params = decodedUri.queryParameters.entries.toList();
       params.addAll(options.params.entries.toList());
-      decodedUri.replace(queryParameters: Map.fromEntries(params));
+      decodedUri = decodedUri.replace(queryParameters: Map.fromEntries(params));
     }
     return decodedUri;
   }
