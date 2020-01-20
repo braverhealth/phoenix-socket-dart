@@ -190,11 +190,10 @@ class PhoenixSocket {
   }
 
   void dispose([int code, String reason]) {
+    _socketState = SocketState.closing;
     _subscriptions.forEach((sub) => sub.cancel());
     _subscriptions.clear();
     _pendingMessages.clear();
-    _receiveStreamController.close();
-    _stateStreamController.close();
     channels.forEach((_, channel) => channel.dispose());
     channels.clear();
     _ws.sink.close(code, reason);
@@ -289,7 +288,8 @@ class PhoenixSocket {
   }
 
   void _onSocketError(dynamic error, stacktrace) {
-    if (_socketState == SocketState.closing) return;
+    if (_socketState == SocketState.closing ||
+        _socketState == SocketState.closed) return;
 
     _stateStreamController
         ?.add(SocketError(error: error, stacktrace: stacktrace));
@@ -304,10 +304,20 @@ class PhoenixSocket {
   }
 
   void _onSocketClosed() {
-    if (_socketState == SocketState.closing) return;
+    if (_socketState == SocketState.closed) {
+      return;
+    }
 
     var ev = CloseEvent();
     _stateStreamController?.add(ev);
+
+    if (_socketState == SocketState.closing) {
+      _receiveStreamController.close();
+      _stateStreamController.close();
+      _receiveStreamController = null;
+      _socketState = SocketState.closed;
+      return;
+    }
 
     for (var completer in _pendingMessages.values) {
       completer.completeError(ev);
