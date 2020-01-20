@@ -122,10 +122,10 @@ class PhoenixSocket {
   /// endpoint is the full url to which you wish to connect e.g. `ws://localhost:4000/websocket/socket`
   PhoenixSocket(
     String endpoint, {
-    socketOptions: PhoenixSocketOptions,
+    PhoenixSocketOptions socketOptions,
   }) {
     _options = socketOptions ?? PhoenixSocketOptions();
-    _mountPoint = _buildMountPoint(endpoint, socketOptions);
+    _mountPoint = _buildMountPoint(endpoint, _options);
 
     _receiveStreamController = StreamController.broadcast();
     _stateStreamController = StreamController.broadcast();
