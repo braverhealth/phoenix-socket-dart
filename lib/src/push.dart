@@ -33,6 +33,7 @@ class Push {
   PushResponse _received;
   PhoenixChannel _channel;
   bool _sent = false;
+  bool _boundCompleter = false;
   ListMultimap<String, Completer<PushResponse>> _receivers = ListMultimap();
   Timer _timeoutTimer;
   String _ref;
@@ -40,6 +41,12 @@ class Push {
   String get ref {
     _ref ??= _channel.socket.makeRef();
     return _ref;
+  }
+
+  Completer<PushResponse> _responseCompleter;
+  Future<PushResponse> get future {
+    _responseCompleter ??= Completer();
+    return _responseCompleter.future;
   }
 
   Push(
@@ -52,10 +59,10 @@ class Push {
   bool get sent => _sent;
   String get _replyEvent => replyEventName(ref);
 
-  bool hasReceived(String status) => _received.status == status;
+  bool hasReceived(String status) => _received?.status == status;
 
   Future<PushResponse> onReply(String status) {
-    if (status == _received.status) {
+    if (status == _received?.status) {
       return Future.value(_received.response);
     }
     Completer<PushResponse> completer = Completer();
@@ -78,18 +85,23 @@ class Push {
 
   void trigger(PushResponse response) {
     _received = response;
+    _responseCompleter?.complete(response);
     for (var completer in _receivers[response.status]) {
       completer.complete(response);
     }
   }
 
   void startTimeout() {
-    _channel.onPushReply(_replyEvent).then((Message response) {
-      if (response is Message) {
-        cancelTimeout();
-        trigger(PushResponse.fromPayload(response.payload));
-      }
-    });
+    if (!_boundCompleter) {
+      _channel.onPushReply(_replyEvent).then((Message response) {
+        if (response is Message) {
+          cancelTimeout();
+          trigger(PushResponse.fromPayload(response.payload));
+        }
+      });
+      _boundCompleter = true;
+    }
+
     _timeoutTimer = Timer(timeout, () {
       _timeoutTimer = null;
       _channel.trigger(Message(
