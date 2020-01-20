@@ -133,12 +133,17 @@ class PhoenixSocket {
     _messageStream =
         _receiveStreamController.stream.map(MessageSerializer.decode);
 
-    _openStream =
-        _stateStreamController.stream.where((event) => event is OpenEvent);
-    _closeStream =
-        _stateStreamController.stream.where((event) => event is CloseEvent);
-    _errorStream =
-        _stateStreamController.stream.where((event) => event is SocketError);
+    _openStream = _stateStreamController.stream
+        .where((event) => event is OpenEvent)
+        .cast<OpenEvent>();
+
+    _closeStream = _stateStreamController.stream
+        .where((event) => event is CloseEvent)
+        .cast<CloseEvent>();
+
+    _errorStream = _stateStreamController.stream
+        .where((event) => event is SocketError)
+        .cast<SocketError>();
 
     _subscriptions = [
       _messageStream.listen(_triggerMessageCompleter),
