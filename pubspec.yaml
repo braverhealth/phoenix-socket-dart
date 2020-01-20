@@ -1,0 +1,20 @@
+name: phoenix_socket
+description: >-
+  PhoenixSocket provides a feature-complete implementation
+  of Phoenix Sockets, using a single API compatible with any 
+  deployment of Flutter and exposing StreamChannels.
+version: 0.0.1
+author: Mathieu D'Amours
+homepage: https://www.github.com/matehat/dart_phoenix_socket
+
+environment:
+  sdk: ">=2.3.0 <3.0.0"
+
+dependencies:
+  equatable: ^1.0.2
+  quiver: ^2.1.2
+  meta: ^1.1.8
+  web_socket_channel: ^1.1.0
+
+dev_dependencies:
+  test: ^1.2.0
