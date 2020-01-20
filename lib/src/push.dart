@@ -114,23 +114,23 @@ class Push {
     });
   }
 
-  void send() async {
+  Future<void> send() async {
     if (hasReceived("timeout")) return;
     _sent = true;
 
-    _channel.socket.sendMessage(Message(
+    startTimeout();
+    await _channel.socket.sendMessage(Message(
       event: event,
       topic: _channel.topic,
       payload: payload(),
       ref: ref,
       joinRef: _channel.joinRef,
     ));
-    startTimeout();
   }
 
-  void resend(Duration newTimeout) {
+  Future<void> resend(Duration newTimeout) async {
     timeout = newTimeout ?? timeout;
     reset();
-    send();
+    await send();
   }
 }

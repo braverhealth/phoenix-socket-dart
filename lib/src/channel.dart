@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:pedantic/pedantic.dart';
 import 'package:quiver/collection.dart';
 
 import 'message.dart';
@@ -226,7 +227,7 @@ class PhoenixChannel {
   void _attemptJoin() {
     if (!isLeaving) {
       _state = PhoenixChannelState.joining;
-      _joinPush.resend(timeout);
+      unawaited(_joinPush.resend(timeout));
     }
   }
 

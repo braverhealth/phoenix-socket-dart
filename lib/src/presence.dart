@@ -124,11 +124,11 @@ Map<String, dynamic> _syncState(
           .where((m) => !newRefs.contains(m.phx_ref))
           .toList();
 
-      if (joinedMetas.length > 0) {
+      if (joinedMetas.isNotEmpty) {
         joins[key] = newPresence;
         joins[key].metas = joinedMetas;
       }
-      if (leftMetas.length > 0) {
+      if (leftMetas.isNotEmpty) {
         leaves[key] = _clone(currentPresence);
         leaves[key].metas = leftMetas;
       }
@@ -169,7 +169,7 @@ Map<String, dynamic> _syncDiff(
     currentPresence.metas = (currentPresence.metas as List)
         .where((p) => !refsToRemove.contains(p.phx_ref));
     onLeave(key, currentPresence, leftPresence);
-    if (currentPresence.metas.length == 0) {
+    if ((currentPresence.metas as List).isEmpty) {
       state.remove(key);
     }
   });

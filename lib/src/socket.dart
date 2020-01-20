@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:core';
 
+import 'package:pedantic/pedantic.dart';
 import 'package:meta/meta.dart';
 import 'package:web_socket_channel/status.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -182,7 +183,7 @@ class PhoenixSocket {
     } catch (err) {
       var durationIdx = _reconnectAttempts++;
       if (durationIdx >= reconnects.length) {
-        throw err;
+        rethrow;
       }
       var duration = reconnects[durationIdx];
       return Future.delayed(duration, () => connect());
@@ -260,7 +261,7 @@ class PhoenixSocket {
     if (!isConnected) return;
     if (_nextHeartbeatRef != null) {
       _nextHeartbeatRef = null;
-      _ws.sink.close(normalClosure, "heartbeat timeout");
+      unawaited(_ws.sink.close(normalClosure, "heartbeat timeout"));
       return;
     }
     await sendMessage(_heartbeatMessage());
