@@ -75,13 +75,13 @@ build/
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 
 # The directory Mix will write compiled artifacts to.
-/test/backend/_build/
-/test/backend/cover/
-/test/backend/deps/
-/test/backend/doc/
-/test/backend/.fetch
-/test/backend/erl_crash.dump
+/example/backend/_build/
+/example/backend/cover/
+/example/backend/deps/
+/example/backend/doc/
+/example/backend/.fetch
+/example/backend/erl_crash.dump
 *.ez
 backend-*.tar
-/test/backend/priv/static/
-/test/backend/config/*.secret.exs
+/example/backend/priv/static/
+/example/backend/config/*.secret.exs
