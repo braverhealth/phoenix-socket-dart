@@ -115,7 +115,10 @@ class PhoenixSocket {
 
   Map<String, PhoenixChannel> channels = {};
 
+  Map<String, StreamController> _topicStreams = {};
+
   PhoenixSocketOptions _options;
+
   Duration get defaultTimeout => _options.timeout;
 
   /// Creates an instance of PhoenixSocket
@@ -147,10 +150,22 @@ class PhoenixSocket {
         .cast<SocketError>();
 
     _subscriptions = [
-      _messageStream.listen(_triggerMessageCompleter),
+      _messageStream.listen(_onMessage),
       _openStream.listen((_) => _startHeartbeat()),
       _closeStream.listen((_) => _cancelHeartbeat())
     ];
+  }
+
+  Stream<Message> streamForTopic(String topic) {
+    var controller =
+        _topicStreams.putIfAbsent(topic, () => StreamController<Message>());
+    return controller.stream;
+  }
+
+  StreamSink<Message> _sinkForTopic(String topic) {
+    var controller =
+        _topicStreams.putIfAbsent(topic, () => StreamController<Message>());
+    return controller.sink;
   }
 
   Uri get mountPoint => _mountPoint;
@@ -192,11 +207,18 @@ class PhoenixSocket {
 
   void dispose([int code, String reason]) {
     _socketState = SocketState.closing;
+
     _subscriptions.forEach((sub) => sub.cancel());
     _subscriptions.clear();
+
     _pendingMessages.clear();
+
     channels.forEach((_, channel) => channel.dispose());
     channels.clear();
+
+    _topicStreams.forEach((_, controller) => controller.close());
+    _topicStreams.clear();
+
     _ws.sink.close(code, reason);
   }
 
@@ -273,7 +295,7 @@ class PhoenixSocket {
     return Message.heartbeat(nextRef);
   }
 
-  void _triggerMessageCompleter(Message message) {
+  void _onMessage(Message message) {
     if (_nextHeartbeatRef == message.ref) {
       _nextHeartbeatRef = null;
     }
@@ -282,6 +304,10 @@ class PhoenixSocket {
       var completer = _pendingMessages[message.ref];
       _pendingMessages.remove(message.ref);
       completer.complete(message);
+    }
+
+    if (message.topic != null && message.topic.isNotEmpty) {
+      _sinkForTopic(message.topic).add(message);
     }
   }
 

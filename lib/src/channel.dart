@@ -168,7 +168,7 @@ class PhoenixChannel {
 
   List<StreamSubscription> _subscribeToSocketStreams(PhoenixSocket socket) {
     return [
-      socket.messageStream.where(_isMember).listen(_controller.add),
+      socket.streamForTopic(topic).where(_isMember).listen(_controller.add),
       socket.errorStream.listen((error) => _rejoinTimer?.cancel()),
       socket.openStream.listen((event) {
         _rejoinTimer?.cancel();
@@ -232,8 +232,6 @@ class PhoenixChannel {
   }
 
   bool _isMember(Message message) {
-    if (topic != message.topic) return false;
-
     if (message.joinRef != null &&
         message.joinRef != _joinPush.ref &&
         PhoenixChannelEvents.statuses.contains(message.event)) {
