@@ -11,10 +11,10 @@ environment:
 
 dependencies:
   equatable: ^1.0.2
-  quiver: ^2.1.2
+  quiver: ^2.0.0
   meta: ^1.1.8
   web_socket_channel: ^1.1.0
-  pedantic: ^1.9.0
+  pedantic: ^1.8.0
 
 dev_dependencies:
   test: ^1.11.1
