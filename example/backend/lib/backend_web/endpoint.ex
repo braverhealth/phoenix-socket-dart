@@ -5,6 +5,4 @@ defmodule BackendWeb.Endpoint do
     websocket: true,
     longpoll: false
   )
-
-  plug(BackendWeb.Router)
 end
