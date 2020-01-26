@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:pedantic/pedantic.dart';
 import 'package:test/test.dart';
 
 import 'package:phoenix_socket/phoenix_socket.dart';
@@ -7,7 +8,7 @@ import 'package:phoenix_socket/phoenix_socket.dart';
 void main() {
   group('PhoenixSocket', () {
     test('can connect to a running Phoenix server', () async {
-      final socket = PhoenixSocket("ws://localhost:4000/socket/websocket");
+      final socket = PhoenixSocket('ws://localhost:4000/socket/websocket');
 
       await socket.connect().then((_) {
         expect(socket.isConnected, isTrue);
@@ -16,9 +17,9 @@ void main() {
 
     test('can connect to a running Phoenix server with params', () async {
       final socket = PhoenixSocket(
-        "ws://localhost:4000/socket/websocket",
+        'ws://localhost:4000/socket/websocket',
         socketOptions: PhoenixSocketOptions(
-          params: {'user_id': "this_is_a_userid"},
+          params: {'user_id': 'this_is_a_userid'},
         ),
       );
 
@@ -28,9 +29,9 @@ void main() {
     });
 
     test('emits an "open" event', () async {
-      final socket = PhoenixSocket("ws://localhost:4000/socket/websocket");
+      final socket = PhoenixSocket('ws://localhost:4000/socket/websocket');
 
-      socket.connect();
+      unawaited(socket.connect());
 
       await for (var event in socket.openStream) {
         expect(event, isA<OpenEvent>());
@@ -41,9 +42,9 @@ void main() {
     test('emits a "close" event after the connection was closed', () async {
       final completer = Completer();
       final socket = PhoenixSocket(
-        "ws://localhost:4000/socket/websocket",
+        'ws://localhost:4000/socket/websocket',
         socketOptions: PhoenixSocketOptions(
-          params: {'user_id': "this_is_a_userid"},
+          params: {'user_id': 'this_is_a_userid'},
         ),
       );
 

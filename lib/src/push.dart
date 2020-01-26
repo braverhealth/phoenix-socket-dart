@@ -14,8 +14,8 @@ class PushResponse implements Equatable {
 
   factory PushResponse.fromPayload(Map<String, dynamic> data) {
     return PushResponse(
-      status: data["status"],
-      response: data["response"],
+      status: data['status'],
+      response: data['response'],
     );
   }
 
@@ -26,20 +26,21 @@ class PushResponse implements Equatable {
 class Push {
   final String event;
   final dynamic Function() payload;
+  final PhoenixChannel _channel;
+  final ListMultimap<String, Completer<PushResponse>> _receivers =
+      ListMultimap();
 
   static String replyEventName(ref) => 'chan_reply_$ref';
 
   Duration timeout;
   PushResponse _received;
-  PhoenixChannel _channel;
   bool _sent = false;
   bool _boundCompleter = false;
-  ListMultimap<String, Completer<PushResponse>> _receivers = ListMultimap();
   Timer _timeoutTimer;
   String _ref;
 
   String get ref {
-    _ref ??= _channel.socket.makeRef();
+    _ref ??= _channel.socket.nextRef;
     return _ref;
   }
 
@@ -65,7 +66,7 @@ class Push {
     if (status == _received?.status) {
       return Future.value(_received.response);
     }
-    Completer<PushResponse> completer = Completer();
+    var completer = Completer<PushResponse>();
     _receivers[status].add(completer);
     return completer.future;
   }
@@ -107,15 +108,15 @@ class Push {
       _channel.trigger(Message(
         event: _replyEvent,
         payload: {
-          "status": "timeout",
-          "response": {},
+          'status': 'timeout',
+          'response': {},
         },
       ));
     });
   }
 
   Future<void> send() async {
-    if (hasReceived("timeout")) return;
+    if (hasReceived('timeout')) return;
     _sent = true;
 
     startTimeout();

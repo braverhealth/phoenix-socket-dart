@@ -8,11 +8,11 @@ import 'push.dart';
 import 'socket.dart';
 
 class PhoenixChannelEvents {
-  static String close = "phx_close";
-  static String error = "phx_error";
-  static String join = "phx_join";
-  static String reply = "phx_reply";
-  static String leave = "phx_leave";
+  static String close = 'phx_close';
+  static String error = 'phx_error';
+  static String join = 'phx_join';
+  static String reply = 'phx_reply';
+  static String leave = 'phx_leave';
 
   static Set<String> statuses = {
     close,
@@ -32,34 +32,42 @@ enum PhoenixChannelState {
 }
 
 class PhoenixChannel {
-  Map<String, String> parameters;
-  PhoenixSocket _socket;
-  StreamController<Message> _controller;
+  final Map<String, String> _parameters;
+  final PhoenixSocket _socket;
+  final StreamController<Message> _controller;
+  final ListMultimap<String, Completer<Message>> _waiters;
+  final List<StreamSubscription> _subscriptions = [];
+
+  Duration _timeout;
   PhoenixChannelState _state = PhoenixChannelState.closed;
   Timer _rejoinTimer;
   bool _joinedOnce = false;
-  ListMultimap<String, Completer<Message>> _waiters;
-  List<StreamSubscription> _subscriptions = [];
   String _reference;
   Push _joinPush;
 
   String topic;
-  Duration timeout;
-  List<Push> pushBuffer = List();
+  final List<Push> pushBuffer = [];
 
   PhoenixChannel.fromSocket(
     this._socket, {
     this.topic,
     Map<String, String> parameters,
     Duration timeout,
-  })  : this.parameters = parameters ?? {},
-        this._controller = StreamController.broadcast(),
-        this._waiters = ListMultimap(),
-        this.timeout = timeout ?? _socket.defaultTimeout {
+  })  : _parameters = parameters ?? {},
+        _controller = StreamController.broadcast(),
+        _waiters = ListMultimap(),
+        _timeout = timeout ?? _socket.defaultTimeout {
     _joinPush = _prepareJoin();
     _subscriptions.add(messages.listen(_onMessage));
-    _subscriptions.addAll(_subscribeToSocketStreams(this._socket));
+    _subscriptions.addAll(_subscribeToSocketStreams(_socket));
   }
+
+  Duration get timeout => _timeout;
+  Map<String, String> get parameters => _parameters;
+  Stream<Message> get messages => _controller.stream;
+  String get joinRef => _joinPush.ref;
+  PhoenixSocket get socket => _socket;
+  PhoenixChannelState get state => _state;
 
   bool get isClosed => _state == PhoenixChannelState.closed;
   bool get isErrored => _state == PhoenixChannelState.errored;
@@ -69,18 +77,13 @@ class PhoenixChannel {
 
   bool get canPush => socket.isConnected && isJoined;
 
-  String get joinRef => _joinPush.ref;
-  PhoenixSocket get socket => _socket;
-  PhoenixChannelState get state => _state;
-  Stream<Message> get messages => _controller.stream;
-
   String get reference {
-    _reference ??= _socket.makeRef();
+    _reference ??= _socket.nextRef;
     return _reference;
   }
 
   Future<Message> onPushReply(replyRef) {
-    Completer<Message> completer = Completer();
+    var completer = Completer();
     _waiters[replyRef].add(completer);
     return completer.future;
   }
@@ -89,7 +92,7 @@ class PhoenixChannel {
     _waiters.removeAll(replyRef);
   }
 
-  dispose() {
+  void dispose() {
     pushBuffer.forEach((push) => push.cancelTimeout());
     _joinPush?.cancelTimeout();
 
@@ -137,7 +140,7 @@ class PhoenixChannel {
     assert(!_joinedOnce);
 
     if (newTimeout is Duration) {
-      timeout = newTimeout;
+      _timeout = newTimeout;
     }
 
     _joinedOnce = true;
@@ -183,7 +186,7 @@ class PhoenixChannel {
     var push = Push(
       this,
       event: PhoenixChannelEvents.join,
-      payload: () => this.parameters,
+      payload: () => parameters,
       timeout: providedTimeout ?? timeout,
     );
     push
@@ -244,7 +247,7 @@ class PhoenixChannel {
     if (message.event == PhoenixChannelEvents.close) {
       _rejoinTimer?.cancel();
       _state = PhoenixChannelState.closed;
-      this.socket.removeChannel(this);
+      socket.removeChannel(this);
     } else if (message.event == PhoenixChannelEvents.error) {
       if (isJoining) {
         _joinPush.reset();
@@ -267,7 +270,7 @@ class PhoenixChannel {
   void _onClose(PushResponse response) {
     trigger(Message(
       event: PhoenixChannelEvents.close,
-      payload: "leave",
+      payload: 'leave',
     ));
   }
 }

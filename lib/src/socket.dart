@@ -49,9 +49,7 @@ class PhoenixSubscription {
     this.subscription,
   });
 
-  void cancel() {
-    this.subscription.cancel();
-  }
+  void cancel() => subscription.cancel();
 }
 
 class OpenEvent {}
@@ -76,6 +74,9 @@ enum SocketState {
 }
 
 class PhoenixSocket {
+  final Map<String, Completer<Message>> _pendingMessages = {};
+  final Map<String, StreamController> _topicStreams = {};
+
   Uri _mountPoint;
   SocketState _socketState;
 
@@ -108,14 +109,10 @@ class PhoenixSocket {
   String _nextHeartbeatRef;
   Timer _heartbeatTimeout;
 
-  String get nextRef => "${_ref++}";
+  String get nextRef => '${_ref++}';
   int _reconnectAttempts = 0;
 
-  Map<String, Completer<Message>> _pendingMessages = {};
-
   Map<String, PhoenixChannel> channels = {};
-
-  Map<String, StreamController> _topicStreams = {};
 
   PhoenixSocketOptions _options;
 
@@ -123,7 +120,8 @@ class PhoenixSocket {
 
   /// Creates an instance of PhoenixSocket
   ///
-  /// endpoint is the full url to which you wish to connect e.g. `ws://localhost:4000/websocket/socket`
+  /// endpoint is the full url to which you wish to connect
+  /// e.g. `ws://localhost:4000/websocket/socket`
   PhoenixSocket(
     String endpoint, {
     PhoenixSocketOptions socketOptions,
@@ -171,8 +169,6 @@ class PhoenixSocket {
   Uri get mountPoint => _mountPoint;
 
   bool get isConnected => _socketState == SocketState.connected;
-
-  String makeRef() => "${++_ref}";
 
   /// Attempts to make a WebSocket connection to your backend
   ///
@@ -283,7 +279,7 @@ class PhoenixSocket {
     if (!isConnected) return;
     if (_nextHeartbeatRef != null) {
       _nextHeartbeatRef = null;
-      unawaited(_ws.sink.close(normalClosure, "heartbeat timeout"));
+      unawaited(_ws.sink.close(normalClosure, 'heartbeat timeout'));
       return;
     }
     await sendMessage(_heartbeatMessage());

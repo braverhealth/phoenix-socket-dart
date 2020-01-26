@@ -29,7 +29,7 @@ class PhoenixPresence {
   Function() _syncHandler = () {};
 
   PhoenixPresence({this.channel, this.eventNames}) {
-    Set<String> eventNames = {stateEventName, diffEventName};
+    var eventNames = {stateEventName, diffEventName};
     _subscription = channel.messages
         .where((Message message) => eventNames.contains(message.event))
         .listen(_onMessage);
@@ -100,9 +100,9 @@ Map<String, dynamic> _syncState(
   JoinHandler onJoin,
   LeaveHandler onLeave,
 ) {
-  Map<String, dynamic> state = _clone(currentState);
-  Map<String, dynamic> joins = {};
-  Map<String, dynamic> leaves = {};
+  var state = _clone(currentState);
+  var joins = {};
+  var leaves = {};
 
   _map(state, (key, presence) {
     if (newState.containsKey(key)) {

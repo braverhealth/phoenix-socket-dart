@@ -22,7 +22,11 @@ class Message implements Equatable {
   }
 
   factory Message.heartbeat(String ref) {
-    return Message(topic: "phoenix", event: "heartbeat", payload: {});
+    return Message(
+      topic: 'phoenix',
+      event: 'heartbeat',
+      payload: {},
+    );
   }
 
   Message({
