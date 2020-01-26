@@ -6,9 +6,11 @@ import 'package:test/test.dart';
 import 'package:phoenix_socket/phoenix_socket.dart';
 
 void main() {
+  var addr = 'ws://localhost:4001/socket/websocket';
+
   group('PhoenixSocket', () {
     test('can connect to a running Phoenix server', () async {
-      final socket = PhoenixSocket('ws://localhost:4000/socket/websocket');
+      final socket = PhoenixSocket(addr);
 
       await socket.connect().then((_) {
         expect(socket.isConnected, isTrue);
@@ -17,7 +19,7 @@ void main() {
 
     test('can connect to a running Phoenix server with params', () async {
       final socket = PhoenixSocket(
-        'ws://localhost:4000/socket/websocket',
+        addr,
         socketOptions: PhoenixSocketOptions(
           params: {'user_id': 'this_is_a_userid'},
         ),
@@ -29,7 +31,7 @@ void main() {
     });
 
     test('emits an "open" event', () async {
-      final socket = PhoenixSocket('ws://localhost:4000/socket/websocket');
+      final socket = PhoenixSocket(addr);
 
       unawaited(socket.connect());
 
@@ -42,7 +44,7 @@ void main() {
     test('emits a "close" event after the connection was closed', () async {
       final completer = Completer();
       final socket = PhoenixSocket(
-        'ws://localhost:4000/socket/websocket',
+        addr,
         socketOptions: PhoenixSocketOptions(
           params: {'user_id': 'this_is_a_userid'},
         ),

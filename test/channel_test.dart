@@ -3,9 +3,11 @@ import 'package:test/test.dart';
 import 'package:phoenix_socket/phoenix_socket.dart';
 
 void main() {
+  var addr = 'ws://localhost:4001/socket/websocket';
+
   group('PhoenixChannel', () {
     test('can join a channel through a socket', () async {
-      final socket = PhoenixSocket('ws://localhost:4000/socket/websocket');
+      final socket = PhoenixSocket(addr);
 
       await socket.connect();
       var reply =
@@ -14,7 +16,7 @@ void main() {
     });
 
     test('can join a channel requiring parameters', () async {
-      final socket = PhoenixSocket('ws://localhost:4000/socket/websocket');
+      final socket = PhoenixSocket(addr);
 
       await socket.connect();
 
@@ -25,7 +27,7 @@ void main() {
     });
 
     test('can handle channel join failures', () async {
-      final socket = PhoenixSocket('ws://localhost:4000/socket/websocket');
+      final socket = PhoenixSocket(addr);
 
       await socket.connect();
 
@@ -37,7 +39,7 @@ void main() {
     });
 
     test('can handle channel crash on join', () async {
-      final socket = PhoenixSocket('ws://localhost:4000/socket/websocket');
+      final socket = PhoenixSocket(addr);
 
       await socket.connect();
 
@@ -50,7 +52,7 @@ void main() {
     });
 
     test('can send messages to channels and receive a reply', () async {
-      final socket = PhoenixSocket('ws://localhost:4000/socket/websocket');
+      final socket = PhoenixSocket(addr);
 
       await socket.connect();
 
@@ -63,7 +65,7 @@ void main() {
     });
 
     test('can receive messages from channels', () async {
-      final socket = PhoenixSocket('ws://localhost:4000/socket/websocket');
+      final socket = PhoenixSocket(addr);
 
       await socket.connect();
 
@@ -79,12 +81,12 @@ void main() {
     });
 
     test('can send and receive messages from multiple channels', () async {
-      final socket1 = PhoenixSocket('ws://localhost:4000/socket/websocket');
+      final socket1 = PhoenixSocket(addr);
       await socket1.connect();
       var channel1 = socket1.addChannel(topic: 'channel3');
       await channel1.join().future;
 
-      final socket2 = PhoenixSocket('ws://localhost:4000/socket/websocket');
+      final socket2 = PhoenixSocket(addr);
       await socket2.connect();
       var channel2 = socket2.addChannel(topic: 'channel3');
       await channel2.join().future;
