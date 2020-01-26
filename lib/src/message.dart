@@ -62,7 +62,7 @@ class Message implements Equatable {
 }
 
 class MessageSerializer {
-  static Message decode(rawData) {
+  static Message decode(String rawData) {
     return Message.fromJson(jsonDecode(rawData));
   }
 

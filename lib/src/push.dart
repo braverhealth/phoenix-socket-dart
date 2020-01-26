@@ -8,7 +8,7 @@ import 'message.dart';
 
 class PushResponse implements Equatable {
   final String status;
-  final Map response;
+  final dynamic response;
 
   PushResponse({this.status, this.response});
 

@@ -309,8 +309,12 @@ class PhoenixSocket {
     }
   }
 
-  void _onSocketData(String message) {
-    _receiveStreamController?.add(message);
+  void _onSocketData(message) {
+    if (message is String) {
+      _receiveStreamController?.add(message);
+    } else {
+      throw ArgumentError('Received a non-string');
+    }
   }
 
   void _onSocketError(error, stacktrace) {

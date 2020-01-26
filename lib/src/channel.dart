@@ -83,7 +83,7 @@ class PhoenixChannel {
   }
 
   Future<Message> onPushReply(replyRef) {
-    var completer = Completer();
+    var completer = Completer<Message>();
     _waiters[replyRef].add(completer);
     return completer.future;
   }
