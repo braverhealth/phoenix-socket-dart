@@ -52,11 +52,13 @@ class PhoenixSubscription {
   void cancel() => subscription.cancel();
 }
 
-class OpenEvent {}
+class SocketEvent {}
 
-class CloseEvent {}
+class OpenEvent extends SocketEvent {}
 
-class SocketError {
+class CloseEvent extends SocketEvent {}
+
+class SocketError extends SocketEvent {
   final dynamic error;
   final dynamic stacktrace;
 
@@ -92,8 +94,8 @@ class PhoenixSocket {
   Stream<SocketError> get errorStream => _errorStream;
   Stream<Message> get messageStream => _messageStream;
 
-  StreamController<dynamic> _stateStreamController;
-  StreamController<dynamic> _receiveStreamController;
+  StreamController<SocketEvent> _stateStreamController;
+  StreamController<String> _receiveStreamController;
 
   List<Duration> reconnects = [
     Duration(seconds: 1000),
@@ -307,11 +309,11 @@ class PhoenixSocket {
     }
   }
 
-  void _onSocketData(dynamic message) {
+  void _onSocketData(String message) {
     _receiveStreamController?.add(message);
   }
 
-  void _onSocketError(dynamic error, stacktrace) {
+  void _onSocketError(error, stacktrace) {
     if (_socketState == SocketState.closing ||
         _socketState == SocketState.closed) return;
 
@@ -338,6 +340,7 @@ class PhoenixSocket {
     if (_socketState == SocketState.closing) {
       _receiveStreamController.close();
       _stateStreamController.close();
+      _stateStreamController = null;
       _receiveStreamController = null;
       _socketState = SocketState.closed;
       return;

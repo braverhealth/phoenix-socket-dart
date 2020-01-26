@@ -149,7 +149,7 @@ class PhoenixChannel {
     return _joinPush;
   }
 
-  Push push(String event, dynamic payload, [Duration newTimeout]) {
+  Push push(String event, Map payload, [Duration newTimeout]) {
     assert(_joinedOnce);
 
     final pushEvent = Push(
@@ -270,7 +270,7 @@ class PhoenixChannel {
   void _onClose(PushResponse response) {
     trigger(Message(
       event: PhoenixChannelEvents.close,
-      payload: 'leave',
+      payload: {'ok': 'leave'},
     ));
   }
 }

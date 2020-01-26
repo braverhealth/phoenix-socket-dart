@@ -8,7 +8,7 @@ import 'message.dart';
 
 class PushResponse implements Equatable {
   final String status;
-  final dynamic response;
+  final Map response;
 
   PushResponse({this.status, this.response});
 
@@ -19,13 +19,18 @@ class PushResponse implements Equatable {
     );
   }
 
+  bool get isOk => status == 'ok';
+  bool get isError => status == 'error';
+
   @override
   List<Object> get props => [status, response];
 }
 
+typedef PayloadGetter = Map Function();
+
 class Push {
   final String event;
-  final dynamic Function() payload;
+  final PayloadGetter payload;
   final PhoenixChannel _channel;
   final ListMultimap<String, Completer<PushResponse>> _receivers =
       ListMultimap();
@@ -64,7 +69,7 @@ class Push {
 
   Future<PushResponse> onReply(String status) {
     if (status == _received?.status) {
-      return Future.value(_received.response);
+      return Future.value(_received);
     }
     var completer = Completer<PushResponse>();
     _receivers[status].add(completer);
