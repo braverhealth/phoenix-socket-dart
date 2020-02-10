@@ -9,7 +9,7 @@ class Message implements Equatable {
   final String ref;
   final String topic;
   final String event;
-  final Map payload;
+  final Map<String, dynamic> payload;
 
   factory Message.fromJson(List<dynamic> parts) {
     return Message(

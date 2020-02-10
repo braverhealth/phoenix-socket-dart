@@ -14,7 +14,7 @@ class PushResponse implements Equatable {
 
   factory PushResponse.fromPayload(Map<String, dynamic> data) {
     return PushResponse(
-      status: data['status'],
+      status: data['status'] as String,
       response: data['response'],
     );
   }
@@ -26,7 +26,7 @@ class PushResponse implements Equatable {
   List<Object> get props => [status, response];
 }
 
-typedef PayloadGetter = Map Function();
+typedef PayloadGetter = Map<String, dynamic> Function();
 
 class Push {
   final String event;
