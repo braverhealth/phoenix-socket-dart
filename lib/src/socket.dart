@@ -187,7 +187,7 @@ class PhoenixSocket {
     _socketState = SocketState.connecting;
 
     try {
-      await sendMessage(_heartbeatMessage());
+      _startHeartbeat();
 
       _socketState = SocketState.connected;
       _stateStreamController.add(OpenEvent());
@@ -269,7 +269,7 @@ class PhoenixSocket {
 
   void _startHeartbeat() {
     _reconnectAttempts = 0;
-    _heartbeatTimeout = Timer.periodic(_options.heartbeat, _sendHeartbeat);
+    _heartbeatTimeout ??= Timer.periodic(_options.heartbeat, _sendHeartbeat);
   }
 
   void _cancelHeartbeat() {
@@ -285,12 +285,11 @@ class PhoenixSocket {
       return;
     }
     await sendMessage(_heartbeatMessage());
-    _nextHeartbeatRef = null;
   }
 
   Message _heartbeatMessage() {
     _nextHeartbeatRef = nextRef;
-    return Message.heartbeat(nextRef);
+    return Message.heartbeat(_nextHeartbeatRef);
   }
 
   void _onMessage(Message message) {
@@ -319,7 +318,9 @@ class PhoenixSocket {
 
   void _onSocketError(error, stacktrace) {
     if (_socketState == SocketState.closing ||
-        _socketState == SocketState.closed) return;
+        _socketState == SocketState.closed) {
+      return;
+    }
 
     _stateStreamController
         ?.add(SocketError(error: error, stacktrace: stacktrace));

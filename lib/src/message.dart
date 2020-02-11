@@ -26,6 +26,7 @@ class Message implements Equatable {
       topic: 'phoenix',
       event: 'heartbeat',
       payload: {},
+      ref: ref,
     );
   }
 
