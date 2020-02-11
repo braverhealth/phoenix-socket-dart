@@ -7,7 +7,8 @@ environment:
   sdk: ">=2.3.0 <3.0.0"
 
 dependencies:
-  phoenix_socket: ^0.0.2
+  phoenix_socket: 
+    path: ../
   uuid: ^2.0.4
 
 dev_dependencies: {}
