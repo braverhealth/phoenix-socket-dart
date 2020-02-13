@@ -10,9 +10,9 @@ void main() {
       final socket = PhoenixSocket(addr);
 
       await socket.connect();
-      var reply =
-          await socket.addChannel(topic: 'channel1').join().onReply('ok');
-      expect(reply.status, equals('ok'));
+      await socket.addChannel(topic: 'channel1').join().onReply('ok', (reply) {
+        expect(reply.status, equals('ok'));
+      });
     });
 
     test('can join a channel requiring parameters', () async {
@@ -34,8 +34,9 @@ void main() {
       var channel1 = socket.addChannel(
           topic: 'channel1:hello', parameters: {'password': 'deadbee?'});
 
-      final error = await channel1.join().onReply('error');
-      expect(error.status, equals('error'));
+      await channel1.join().onReply('error', (error) {
+        expect(error.status, equals('error'));
+      });
     });
 
     test('can handle channel crash on join', () async {
@@ -46,9 +47,10 @@ void main() {
       var channel1 = socket
           .addChannel(topic: 'channel1:hello', parameters: {'crash!': '11'});
 
-      final error = await channel1.join().onReply('error');
-      expect(error.status, equals('error'));
-      expect(error.response, equals({'reason': 'join crashed'}));
+      await channel1.join().onReply('error', (error) {
+        expect(error.status, equals('error'));
+        expect(error.response, equals({'reason': 'join crashed'}));
+      });
     });
 
     test('can send messages to channels and receive a reply', () async {
