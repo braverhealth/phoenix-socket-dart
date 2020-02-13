@@ -32,7 +32,7 @@ class Push {
   final String event;
   final PayloadGetter payload;
   final PhoenixChannel _channel;
-  final ListMultimap<String, Completer<PushResponse>> _receivers =
+  final ListMultimap<String, void Function(PushResponse)> _receivers =
       ListMultimap();
 
   static String replyEventName(ref) => 'chan_reply_$ref';
@@ -67,12 +67,13 @@ class Push {
 
   bool hasReceived(String status) => _received?.status == status;
 
-  Future<PushResponse> onReply(String status) {
+  Future<PushResponse> onReply(
+      String status, void Function(PushResponse) callback) {
     if (status == _received?.status) {
       return Future.value(_received);
     }
     var completer = Completer<PushResponse>();
-    _receivers[status].add(completer);
+    _receivers[status].add(callback);
     return completer.future;
   }
 
@@ -91,9 +92,13 @@ class Push {
 
   void trigger(PushResponse response) {
     _received = response;
-    _responseCompleter?.complete(response);
-    for (var completer in _receivers[response.status]) {
-      completer.complete(response);
+
+    if (_responseCompleter != null && !_responseCompleter.isCompleted) {
+      _responseCompleter.complete(response);
+    }
+    _responseCompleter = null;
+    for (var cb in _receivers[response.status]) {
+      cb(response);
     }
   }
 
@@ -108,7 +113,7 @@ class Push {
       _boundCompleter = true;
     }
 
-    _timeoutTimer = Timer(timeout, () {
+    _timeoutTimer ??= Timer(timeout, () {
       _timeoutTimer = null;
       _channel.trigger(Message(
         event: _replyEvent,
@@ -124,6 +129,7 @@ class Push {
     if (hasReceived('timeout')) return;
     _sent = true;
 
+    _boundCompleter = false;
     startTimeout();
     await _channel.socket.sendMessage(Message(
       event: event,

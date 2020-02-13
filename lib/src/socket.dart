@@ -56,7 +56,12 @@ class SocketEvent {}
 
 class OpenEvent extends SocketEvent {}
 
-class CloseEvent extends SocketEvent {}
+class CloseEvent extends SocketEvent {
+  final String reason;
+  final int code;
+
+  CloseEvent({this.reason, this.code});
+}
 
 class SocketError extends SocketEvent {
   final dynamic error;
@@ -177,7 +182,9 @@ class PhoenixSocket {
   /// If the attempt fails, retries will be triggered at intervals specified
   /// by retryAfterIntervalMS
   Future<PhoenixSocket> connect() async {
-    assert(_ws == null);
+    if (_ws != null) {
+      return this;
+    }
 
     _ws = WebSocketChannel.connect(_mountPoint);
     _ws.stream.listen(_onSocketData, cancelOnError: true)
@@ -187,8 +194,6 @@ class PhoenixSocket {
     _socketState = SocketState.connecting;
 
     try {
-      _startHeartbeat();
-
       _socketState = SocketState.connected;
       _stateStreamController.add(OpenEvent());
 
@@ -198,9 +203,15 @@ class PhoenixSocket {
       if (durationIdx >= reconnects.length) {
         rethrow;
       }
+      _ws = null;
       var duration = reconnects[durationIdx];
       return Future.delayed(duration, () => connect());
     }
+  }
+
+  Future<PhoenixSocket> reconnect() async {
+    await connect();
+    return this;
   }
 
   void dispose([int code, String reason]) {
@@ -287,6 +298,12 @@ class PhoenixSocket {
     await sendMessage(_heartbeatMessage());
   }
 
+  void _triggerChannelErrors() {
+    for (var channel in channels.values) {
+      channel.triggerError();
+    }
+  }
+
   Message _heartbeatMessage() {
     _nextHeartbeatRef = nextRef;
     return Message.heartbeat(_nextHeartbeatRef);
@@ -328,9 +345,7 @@ class PhoenixSocket {
     for (var completer in _pendingMessages.values) {
       completer.completeError(error, stacktrace);
     }
-    for (var channel in channels.values) {
-      channel.triggerError();
-    }
+    _triggerChannelErrors();
     _pendingMessages.clear();
   }
 
@@ -339,7 +354,11 @@ class PhoenixSocket {
       return;
     }
 
-    var ev = CloseEvent();
+    var ev = CloseEvent(
+      reason: _ws.closeReason,
+      code: _ws.closeCode,
+    );
+    _ws = null;
     _stateStreamController?.add(ev);
 
     if (_socketState == SocketState.closing) {
@@ -349,6 +368,8 @@ class PhoenixSocket {
       _receiveStreamController = null;
       _socketState = SocketState.closed;
       return;
+    } else {
+      _triggerChannelErrors();
     }
 
     for (var completer in _pendingMessages.values) {

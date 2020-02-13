@@ -109,6 +109,13 @@ class PhoenixChannel {
       _waiters.forEach((k, waiter) =>
           waiter.completeError(Message(event: PhoenixChannelEvents.error)));
       _waiters.clear();
+      _state = PhoenixChannelState.errored;
+      if (isJoining) {
+        _joinPush.reset();
+      }
+      if (socket.isConnected) {
+        _startRejoinTimer();
+      }
     }
   }
 
@@ -125,8 +132,8 @@ class PhoenixChannel {
     );
 
     leavePush
-      ..onReply('ok').then(_onClose)
-      ..onReply('timeout').then(_onClose)
+      ..onReply('ok', _onClose)
+      ..onReply('timeout', _onClose)
       ..send();
 
     if (!socket.isConnected || !isJoined) {
@@ -169,6 +176,11 @@ class PhoenixChannel {
     return pushEvent;
   }
 
+  void rejoin() {
+    _rejoinTimer?.cancel();
+    _attemptJoin();
+  }
+
   List<StreamSubscription> _subscribeToSocketStreams(PhoenixSocket socket) {
     return [
       socket.streamForTopic(topic).where(_isMember).listen(_controller.add),
@@ -190,19 +202,19 @@ class PhoenixChannel {
       timeout: providedTimeout ?? timeout,
     );
     push
-      ..onReply('ok').then((PushResponse response) {
+      ..onReply('ok', (PushResponse response) {
         _state = PhoenixChannelState.joined;
         _rejoinTimer?.cancel();
         pushBuffer.forEach((push) => push.send());
         pushBuffer.clear();
       })
-      ..onReply('error').then((PushResponse response) {
+      ..onReply('error', (PushResponse response) {
         _state = PhoenixChannelState.errored;
         if (socket.isConnected) {
           _startRejoinTimer();
         }
       })
-      ..onReply('timeout').then((PushResponse response) {
+      ..onReply('timeout', (PushResponse response) {
         var leavePush = Push(
           this,
           event: PhoenixChannelEvents.leave,
@@ -261,8 +273,9 @@ class PhoenixChannel {
       _controller.add(message.asReplyEvent());
     }
     if (_waiters.containsKey(message.event)) {
-      _waiters[message.event]
-          .forEach((completer) => completer.complete(message));
+      _waiters[message.event].forEach((completer) {
+        completer.complete(message);
+      });
       removeWaiters(message.event);
     }
   }
