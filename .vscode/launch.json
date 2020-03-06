@@ -6,9 +6,9 @@
     "configurations": [
         {
             "name": "Dart",
-            "program": "bin/main.dart",
+            "type": "dart",
             "request": "launch",
-            "type": "dart"
+            "program": "example/lib/main.dart"
         }
     ]
 }
