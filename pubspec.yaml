@@ -10,7 +10,7 @@ environment:
   sdk: ">=2.3.0 <3.0.0"
 
 dependencies:
-  equatable: ^1.0.2
+  equatable: ^1.1.0
   quiver: ^2.0.0
   meta: ^1.1.8
   web_socket_channel: ^1.1.0
