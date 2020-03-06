@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:core';
+import 'dart:developer' as dev;
 
 import 'package:pedantic/pedantic.dart';
 import 'package:meta/meta.dart';
@@ -295,7 +296,14 @@ class PhoenixSocket {
       unawaited(_ws.sink.close(normalClosure, 'heartbeat timeout'));
       return;
     }
-    await sendMessage(_heartbeatMessage());
+    try {
+      await sendMessage(_heartbeatMessage());
+    } catch (err, stacktrace) {
+      dev.log(
+        'Heartbeat message failed with error: $err',
+        stackTrace: stacktrace,
+      );
+    }
   }
 
   void _triggerChannelErrors() {
