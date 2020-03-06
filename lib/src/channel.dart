@@ -7,6 +7,7 @@ import 'message.dart';
 import 'push.dart';
 import 'socket.dart';
 
+/// Encapsulates constants used in the protocol over [PhoenixChannel].
 class PhoenixChannelEvents {
   static String close = 'phx_close';
   static String error = 'phx_error';
@@ -31,6 +32,8 @@ enum PhoenixChannelState {
   leaving,
 }
 
+/// Bi-directional and isolated communication channel shared between differents clients
+/// through a common Phoenix server.
 class PhoenixChannel {
   final Map<String, String> _parameters;
   final PhoenixSocket _socket;
