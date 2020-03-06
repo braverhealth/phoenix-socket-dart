@@ -51,6 +51,9 @@ class Message implements Equatable {
   @override
   List<Object> get props => [joinRef, ref, topic, event, payload];
 
+  @override
+  bool get stringify => true;
+
   Message asReplyEvent() {
     return Message(
       ref: ref,

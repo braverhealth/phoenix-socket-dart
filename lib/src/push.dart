@@ -24,6 +24,9 @@ class PushResponse implements Equatable {
 
   @override
   List<Object> get props => [status, response];
+
+  @override
+  bool get stringify => true;
 }
 
 typedef PayloadGetter = Map<String, dynamic> Function();
