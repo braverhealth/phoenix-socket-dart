@@ -38,6 +38,7 @@ void main() {
       await for (var event in socket.openStream) {
         expect(event, isA<OpenEvent>());
         socket.dispose();
+        break;
       }
     });
 
