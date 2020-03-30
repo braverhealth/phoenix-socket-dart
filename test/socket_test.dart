@@ -36,8 +36,8 @@ void main() {
       unawaited(socket.connect());
 
       await for (var event in socket.openStream) {
-        expect(event, isA<OpenEvent>());
-        socket.dispose();
+        expect(event, isA<PhoenixSocketOpenEvent>());
+        socket.close();
         break;
       }
     });
@@ -53,12 +53,12 @@ void main() {
 
       await socket.connect().then((_) {
         Timer(Duration(milliseconds: 100), () {
-          socket.dispose();
+          socket.close();
         });
       });
 
       socket.closeStream.listen((event) {
-        expect(event, isA<CloseEvent>());
+        expect(event, isA<PhoenixSocketCloseEvent>());
         completer.complete();
       });
 
