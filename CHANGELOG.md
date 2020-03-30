@@ -1,3 +1,9 @@
+## [0.2.0]
+
+* Fix some statement management issues
+* Clean up classes file location
+* Improve API to be more consistent with behavior
+
 ## [0.1.1]
 
 * Add some very incomplete docs
