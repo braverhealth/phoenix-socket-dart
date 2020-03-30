@@ -127,15 +127,18 @@ class PhoenixSocket {
     }
 
     _ws = WebSocketChannel.connect(_mountPoint);
-    _ws.stream.listen(_onSocketData, cancelOnError: true)
-      ..onError(_onSocketError)
-      ..onDone(_onSocketClosed);
+    _ws.stream
+        .where(_shouldPipeMessage)
+        .listen(_onSocketData, cancelOnError: true)
+          ..onError(_noSocketError)
+          ..onDone(_onSocketClosed);
 
     _socketState = SocketState.connecting;
 
     try {
       _socketState = SocketState.connected;
       _stateStreamController.add(PhoenixSocketOpenEvent());
+      await _sendHeartbeat(_heartbeatTimeout);
       return this;
     } catch (err) {
       var durationIdx = _reconnectAttempts++;
@@ -148,26 +151,29 @@ class PhoenixSocket {
     }
   }
 
-  Future<PhoenixSocket> reconnect() async {
-    await connect();
-    return this;
+  void close([int code, String reason]) {
+    if (isConnected) {
+      _socketState = SocketState.closing;
+      _ws.sink.close(code, reason);
+    } else {
+      dispose();
+    }
   }
 
-  void dispose([int code, String reason]) {
-    _socketState = SocketState.closing;
-
+  void dispose() {
     _subscriptions.forEach((sub) => sub.cancel());
     _subscriptions.clear();
 
     _pendingMessages.clear();
 
-    channels.forEach((_, channel) => channel.dispose());
+    channels.forEach((_, channel) => channel.close());
     channels.clear();
 
     _topicStreams.forEach((_, controller) => controller.close());
     _topicStreams.clear();
 
-    _ws.sink.close(code, reason);
+    _stateStreamController.close();
+    _receiveStreamController.close();
   }
 
   Future<Message> waitForMessage(Message message) {
@@ -203,8 +209,21 @@ class PhoenixSocket {
   }
 
   void removeChannel(PhoenixChannel channel) {
+    _topicStreams.remove(channel.topic);
     channels.remove(channel.reference);
-    channel.dispose();
+    channel.close();
+  }
+
+  bool _shouldPipeMessage(dynamic event) {
+    if (_socketState != SocketState.closed) {
+      return true;
+    } else {
+      dev.log(
+        '[phoenix_socket] Message from socket dropped because PhoenixSocket is closed',
+      );
+      dev.log('$event');
+      return false;
+    }
   }
 
   static Uri _buildMountPoint(String endpoint, PhoenixSocketOptions options) {
@@ -227,7 +246,7 @@ class PhoenixSocket {
     _heartbeatTimeout = null;
   }
 
-  void _sendHeartbeat(Timer timer) async {
+  Future<void> _sendHeartbeat(Timer timer) async {
     if (!isConnected) return;
     if (_nextHeartbeatRef != null) {
       _nextHeartbeatRef = null;
@@ -238,7 +257,7 @@ class PhoenixSocket {
       await sendMessage(_heartbeatMessage());
     } catch (err, stacktrace) {
       dev.log(
-        'Heartbeat message failed with error: $err',
+        '[phoenix_socket] Heartbeat message failed with error: $err',
         stackTrace: stacktrace,
       );
     }
@@ -279,7 +298,7 @@ class PhoenixSocket {
     }
   }
 
-  void _onSocketError(error, stacktrace) {
+  void _noSocketError(dynamic error, dynamic stacktrace) {
     if (_socketState == SocketState.closing ||
         _socketState == SocketState.closed) {
       return;
@@ -293,6 +312,8 @@ class PhoenixSocket {
     }
     _triggerChannelExceptions(PhoenixException(socketError: socketError));
     _pendingMessages.clear();
+
+    _onSocketClosed();
   }
 
   void _onSocketClosed() {
@@ -308,11 +329,8 @@ class PhoenixSocket {
     _stateStreamController?.add(ev);
 
     if (_socketState == SocketState.closing) {
-      _receiveStreamController.close();
-      _stateStreamController.close();
-      _stateStreamController = null;
-      _receiveStreamController = null;
       _socketState = SocketState.closed;
+      dispose();
       return;
     } else {
       _triggerChannelExceptions(PhoenixException(socketClosed: ev));

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as dev;
 
 import 'package:quiver/collection.dart';
 import 'package:equatable/equatable.dart';
@@ -55,7 +56,7 @@ class Push {
 
   Completer<PushResponse> _responseCompleter;
   Future<PushResponse> get future {
-    _responseCompleter ??= Completer();
+    _responseCompleter ??= Completer<PushResponse>();
     return _responseCompleter.future;
   }
 
@@ -71,14 +72,11 @@ class Push {
 
   bool hasReceived(String status) => _received?.status == status;
 
-  Future<PushResponse> onReply(
-      String status, void Function(PushResponse) callback) {
-    if (status == _received?.status) {
-      return Future.value(_received);
-    }
-    var completer = Completer<PushResponse>();
+  void onReply(
+    String status,
+    void Function(PushResponse) callback,
+  ) {
     _receivers[status].add(callback);
-    return completer.future;
   }
 
   void cancelTimeout() {
@@ -97,13 +95,23 @@ class Push {
   void trigger(PushResponse response) {
     _received = response;
 
-    if (_responseCompleter != null && !_responseCompleter.isCompleted) {
-      _responseCompleter.complete(response);
+    if (_responseCompleter != null) {
+      if (_responseCompleter.isCompleted) {
+        dev.log('''
+          [phoenix_socket] Push being completed more than once
+              event: $_replyEvent, status: ${response.status}
+          ''');
+        return;
+      } else {
+        _responseCompleter.complete(response);
+      }
     }
-    _responseCompleter = null;
     for (var cb in _receivers[response.status]) {
       cb(response);
     }
+    _receivers[response.status].clear();
+    _channel.removeWaiters(_replyEvent);
+  }
 
   void _receiveResponse(dynamic response) {
     if (response is Message) {

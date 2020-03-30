@@ -96,13 +96,20 @@ class PhoenixChannel {
     _waiters.removeAll(replyRef);
   }
 
-  void dispose() {
+  void close() {
+    if (_state == PhoenixChannelState.closed) {
+      return;
+    }
+    _state = PhoenixChannelState.closed;
+
     pushBuffer.forEach((push) => push.cancelTimeout());
+    _subscriptions.forEach((sub) => sub.cancel());
+
     _joinPush?.cancelTimeout();
 
-    _subscriptions.forEach((sub) => sub.cancel());
     _controller.close();
     _waiters.clear();
+    _socket.removeChannel(this);
   }
 
   void trigger(Message message) => _controller.add(message);
@@ -127,6 +134,7 @@ class PhoenixChannel {
     _rejoinTimer?.cancel();
 
     _state = PhoenixChannelState.leaving;
+
     var leavePush = Push(
       this,
       event: PhoenixChannelEvents.leave,
@@ -137,7 +145,7 @@ class PhoenixChannel {
     leavePush
       ..onReply('ok', _onClose)
       ..onReply('timeout', _onClose)
-      ..send();
+      ..send().then((value) => close());
 
     if (!socket.isConnected || !isJoined) {
       leavePush.trigger(PushResponse(status: 'ok'));
@@ -159,7 +167,7 @@ class PhoenixChannel {
     return _joinPush;
   }
 
-  Push push(String event, Map payload, [Duration newTimeout]) {
+  Push push(String event, Map<String, dynamic> payload, [Duration newTimeout]) {
     assert(_joinedOnce);
 
     final pushEvent = Push(
@@ -261,8 +269,7 @@ class PhoenixChannel {
   void _onMessage(Message message) {
     if (message.event == PhoenixChannelEvents.close) {
       _rejoinTimer?.cancel();
-      _state = PhoenixChannelState.closed;
-      socket.removeChannel(this);
+      close();
     } else if (message.event == PhoenixChannelEvents.error) {
       if (isJoining) {
         _joinPush.reset();
