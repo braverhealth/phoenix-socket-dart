@@ -10,6 +10,8 @@
 library phoenix_socket;
 
 export 'src/channel.dart';
+export 'src/events.dart';
+export 'src/exception.dart';
 export 'src/message.dart';
 export 'src/presence.dart';
 export 'src/push.dart';

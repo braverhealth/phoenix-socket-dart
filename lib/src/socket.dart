@@ -2,12 +2,15 @@ import 'dart:async';
 import 'dart:core';
 import 'dart:developer' as dev;
 
+import 'package:rxdart/rxdart.dart';
 import 'package:pedantic/pedantic.dart';
 import 'package:meta/meta.dart';
 import 'package:web_socket_channel/status.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'channel.dart';
+import 'events.dart';
+import 'exception.dart';
 import 'message.dart';
 
 /// Options for the open Phoenix socket.
@@ -53,26 +56,6 @@ class PhoenixSubscription {
   void cancel() => subscription.cancel();
 }
 
-class SocketEvent {}
-
-class OpenEvent extends SocketEvent {}
-
-class CloseEvent extends SocketEvent {
-  final String reason;
-  final int code;
-
-  CloseEvent({this.reason, this.code});
-}
-
-class SocketError extends SocketEvent {
-  final dynamic error;
-  final dynamic stacktrace;
-
-  SocketError({
-    this.error,
-    this.stacktrace,
-  });
-}
 
 enum SocketState {
   closed,
@@ -85,22 +68,23 @@ class PhoenixSocket {
   final Map<String, Completer<Message>> _pendingMessages = {};
   final Map<String, StreamController> _topicStreams = {};
 
+  final BehaviorSubject<PhoenixSocketEvent> _stateStreamController =
+      BehaviorSubject();
   Uri _mountPoint;
   SocketState _socketState;
 
   WebSocketChannel _ws;
 
-  Stream<OpenEvent> _openStream;
-  Stream<CloseEvent> _closeStream;
-  Stream<SocketError> _errorStream;
+  Stream<PhoenixSocketOpenEvent> _openStream;
+  Stream<PhoenixSocketCloseEvent> _closeStream;
+  Stream<PhoenixSocketErrorEvent> _errorStream;
   Stream<Message> _messageStream;
 
-  Stream<OpenEvent> get openStream => _openStream;
-  Stream<CloseEvent> get closeStream => _closeStream;
-  Stream<SocketError> get errorStream => _errorStream;
+  Stream<PhoenixSocketOpenEvent> get openStream => _openStream;
+  Stream<PhoenixSocketCloseEvent> get closeStream => _closeStream;
+  Stream<PhoenixSocketErrorEvent> get errorStream => _errorStream;
   Stream<Message> get messageStream => _messageStream;
 
-  StreamController<SocketEvent> _stateStreamController;
   StreamController<String> _receiveStreamController;
 
   List<Duration> reconnects = [
@@ -138,22 +122,20 @@ class PhoenixSocket {
     _mountPoint = _buildMountPoint(endpoint, _options);
 
     _receiveStreamController = StreamController.broadcast();
-    _stateStreamController = StreamController.broadcast();
-
     _messageStream =
         _receiveStreamController.stream.map(MessageSerializer.decode);
 
     _openStream = _stateStreamController.stream
-        .where((event) => event is OpenEvent)
-        .cast<OpenEvent>();
+        .where((event) => event is PhoenixSocketOpenEvent)
+        .cast<PhoenixSocketOpenEvent>();
 
     _closeStream = _stateStreamController.stream
-        .where((event) => event is CloseEvent)
-        .cast<CloseEvent>();
+        .where((event) => event is PhoenixSocketCloseEvent)
+        .cast<PhoenixSocketCloseEvent>();
 
     _errorStream = _stateStreamController.stream
-        .where((event) => event is SocketError)
-        .cast<SocketError>();
+        .where((event) => event is PhoenixSocketErrorEvent)
+        .cast<PhoenixSocketErrorEvent>();
 
     _subscriptions = [
       _messageStream.listen(_onMessage),
@@ -196,8 +178,7 @@ class PhoenixSocket {
 
     try {
       _socketState = SocketState.connected;
-      _stateStreamController.add(OpenEvent());
-
+      _stateStreamController.add(PhoenixSocketOpenEvent());
       return this;
     } catch (err) {
       var durationIdx = _reconnectAttempts++;
@@ -306,9 +287,9 @@ class PhoenixSocket {
     }
   }
 
-  void _triggerChannelErrors() {
+  void _triggerChannelExceptions(PhoenixException exception) {
     for (var channel in channels.values) {
-      channel.triggerError();
+      channel.triggerError(exception);
     }
   }
 
@@ -346,14 +327,14 @@ class PhoenixSocket {
         _socketState == SocketState.closed) {
       return;
     }
-
-    _stateStreamController
-        ?.add(SocketError(error: error, stacktrace: stacktrace));
+    var socketError =
+        PhoenixSocketErrorEvent(error: error, stacktrace: stacktrace);
+    _stateStreamController?.add(socketError);
 
     for (var completer in _pendingMessages.values) {
       completer.completeError(error, stacktrace);
     }
-    _triggerChannelErrors();
+    _triggerChannelExceptions(PhoenixException(socketError: socketError));
     _pendingMessages.clear();
   }
 
@@ -362,7 +343,7 @@ class PhoenixSocket {
       return;
     }
 
-    var ev = CloseEvent(
+    var ev = PhoenixSocketCloseEvent(
       reason: _ws.closeReason,
       code: _ws.closeCode,
     );
@@ -377,7 +358,7 @@ class PhoenixSocket {
       _socketState = SocketState.closed;
       return;
     } else {
-      _triggerChannelErrors();
+      _triggerChannelExceptions(PhoenixException(socketClosed: ev));
     }
 
     for (var completer in _pendingMessages.values) {

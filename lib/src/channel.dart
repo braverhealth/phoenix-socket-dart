@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:pedantic/pedantic.dart';
 import 'package:quiver/collection.dart';
 
+import 'exception.dart';
 import 'message.dart';
 import 'push.dart';
 import 'socket.dart';
@@ -106,11 +107,10 @@ class PhoenixChannel {
 
   void trigger(Message message) => _controller.add(message);
 
-  void triggerError() {
+  void triggerError(PhoenixException error) {
     if (!(isErrored || isLeaving || isClosed)) {
-      trigger(Message(event: PhoenixChannelEvents.error));
-      _waiters.forEach((k, waiter) =>
-          waiter.completeError(Message(event: PhoenixChannelEvents.error)));
+      trigger(error.message);
+      _waiters.forEach((k, waiter) => waiter.completeError(error));
       _waiters.clear();
       _state = PhoenixChannelState.errored;
       if (isJoining) {

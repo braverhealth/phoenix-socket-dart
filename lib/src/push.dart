@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:quiver/collection.dart';
 import 'package:equatable/equatable.dart';
 
+import 'exception.dart';
 import 'channel.dart';
 import 'message.dart';
 
@@ -103,16 +104,26 @@ class Push {
     for (var cb in _receivers[response.status]) {
       cb(response);
     }
+
+  void _receiveResponse(dynamic response) {
+    if (response is Message) {
+      cancelTimeout();
+      if (response.event == _replyEvent) {
+        trigger(PushResponse.fromPayload(response.payload));
+      }
+    } else if (response is PhoenixException) {
+      cancelTimeout();
+      if (_responseCompleter is Completer) {
+        _responseCompleter.completeError(response);
+      }
+    }
   }
 
   void startTimeout() {
     if (!_boundCompleter) {
-      _channel.onPushReply(_replyEvent).then((Message response) {
-        if (response is Message) {
-          cancelTimeout();
-          trigger(PushResponse.fromPayload(response.payload));
-        }
-      });
+      _channel.onPushReply(_replyEvent)
+        ..then(_receiveResponse)
+        ..catchError(_receiveResponse);
       _boundCompleter = true;
     }
 
@@ -131,8 +142,8 @@ class Push {
   Future<void> send() async {
     if (hasReceived('timeout')) return;
     _sent = true;
-
     _boundCompleter = false;
+
     startTimeout();
     await _channel.socket.sendMessage(Message(
       event: event,
