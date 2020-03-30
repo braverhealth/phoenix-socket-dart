@@ -51,6 +51,8 @@ class Message implements Equatable {
   @override
   List<Object> get props => [joinRef, ref, topic, event, payload];
 
+  bool get isReply => event.startsWith('chan_reply_');
+
   @override
   bool get stringify => true;
 
