@@ -27,6 +27,9 @@ class PhoenixSocket {
 
   final BehaviorSubject<PhoenixSocketEvent> _stateStreamController =
       BehaviorSubject();
+  final StreamController<String> _receiveStreamController =
+      StreamController.broadcast();
+
   Uri _mountPoint;
   SocketState _socketState;
 
@@ -41,8 +44,6 @@ class PhoenixSocket {
   Stream<PhoenixSocketCloseEvent> get closeStream => _closeStream;
   Stream<PhoenixSocketErrorEvent> get errorStream => _errorStream;
   Stream<Message> get messageStream => _messageStream;
-
-  StreamController<String> _receiveStreamController;
 
   List<Duration> reconnects = [
     Duration(seconds: 1000),
@@ -78,7 +79,6 @@ class PhoenixSocket {
     _options = socketOptions ?? PhoenixSocketOptions();
     _mountPoint = _buildMountPoint(endpoint, _options);
 
-    _receiveStreamController = StreamController.broadcast();
     _messageStream =
         _receiveStreamController.stream.map(MessageSerializer.decode);
 
