@@ -112,7 +112,8 @@ class PhoenixChannel {
     _socket.removeChannel(this);
   }
 
-  void trigger(Message message) => _controller.add(message);
+  void trigger(Message message) =>
+      _controller.isClosed ? null : _controller.add(message);
 
   void triggerError(PhoenixException error) {
     if (!(isErrored || isLeaving || isClosed)) {
