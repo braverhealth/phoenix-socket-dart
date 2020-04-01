@@ -1,3 +1,8 @@
+## [0.2.1]
+
+* Add much more logging using the logging library
+* Fix a couple of minor bugs
+
 ## [0.2.0]
 
 * Fix some statement management issues
