@@ -1,8 +1,11 @@
 import 'dart:convert';
 
+import 'package:logging/logging.dart';
 import 'package:equatable/equatable.dart';
 
 import 'push.dart';
+
+final Logger _logger = Logger('phoenix_socket.message');
 
 class Message implements Equatable {
   final String joinRef;
@@ -12,6 +15,7 @@ class Message implements Equatable {
   final Map<String, dynamic> payload;
 
   factory Message.fromJson(List<dynamic> parts) {
+    _logger.finest('Message decoded from $parts');
     return Message(
       joinRef: parts[0],
       ref: parts[1],

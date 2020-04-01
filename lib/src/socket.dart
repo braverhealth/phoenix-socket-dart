@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:core';
-import 'dart:developer' as dev;
+
+import 'package:logging/logging.dart';
 
 import 'package:rxdart/rxdart.dart';
 import 'package:pedantic/pedantic.dart';
@@ -20,6 +21,8 @@ enum SocketState {
   connecting,
   connected,
 }
+
+final Logger _logger = Logger('phoenix_socket.socket');
 
 class PhoenixSocket {
   final Map<String, Completer<Message>> _pendingMessages = {};
@@ -126,6 +129,7 @@ class PhoenixSocket {
       return this;
     }
 
+    _logger.finest('Attempting to connect');
     _ws = WebSocketChannel.connect(_mountPoint);
     _ws.stream
         .where(_shouldPipeMessage)
@@ -138,7 +142,9 @@ class PhoenixSocket {
     try {
       _socketState = SocketState.connected;
       _stateStreamController.add(PhoenixSocketOpenEvent());
+      _logger.finest('Waiting for initial heartbeat roundtrip');
       await _sendHeartbeat(_heartbeatTimeout);
+      _logger.info('Socket open');
       return this;
     } catch (err) {
       final durationIdx = _reconnectAttempts++;
@@ -181,7 +187,10 @@ class PhoenixSocket {
       return _pendingMessages[message.ref].future;
     }
     return Future.error(
-        ArgumentError("Message hasn't been sent using this socket."));
+      ArgumentError(
+        "Message hasn't been sent using this socket.",
+      ),
+    );
   }
 
   Future<Message> sendMessage(Message message) {
@@ -218,10 +227,10 @@ class PhoenixSocket {
     if (_socketState != SocketState.closed) {
       return true;
     } else {
-      dev.log(
-        '[phoenix_socket] Message from socket dropped because PhoenixSocket is closed',
+      _logger.warning(
+        'Message from socket dropped because PhoenixSocket is closed',
       );
-      dev.log('$event');
+      _logger.warning('  $event');
       return false;
     }
   }
@@ -255,10 +264,12 @@ class PhoenixSocket {
     }
     try {
       await sendMessage(_heartbeatMessage());
+      _logger.fine('[phoenix_socket] Heartbeat completed');
     } catch (err, stacktrace) {
-      dev.log(
-        '[phoenix_socket] Heartbeat message failed with error: $err',
-        stackTrace: stacktrace,
+      _logger.severe(
+        '[phoenix_socket] Heartbeat message failed with error',
+        err,
+        stacktrace,
       );
     }
   }
@@ -310,6 +321,7 @@ class PhoenixSocket {
     for (final completer in _pendingMessages.values) {
       completer.completeError(error, stacktrace);
     }
+    _logger.severe('Error on socket', error, stacktrace);
     _triggerChannelExceptions(PhoenixException(socketError: socketError));
     _pendingMessages.clear();
 
@@ -333,6 +345,9 @@ class PhoenixSocket {
       dispose();
       return;
     } else {
+      _logger.info(
+        'Socket closed with reason ${ev.reason} and code ${ev.code}',
+      );
       _triggerChannelExceptions(PhoenixException(socketClosed: ev));
     }
 

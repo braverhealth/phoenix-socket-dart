@@ -1,12 +1,14 @@
 import 'dart:async';
-import 'dart:developer' as dev;
 
+import 'package:logging/logging.dart';
 import 'package:quiver/collection.dart';
 import 'package:equatable/equatable.dart';
 
 import 'exception.dart';
 import 'channel.dart';
 import 'message.dart';
+
+final Logger _logger = Logger('phoenix_socket.push');
 
 class PushResponse implements Equatable {
   final String status;
@@ -97,19 +99,26 @@ class Push {
 
     if (_responseCompleter != null) {
       if (_responseCompleter.isCompleted) {
-        dev.log('''
-          [phoenix_socket] Push being completed more than once
-              event: $_replyEvent, status: ${response.status}
-          ''');
+        _logger.warning('Push being completed more than once');
+        _logger.warning('  event: $_replyEvent, status: ${response.status}');
         return;
       } else {
+        _logger.finer(
+          'Completing for $_replyEvent with response ${response.response}',
+        );
         _responseCompleter.complete(response);
       }
     }
+    _logger.finer(() {
+      if (_receivers[response.status].isNotEmpty) {
+        return 'Triggering ${_receivers[response.status].length}';
+      }
+      return null;
+    });
     for (final cb in _receivers[response.status]) {
       cb(response);
     }
-    _receivers[response.status].clear();
+    _receivers.clear();
     _channel.removeWaiters(_replyEvent);
   }
 
@@ -137,6 +146,7 @@ class Push {
 
     _timeoutTimer ??= Timer(timeout, () {
       _timeoutTimer = null;
+      _logger.warning('Push $_ref timed out');
       _channel.trigger(Message(
         event: _replyEvent,
         payload: {
@@ -148,7 +158,10 @@ class Push {
   }
 
   Future<void> send() async {
-    if (hasReceived('timeout')) return;
+    if (hasReceived('timeout')) {
+      _logger.warning('Trying to send push $_ref after timeout');
+      return;
+    }
     _sent = true;
     _boundCompleter = false;
 
