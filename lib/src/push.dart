@@ -106,7 +106,7 @@ class Push {
         _responseCompleter.complete(response);
       }
     }
-    for (var cb in _receivers[response.status]) {
+    for (final cb in _receivers[response.status]) {
       cb(response);
     }
     _receivers[response.status].clear();

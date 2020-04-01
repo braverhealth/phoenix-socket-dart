@@ -87,7 +87,7 @@ class PhoenixChannel {
   }
 
   Future<Message> onPushReply(replyRef) {
-    var completer = Completer<Message>();
+    final completer = Completer<Message>();
     _waiters[replyRef].add(completer);
     return completer.future;
   }
@@ -135,7 +135,7 @@ class PhoenixChannel {
 
     _state = PhoenixChannelState.leaving;
 
-    var leavePush = Push(
+    final leavePush = Push(
       this,
       event: PhoenixChannelEvents.leave,
       payload: () => {},
@@ -206,7 +206,7 @@ class PhoenixChannel {
   }
 
   Push _prepareJoin([Duration providedTimeout]) {
-    var push = Push(
+    final push = Push(
       this,
       event: PhoenixChannelEvents.join,
       payload: () => parameters,
@@ -226,7 +226,7 @@ class PhoenixChannel {
         }
       })
       ..onReply('timeout', (PushResponse response) {
-        var leavePush = Push(
+        final leavePush = Push(
           this,
           event: PhoenixChannelEvents.leave,
           payload: () => {},

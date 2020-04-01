@@ -29,7 +29,7 @@ class PhoenixPresence {
   Function() _syncHandler = () {};
 
   PhoenixPresence({this.channel, this.eventNames}) {
-    var eventNames = {stateEventName, diffEventName};
+    final eventNames = {stateEventName, diffEventName};
     _subscription = channel.messages
         .where((Message message) => eventNames.contains(message.event))
         .listen(_onMessage);
@@ -75,7 +75,7 @@ class PhoenixPresence {
   void _onMessage(Message message) {
     if (message.event == stateEventName) {
       _joinRef = channel.joinRef;
-      var newState = message.payload;
+      final newState = message.payload;
       state = _syncState(state, newState, _joinHandler, _leaveHandler);
       pendingDiffs.forEach((diff) {
         state = _syncDiff(state, diff, _joinHandler, _leaveHandler);
@@ -83,7 +83,7 @@ class PhoenixPresence {
       pendingDiffs = [];
       _syncHandler();
     } else if (message.event == diffEventName) {
-      var diff = message.payload;
+      final diff = message.payload;
       if (inPendingSyncState) {
         pendingDiffs.add(diff);
       } else {
@@ -100,9 +100,9 @@ Map<String, dynamic> _syncState(
   JoinHandler onJoin,
   LeaveHandler onLeave,
 ) {
-  var state = _clone(currentState);
-  var joins = {};
-  var leaves = {};
+  final state = _clone(currentState);
+  final joins = {};
+  final leaves = {};
 
   _map(state, (key, presence) {
     if (newState.containsKey(key)) {
@@ -111,16 +111,16 @@ Map<String, dynamic> _syncState(
   });
   _map(newState, (key, newPresence) {
     if (state.containsKey(key)) {
-      var currentPresence = state[key];
-      var newRefs = (newPresence.metas as List).map((m) => m.phx_ref).toSet();
-      var curRefs =
+      final currentPresence = state[key];
+      final newRefs = (newPresence.metas as List).map((m) => m.phx_ref).toSet();
+      final curRefs =
           (currentPresence.metas as List).map((m) => m.phx_ref).toSet();
 
-      var joinedMetas = (newPresence.metas as List)
+      final joinedMetas = (newPresence.metas as List)
           .where((m) => !curRefs.contains(m.phx_ref))
           .toList();
 
-      var leftMetas = (currentPresence.metas as List)
+      final leftMetas = (currentPresence.metas as List)
           .where((m) => !newRefs.contains(m.phx_ref))
           .toList();
 
@@ -145,26 +145,27 @@ Map<String, dynamic> _syncDiff(
   JoinHandler onJoin,
   LeaveHandler onLeave,
 ) {
-  var state = _clone(currentState);
+  final state = _clone(currentState);
 
   Map<String, dynamic> joins = diff['joins'];
   Map<String, dynamic> leaves = diff['leaves'];
 
   _map(joins, (key, newPresence) {
-    var currentPresence = state[key];
+    final currentPresence = state[key];
     state[key] = newPresence;
     if (currentPresence) {
-      var joinedRefs = (state[key].metas as List).map((m) => m.phx_ref).toSet();
-      var curMetas = (currentPresence.metas as List)
+      final joinedRefs =
+          (state[key].metas as List).map((m) => m.phx_ref).toSet();
+      final curMetas = (currentPresence.metas as List)
           .where((m) => !joinedRefs.contains(m.phx_ref));
       (state[key].metas as List).insertAll(0, curMetas);
     }
     onJoin(key, currentPresence, newPresence);
   });
   _map(leaves, (key, leftPresence) {
-    var currentPresence = state[key];
+    final currentPresence = state[key];
     if (!currentPresence) return;
-    var refsToRemove =
+    final refsToRemove =
         (leftPresence.metas as List).map((m) => m.phx_ref).toSet();
     currentPresence.metas = (currentPresence.metas as List)
         .where((p) => !refsToRemove.contains(p.phx_ref));

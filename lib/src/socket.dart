@@ -102,13 +102,13 @@ class PhoenixSocket {
   }
 
   Stream<Message> streamForTopic(String topic) {
-    var controller =
+    final controller =
         _topicStreams.putIfAbsent(topic, () => StreamController<Message>());
     return controller.stream;
   }
 
   StreamSink<Message> _sinkForTopic(String topic) {
-    var controller =
+    final controller =
         _topicStreams.putIfAbsent(topic, () => StreamController<Message>());
     return controller.sink;
   }
@@ -141,12 +141,12 @@ class PhoenixSocket {
       await _sendHeartbeat(_heartbeatTimeout);
       return this;
     } catch (err) {
-      var durationIdx = _reconnectAttempts++;
+      final durationIdx = _reconnectAttempts++;
       if (durationIdx >= reconnects.length) {
         rethrow;
       }
       _ws = null;
-      var duration = reconnects[durationIdx];
+      final duration = reconnects[durationIdx];
       return Future.delayed(duration, () => connect());
     }
   }
@@ -197,7 +197,7 @@ class PhoenixSocket {
     Map<String, String> parameters,
     Duration timeout,
   }) {
-    var channel = PhoenixChannel.fromSocket(
+    final channel = PhoenixChannel.fromSocket(
       this,
       topic: topic,
       parameters: parameters,
@@ -229,7 +229,7 @@ class PhoenixSocket {
   static Uri _buildMountPoint(String endpoint, PhoenixSocketOptions options) {
     var decodedUri = Uri.parse(endpoint);
     if (options?.params != null) {
-      var params = decodedUri.queryParameters.entries.toList();
+      final params = decodedUri.queryParameters.entries.toList();
       params.addAll(options.params.entries.toList());
       decodedUri = decodedUri.replace(queryParameters: Map.fromEntries(params));
     }
@@ -264,7 +264,7 @@ class PhoenixSocket {
   }
 
   void _triggerChannelExceptions(PhoenixException exception) {
-    for (var channel in channels.values) {
+    for (final channel in channels.values) {
       channel.triggerError(exception);
     }
   }
@@ -280,7 +280,7 @@ class PhoenixSocket {
     }
 
     if (_pendingMessages.containsKey(message.ref)) {
-      var completer = _pendingMessages[message.ref];
+      final completer = _pendingMessages[message.ref];
       _pendingMessages.remove(message.ref);
       completer.complete(message);
     }
@@ -303,11 +303,11 @@ class PhoenixSocket {
         _socketState == SocketState.closed) {
       return;
     }
-    var socketError =
+    final socketError =
         PhoenixSocketErrorEvent(error: error, stacktrace: stacktrace);
     _stateStreamController?.add(socketError);
 
-    for (var completer in _pendingMessages.values) {
+    for (final completer in _pendingMessages.values) {
       completer.completeError(error, stacktrace);
     }
     _triggerChannelExceptions(PhoenixException(socketError: socketError));
@@ -321,7 +321,7 @@ class PhoenixSocket {
       return;
     }
 
-    var ev = PhoenixSocketCloseEvent(
+    final ev = PhoenixSocketCloseEvent(
       reason: _ws.closeReason,
       code: _ws.closeCode,
     );
@@ -336,7 +336,7 @@ class PhoenixSocket {
       _triggerChannelExceptions(PhoenixException(socketClosed: ev));
     }
 
-    for (var completer in _pendingMessages.values) {
+    for (final completer in _pendingMessages.values) {
       completer.completeError(ev);
     }
     _pendingMessages.clear();
