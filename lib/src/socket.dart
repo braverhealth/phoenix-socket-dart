@@ -185,7 +185,7 @@ class PhoenixSocket {
   }
 
   Future<Message> sendMessage(Message message) {
-    _ws.sink.add(message.encode());
+    _ws.sink.add(MessageSerializer.encode(message));
     _pendingMessages[message.ref] = Completer<Message>();
     return _pendingMessages[message.ref].future;
   }

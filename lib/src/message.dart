@@ -38,14 +38,16 @@ class Message implements Equatable {
     this.payload,
   });
 
-  String encode() {
-    return jsonEncode([
+  Object encode() {
+    final parts = [
       joinRef,
       ref,
       topic,
       event,
       payload,
-    ]);
+    ];
+    _logger.finest('Message encoded to $parts');
+    return parts;
   }
 
   @override
@@ -72,7 +74,7 @@ class MessageSerializer {
     return Message.fromJson(jsonDecode(rawData));
   }
 
-  String encode(Message message) {
-    return message.encode();
+  static String encode(Message message) {
+    return jsonEncode(message.encode());
   }
 }
