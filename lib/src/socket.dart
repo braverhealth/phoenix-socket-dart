@@ -214,10 +214,12 @@ class PhoenixSocket {
     );
 
     channels[channel.reference] = channel;
+    _logger.finer(() => 'Adding channel ${channel.topic}');
     return channel;
   }
 
   void removeChannel(PhoenixChannel channel) {
+    _logger.finer(() => 'Removing channel ${channel.topic}');
     _topicStreams.remove(channel.topic);
     channels.remove(channel.reference);
     channel.close();
@@ -275,7 +277,13 @@ class PhoenixSocket {
   }
 
   void _triggerChannelExceptions(PhoenixException exception) {
+    _logger.fine(
+      () => 'Trigger channel exceptions on ${channels.length} channels',
+    );
     for (final channel in channels.values) {
+      _logger.finer(
+        () => 'Trigger channel exceptions on ${channel.topic}',
+      );
       channel.triggerError(exception);
     }
   }

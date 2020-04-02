@@ -8,8 +8,6 @@ import 'exception.dart';
 import 'channel.dart';
 import 'message.dart';
 
-final Logger _logger = Logger('phoenix_socket.push');
-
 class PushResponse implements Equatable {
   final String status;
   final dynamic response;
@@ -36,6 +34,7 @@ class PushResponse implements Equatable {
 typedef PayloadGetter = Map<String, dynamic> Function();
 
 class Push {
+  final Logger _logger;
   final String event;
   final PayloadGetter payload;
   final PhoenixChannel _channel;
@@ -67,7 +66,8 @@ class Push {
     this.event,
     this.payload,
     this.timeout,
-  }) : _channel = channel;
+  })  : _channel = channel,
+        _logger = Logger('phoenix_socket.push.${channel.loggerName}');
 
   bool get sent => _sent;
   String get _replyEvent => replyEventName(ref);
@@ -100,20 +100,23 @@ class Push {
     if (_responseCompleter != null) {
       if (_responseCompleter.isCompleted) {
         _logger.warning('Push being completed more than once');
-        _logger.warning('  event: $_replyEvent, status: ${response.status}');
+        _logger.warning(
+          () => '  event: $_replyEvent, status: ${response.status}',
+        );
         return;
       } else {
         _logger.finer(
-          'Completing for $_replyEvent with response ${response.response}',
+          () =>
+              'Completing for $_replyEvent with response ${response.response}',
         );
         _responseCompleter.complete(response);
       }
     }
     _logger.finer(() {
       if (_receivers[response.status].isNotEmpty) {
-        return 'Triggering ${_receivers[response.status].length}';
+        return 'Triggering ${_receivers[response.status].length} callbacks';
       }
-      return null;
+      return 'Not triggering any callbacks';
     });
     for (final cb in _receivers[response.status]) {
       cb(response);

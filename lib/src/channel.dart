@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:logging/logging.dart';
 import 'package:pedantic/pedantic.dart';
 import 'package:quiver/collection.dart';
 
@@ -48,6 +49,7 @@ class PhoenixChannel {
   bool _joinedOnce = false;
   String _reference;
   Push _joinPush;
+  Logger _logger;
 
   String topic;
   final List<Push> pushBuffer = [];
@@ -62,6 +64,7 @@ class PhoenixChannel {
         _waiters = ListMultimap(),
         _timeout = timeout ?? _socket.defaultTimeout {
     _joinPush = _prepareJoin();
+    _logger = Logger('phoenix_socket.channel.$loggerName');
     _subscriptions.add(messages.listen(_onMessage));
     _subscriptions.addAll(_subscribeToSocketStreams(_socket));
   }
@@ -80,6 +83,13 @@ class PhoenixChannel {
   bool get isLeaving => _state == PhoenixChannelState.leaving;
 
   bool get canPush => socket.isConnected && isJoined;
+
+  String _loggerName;
+  String get loggerName => _loggerName ??= topic.replaceAll(
+      RegExp(
+        '[:,*&?!@#\$%]',
+      ),
+      '_');
 
   String get reference {
     _reference ??= _socket.nextRef;
@@ -116,8 +126,10 @@ class PhoenixChannel {
       _controller.isClosed ? null : _controller.add(message);
 
   void triggerError(PhoenixException error) {
+    _logger.fine('Receiving error on channel', error);
     if (!(isErrored || isLeaving || isClosed)) {
       trigger(error.message);
+      _logger.warning('Got error on channel', error);
       _waiters.forEach((k, waiter) => waiter.completeError(error));
       _waiters.clear();
       _state = PhoenixChannelState.errored;
@@ -215,18 +227,21 @@ class PhoenixChannel {
     );
     push
       ..onReply('ok', (PushResponse response) {
+        _logger.finer("Join message was ok'ed");
         _state = PhoenixChannelState.joined;
         _rejoinTimer?.cancel();
         pushBuffer.forEach((push) => push.send());
         pushBuffer.clear();
       })
       ..onReply('error', (PushResponse response) {
+        _logger.warning('Join message got error response', response);
         _state = PhoenixChannelState.errored;
         if (socket.isConnected) {
           _startRejoinTimer();
         }
       })
       ..onReply('timeout', (PushResponse response) {
+        _logger.warning('Join message timed out');
         final leavePush = Push(
           this,
           event: PhoenixChannelEvents.leave,
@@ -269,9 +284,11 @@ class PhoenixChannel {
 
   void _onMessage(Message message) {
     if (message.event == PhoenixChannelEvents.close) {
+      _logger.finer('Closing channel $topic');
       _rejoinTimer?.cancel();
       close();
     } else if (message.event == PhoenixChannelEvents.error) {
+      _logger.finer('Erroring channel $topic');
       if (isJoining) {
         _joinPush.reset();
       }
@@ -292,6 +309,7 @@ class PhoenixChannel {
   }
 
   void _onClose(PushResponse response) {
+    _logger.finer('Leave message has completed');
     trigger(Message(
       event: PhoenixChannelEvents.close,
       payload: {'ok': 'leave'},
