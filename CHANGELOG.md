@@ -1,3 +1,8 @@
+## [0.2.2.]
+
+* Make logging more configurable
+* Fix auto-rejoin of channels
+
 ## [0.2.1]
 
 * Add much more logging using the logging library
