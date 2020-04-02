@@ -97,6 +97,7 @@ class PhoenixChannel {
   }
 
   Future<Message> onPushReply(replyRef) {
+    _logger.finer(() => 'Hooking on channel $topic for reply to $replyRef');
     final completer = Completer<Message>();
     _waiters[replyRef].add(completer);
     return completer.future;
@@ -300,11 +301,18 @@ class PhoenixChannel {
     } else if (message.event == PhoenixChannelEvents.reply) {
       _controller.add(message.asReplyEvent());
     }
+
     if (_waiters.containsKey(message.event)) {
+      _logger.finer(
+        () =>
+            'Notifying ${_waiters[message.event].length} waiters for ${message.event}',
+      );
       _waiters[message.event].forEach((completer) {
         completer.complete(message);
       });
       removeWaiters(message.event);
+    } else {
+      _logger.finer(() => 'No waiters to notify for ${message.event}');
     }
   }
 

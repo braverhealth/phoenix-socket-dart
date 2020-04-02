@@ -109,6 +109,9 @@ class Push {
         _logger.warning(
           () => '  event: $_replyEvent, status: ${response.status}',
         );
+        _logger.finer(
+          () => '  response: ${response.response}',
+        );
         return;
       } else {
         _logger.finer(
