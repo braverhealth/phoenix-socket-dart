@@ -194,7 +194,6 @@ class PhoenixChannel {
     if (canPush) {
       pushEvent.send();
     } else {
-      pushEvent.startTimeout();
       pushBuffer.add(pushEvent);
     }
 
