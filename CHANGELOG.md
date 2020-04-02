@@ -1,4 +1,8 @@
-## [0.2.2.]
+## [0.2.3]
+
+* Fix duplicate message sending/completing in some race conditions
+
+## [0.2.2]
 
 * Make logging more configurable
 * Fix auto-rejoin of channels
