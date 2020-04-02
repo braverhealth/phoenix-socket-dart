@@ -13,7 +13,7 @@ class PhoenixException {
 
   Message get message {
     if (socketClosed is PhoenixSocketCloseEvent) {
-      return Message(event: PhoenixChannelEvents.close);
+      return Message(event: PhoenixChannelEvents.error);
     } else if (socketError is PhoenixSocketErrorEvent) {
       return Message(event: PhoenixChannelEvents.error);
     }

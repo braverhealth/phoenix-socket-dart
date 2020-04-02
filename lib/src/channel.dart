@@ -42,6 +42,7 @@ class PhoenixChannel {
   final StreamController<Message> _controller;
   final ListMultimap<String, Completer<Message>> _waiters;
   final List<StreamSubscription> _subscriptions = [];
+  final String topic;
 
   Duration _timeout;
   PhoenixChannelState _state = PhoenixChannelState.closed;
@@ -51,7 +52,6 @@ class PhoenixChannel {
   Push _joinPush;
   Logger _logger;
 
-  String topic;
   final List<Push> pushBuffer = [];
 
   PhoenixChannel.fromSocket(
@@ -200,11 +200,6 @@ class PhoenixChannel {
     return pushEvent;
   }
 
-  void rejoin() {
-    _rejoinTimer?.cancel();
-    _attemptJoin();
-  }
-
   List<StreamSubscription> _subscribeToSocketStreams(PhoenixSocket socket) {
     return [
       socket.streamForTopic(topic).where(_isMember).listen(_controller.add),
@@ -225,6 +220,12 @@ class PhoenixChannel {
       payload: () => parameters,
       timeout: providedTimeout ?? timeout,
     );
+    _bindJoinPush(push);
+    return push;
+  }
+
+  void _bindJoinPush(Push push) {
+    push.clearWaiters();
     push
       ..onReply('ok', (PushResponse response) {
         _logger.finer("Join message was ok'ed");
@@ -255,8 +256,6 @@ class PhoenixChannel {
           _startRejoinTimer();
         }
       });
-
-    return push;
   }
 
   void _startRejoinTimer() {
@@ -269,6 +268,7 @@ class PhoenixChannel {
   void _attemptJoin() {
     if (!isLeaving) {
       _state = PhoenixChannelState.joining;
+      _bindJoinPush(_joinPush);
       unawaited(_joinPush.resend(timeout));
     }
   }

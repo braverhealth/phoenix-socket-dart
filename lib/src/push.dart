@@ -92,6 +92,12 @@ class Push {
     _received = null;
     _ref = null;
     _sent = false;
+    _responseCompleter = null;
+  }
+
+  void clearWaiters() {
+    _receivers.clear();
+    _responseCompleter = null;
   }
 
   void trigger(PushResponse response) {
