@@ -178,13 +178,17 @@ class Push {
     _boundCompleter = false;
 
     startTimeout();
-    await _channel.socket.sendMessage(Message(
-      event: event,
-      topic: _channel.topic,
-      payload: payload(),
-      ref: ref,
-      joinRef: _channel.joinRef,
-    ));
+    try {
+      await _channel.socket.sendMessage(Message(
+        event: event,
+        topic: _channel.topic,
+        payload: payload(),
+        ref: ref,
+        joinRef: _channel.joinRef,
+      ));
+    } catch (err) {
+      _receiveResponse(err);
+    }
   }
 
   Future<void> resend(Duration newTimeout) async {

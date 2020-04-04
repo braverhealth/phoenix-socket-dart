@@ -5,10 +5,12 @@ import 'message.dart';
 class PhoenixException {
   final PhoenixSocketErrorEvent socketError;
   final PhoenixSocketCloseEvent socketClosed;
+  final String channelEvent;
 
   PhoenixException({
     this.socketClosed,
     this.socketError,
+    this.channelEvent,
   });
 
   Message get message {

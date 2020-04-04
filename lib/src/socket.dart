@@ -130,20 +130,25 @@ class PhoenixSocket {
     }
 
     _logger.finest('Attempting to connect');
-    _ws = WebSocketChannel.connect(_mountPoint);
-    _ws.stream
-        .where(_shouldPipeMessage)
-        .listen(_onSocketData, cancelOnError: true)
-          ..onError(_noSocketError)
-          ..onDone(_onSocketClosed);
+
+    try {
+      _ws = WebSocketChannel.connect(_mountPoint);
+      _ws.stream
+          .where(_shouldPipeMessage)
+          .listen(_onSocketData, cancelOnError: true)
+            ..onError(_onSocketError)
+            ..onDone(_onSocketClosed);
+    } catch (error, stacktrace) {
+      _onSocketError(error, stacktrace);
+    }
 
     _socketState = SocketState.connecting;
 
     try {
       _socketState = SocketState.connected;
-      _stateStreamController.add(PhoenixSocketOpenEvent());
       _logger.finest('Waiting for initial heartbeat roundtrip');
       await _sendHeartbeat(_heartbeatTimeout);
+      _stateStreamController.add(PhoenixSocketOpenEvent());
       _logger.info('Socket open');
       return this;
     } catch (err) {
@@ -194,6 +199,13 @@ class PhoenixSocket {
   }
 
   Future<Message> sendMessage(Message message) {
+    if (_ws?.sink is! WebSocketSink) {
+      return Future.error(
+        PhoenixException(
+          socketClosed: PhoenixSocketCloseEvent(),
+        ),
+      );
+    }
     _ws.sink.add(MessageSerializer.encode(message));
     _pendingMessages[message.ref] = Completer<Message>();
     return _pendingMessages[message.ref].future;
@@ -226,7 +238,9 @@ class PhoenixSocket {
   }
 
   bool _shouldPipeMessage(dynamic event) {
-    if (_socketState != SocketState.closed) {
+    if (event is WebSocketChannelException) {
+      return true;
+    } else if (_socketState != SocketState.closed) {
       return true;
     } else {
       _logger.warning(
@@ -253,7 +267,7 @@ class PhoenixSocket {
   }
 
   void _cancelHeartbeat() {
-    _heartbeatTimeout.cancel();
+    _heartbeatTimeout?.cancel();
     _heartbeatTimeout = null;
   }
 
@@ -317,7 +331,7 @@ class PhoenixSocket {
     }
   }
 
-  void _noSocketError(dynamic error, dynamic stacktrace) {
+  void _onSocketError(dynamic error, dynamic stacktrace) {
     if (_socketState == SocketState.closing ||
         _socketState == SocketState.closed) {
       return;
