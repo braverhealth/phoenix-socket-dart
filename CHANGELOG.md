@@ -1,3 +1,7 @@
+## [0.2.4]
+
+* Fix a couple of bugs around failing states
+
 ## [0.2.3]
 
 * Fix duplicate message sending/completing in some race conditions
