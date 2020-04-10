@@ -4,27 +4,11 @@ import 'package:logging/logging.dart';
 import 'package:pedantic/pedantic.dart';
 import 'package:quiver/collection.dart';
 
+import 'events.dart';
 import 'exception.dart';
 import 'message.dart';
 import 'push.dart';
 import 'socket.dart';
-
-/// Encapsulates constants used in the protocol over [PhoenixChannel].
-class PhoenixChannelEvents {
-  static String close = 'phx_close';
-  static String error = 'phx_error';
-  static String join = 'phx_join';
-  static String reply = 'phx_reply';
-  static String leave = 'phx_leave';
-
-  static Set<String> statuses = {
-    close,
-    error,
-    join,
-    reply,
-    leave,
-  };
-}
 
 /// The different states a channel can be.
 enum PhoenixChannelState {
@@ -52,8 +36,9 @@ class PhoenixChannel {
   final Map<String, String> _parameters;
   final PhoenixSocket _socket;
   final StreamController<Message> _controller;
-  final ListMultimap<String, Completer<Message>> _waiters;
+  final ListMultimap<PhoenixChannelEvent, Completer<Message>> _waiters;
   final List<StreamSubscription> _subscriptions = [];
+
   /// The name of the topic to which this channel will bind.
   final String topic;
 
@@ -110,15 +95,15 @@ class PhoenixChannel {
     return _reference;
   }
 
-  Future<Message> onPushReply(replyRef) {
-    _logger.finer(() => 'Hooking on channel $topic for reply to $replyRef');
+  Future<Message> onPushReply(PhoenixChannelEvent replyEvent) {
+    _logger.finer(() => 'Hooking on channel $topic for reply to $replyEvent');
     final completer = Completer<Message>();
-    _waiters[replyRef].add(completer);
+    _waiters[replyEvent].add(completer);
     return completer.future;
   }
 
-  void removeWaiters(replyRef) {
-    _waiters.removeAll(replyRef);
+  void removeWaiters(PhoenixChannelEvent replyEvent) {
+    _waiters.removeAll(replyEvent);
   }
 
   void close() {
@@ -169,7 +154,7 @@ class PhoenixChannel {
 
     final leavePush = Push(
       this,
-      event: PhoenixChannelEvents.leave,
+      event: PhoenixChannelEvent.leave,
       payload: () => {},
       timeout: timeout,
     );
@@ -199,7 +184,22 @@ class PhoenixChannel {
     return _joinPush;
   }
 
-  Push push(String event, Map<String, dynamic> payload, [Duration newTimeout]) {
+  Push push(
+    String eventName,
+    Map<String, dynamic> payload, [
+    Duration newTimeout,
+  ]) =>
+      pushEvent(
+        PhoenixChannelEvent.custom(eventName),
+        payload,
+        newTimeout,
+      );
+
+  Push pushEvent(
+    PhoenixChannelEvent event,
+    Map<String, dynamic> payload, [
+    Duration newTimeout,
+  ]) {
     assert(_joinedOnce);
 
     final pushEvent = Push(
@@ -234,7 +234,7 @@ class PhoenixChannel {
   Push _prepareJoin([Duration providedTimeout]) {
     final push = Push(
       this,
-      event: PhoenixChannelEvents.join,
+      event: PhoenixChannelEvent.join,
       payload: () => parameters,
       timeout: providedTimeout ?? timeout,
     );
@@ -265,7 +265,7 @@ class PhoenixChannel {
         _logger.warning('Join message timed out');
         final leavePush = Push(
           this,
-          event: PhoenixChannelEvents.leave,
+          event: PhoenixChannelEvent.leave,
           payload: () => {},
           timeout: timeout,
         );
@@ -296,18 +296,18 @@ class PhoenixChannel {
   bool _isMember(Message message) {
     if (message.joinRef != null &&
         message.joinRef != _joinPush.ref &&
-        PhoenixChannelEvents.statuses.contains(message.event)) {
+        PhoenixChannelEvent.statuses.contains(message.event)) {
       return false;
     }
     return true;
   }
 
   void _onMessage(Message message) {
-    if (message.event == PhoenixChannelEvents.close) {
+    if (message.event == PhoenixChannelEvent.close) {
       _logger.finer('Closing channel $topic');
       _rejoinTimer?.cancel();
       close();
-    } else if (message.event == PhoenixChannelEvents.error) {
+    } else if (message.event == PhoenixChannelEvent.error) {
       _logger.finer('Erroring channel $topic');
       if (isJoining) {
         _joinPush.reset();
@@ -317,7 +317,7 @@ class PhoenixChannel {
         _rejoinTimer?.cancel();
         _startRejoinTimer();
       }
-    } else if (message.event == PhoenixChannelEvents.reply) {
+    } else if (message.event == PhoenixChannelEvent.reply) {
       _controller.add(message.asReplyEvent());
     }
 
@@ -338,7 +338,7 @@ class PhoenixChannel {
   void _onClose(PushResponse response) {
     _logger.finer('Leave message has completed');
     trigger(Message(
-      event: PhoenixChannelEvents.close,
+      event: PhoenixChannelEvent.close,
       payload: {'ok': 'leave'},
     ));
   }

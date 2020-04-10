@@ -4,8 +4,9 @@ import 'package:logging/logging.dart';
 import 'package:quiver/collection.dart';
 import 'package:equatable/equatable.dart';
 
-import 'exception.dart';
 import 'channel.dart';
+import 'events.dart';
+import 'exception.dart';
 import 'message.dart';
 
 // ignore: avoid_catches_without_on_clauses
@@ -54,13 +55,11 @@ typedef PayloadGetter = Map<String, dynamic> Function();
 
 class Push {
   final Logger _logger;
-  final String event;
+  final PhoenixChannelEvent event;
   final PayloadGetter payload;
   final PhoenixChannel _channel;
   final ListMultimap<String, void Function(PushResponse)> _receivers =
       ListMultimap();
-
-  static String replyEventName(ref) => 'chan_reply_$ref';
 
   Duration timeout;
   PushResponse _received;
@@ -69,10 +68,7 @@ class Push {
   Timer _timeoutTimer;
   String _ref;
 
-  String get ref {
-    _ref ??= _channel.socket.nextRef;
-    return _ref;
-  }
+  String get ref => _ref ??= _channel.socket.nextRef;
 
   Completer<PushResponse> _responseCompleter;
   Future<PushResponse> get future {
@@ -89,7 +85,10 @@ class Push {
         _logger = Logger('phoenix_socket.push.${channel.loggerName}');
 
   bool get sent => _sent;
-  String get _replyEvent => replyEventName(ref);
+  PhoenixChannelEvent __replyEvent;
+
+  PhoenixChannelEvent get _replyEvent =>
+      __replyEvent ??= PhoenixChannelEvent.replyFor(ref);
 
   bool hasReceived(String status) => _received?.status == status;
 
@@ -110,6 +109,7 @@ class Push {
     _channel.removeWaiters(_replyEvent);
     _received = null;
     _ref = null;
+    __replyEvent = null;
     _sent = false;
     _responseCompleter = null;
   }

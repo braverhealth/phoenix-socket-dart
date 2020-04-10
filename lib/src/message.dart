@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:logging/logging.dart';
 import 'package:equatable/equatable.dart';
 
-import 'push.dart';
+import 'events.dart';
 
 final Logger _logger = Logger('phoenix_socket.message');
 
@@ -11,7 +11,7 @@ class Message implements Equatable {
   final String joinRef;
   final String ref;
   final String topic;
-  final String event;
+  final PhoenixChannelEvent event;
   final Map<String, dynamic> payload;
 
   factory Message.fromJson(List<dynamic> parts) {
@@ -20,7 +20,7 @@ class Message implements Equatable {
       joinRef: parts[0],
       ref: parts[1],
       topic: parts[2],
-      event: parts[3],
+      event: PhoenixChannelEvent.custom(parts[3]),
       payload: parts[4],
     );
   }
@@ -28,7 +28,7 @@ class Message implements Equatable {
   factory Message.heartbeat(String ref) {
     return Message(
       topic: 'phoenix',
-      event: 'heartbeat',
+      event: PhoenixChannelEvent.heartbeat,
       payload: {},
       ref: ref,
     );
@@ -40,14 +40,14 @@ class Message implements Equatable {
     this.topic,
     this.event,
     this.payload,
-  });
+  }) : assert(event is PhoenixChannelEvent);
 
   Object encode() {
     final parts = [
       joinRef,
       ref,
       topic,
-      event,
+      event.value,
       payload,
     ];
     _logger.finest('Message encoded to $parts');
@@ -57,7 +57,7 @@ class Message implements Equatable {
   @override
   List<Object> get props => [joinRef, ref, topic, event, payload];
 
-  bool get isReply => event.startsWith('chan_reply_');
+  bool get isReply => event.isReply;
 
   @override
   bool get stringify => true;
@@ -66,7 +66,7 @@ class Message implements Equatable {
     return Message(
       ref: ref,
       payload: payload,
-      event: Push.replyEventName(ref),
+      event: PhoenixChannelEvent.replyFor(ref),
       topic: topic,
       joinRef: joinRef,
     );

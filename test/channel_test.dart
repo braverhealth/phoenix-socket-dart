@@ -76,7 +76,7 @@ void main() {
 
       var count = 0;
       await for (var msg in channel2.messages) {
-        expect(msg.event, equals('ping'));
+        expect(msg.event.value, equals('ping'));
         expect(msg.payload, equals({}));
         if (++count == 5) break;
       }

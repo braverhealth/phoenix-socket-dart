@@ -1,4 +1,3 @@
-import 'channel.dart';
 import 'events.dart';
 import 'message.dart';
 
@@ -15,9 +14,9 @@ class PhoenixException {
 
   Message get message {
     if (socketClosed is PhoenixSocketCloseEvent) {
-      return Message(event: PhoenixChannelEvents.error);
+      return Message(event: PhoenixChannelEvent.error);
     } else if (socketError is PhoenixSocketErrorEvent) {
-      return Message(event: PhoenixChannelEvents.error);
+      return Message(event: PhoenixChannelEvent.error);
     }
     return null;
   }
