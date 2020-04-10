@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 import 'package:pedantic/pedantic.dart';
-import 'package:quiver/collection.dart';
 
 import 'events.dart';
 import 'exception.dart';

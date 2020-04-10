@@ -73,7 +73,7 @@ class PhoenixPresence {
   }
 
   void _onMessage(Message message) {
-    if (message.event == stateEventName) {
+    if (message.event.value == stateEventName) {
       _joinRef = channel.joinRef;
       final newState = message.payload;
       state = _syncState(state, newState, _joinHandler, _leaveHandler);
@@ -82,7 +82,7 @@ class PhoenixPresence {
       });
       pendingDiffs = [];
       _syncHandler();
-    } else if (message.event == diffEventName) {
+    } else if (message.event.value == diffEventName) {
       final diff = message.payload;
       if (inPendingSyncState) {
         pendingDiffs.add(diff);

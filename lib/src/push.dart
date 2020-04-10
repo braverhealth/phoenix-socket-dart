@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:logging/logging.dart';
-import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:quiver/collection.dart';
 import 'package:equatable/equatable.dart';
 
