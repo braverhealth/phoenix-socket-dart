@@ -8,12 +8,28 @@ import 'exception.dart';
 import 'channel.dart';
 import 'message.dart';
 
+// ignore: avoid_catches_without_on_clauses
+
+/// Encapsulates the response to a [Push].
 class PushResponse implements Equatable {
+  /// Status provided by the backend.
+  ///
+  /// Value is usually either 'ok' or 'error'.
   final String status;
+
+  /// Arbitrary JSON content provided by the backend.
   final dynamic response;
 
-  PushResponse({this.status, this.response});
+  /// Builds a PushResponse from a status and response.
+  PushResponse({
+    this.status,
+    this.response,
+  });
 
+  /// Builds a PushResponse from a Map payload.
+  ///
+  /// Standard is such that the payload should be something like
+  /// `{status: "ok", response: {foo: "bar"}}`
   factory PushResponse.fromPayload(Map<String, dynamic> data) {
     return PushResponse(
       status: data['status'] as String,
@@ -21,7 +37,10 @@ class PushResponse implements Equatable {
     );
   }
 
+  /// Whether the response as a 'ok' status.
   bool get isOk => status == 'ok';
+
+  /// Whether the response as a 'error' status.
   bool get isError => status == 'error';
 
   @override

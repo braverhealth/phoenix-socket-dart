@@ -10,6 +10,7 @@ environment:
   sdk: ">=2.3.0 <3.0.0"
 
 dependencies:
+  effective_dart: ^1.0.0
   equatable: ^1.1.0
   quiver: ^2.0.0
   logging: ^0.11.4

@@ -97,15 +97,15 @@ void main() {
         channel1.messages,
         emitsInOrder([
           predicate(
-            (Message msg) => msg.payload['from'] == 'socket1',
+            (msg) => msg.payload['from'] == 'socket1',
             'was from socket1',
           ),
           predicate(
-            (Message msg) => msg.payload['from'] == 'socket2',
+            (msg) => msg.payload['from'] == 'socket2',
             'was from socket2',
           ),
           predicate(
-            (Message msg) => msg.payload['from'] == 'socket2',
+            (msg) => msg.payload['from'] == 'socket2',
             'was from socket2',
           ),
         ]),
@@ -115,15 +115,15 @@ void main() {
         channel2.messages,
         emitsInOrder([
           predicate(
-            (Message msg) => msg.payload['from'] == 'socket1',
+            (msg) => msg.payload['from'] == 'socket1',
             'was from socket1',
           ),
           predicate(
-            (Message msg) => msg.payload['from'] == 'socket2',
+            (msg) => msg.payload['from'] == 'socket2',
             'was from socket2',
           ),
           predicate(
-            (Message msg) => msg.payload['from'] == 'socket2',
+            (msg) => msg.payload['from'] == 'socket2',
             'was from socket2',
           ),
         ]),

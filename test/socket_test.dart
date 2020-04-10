@@ -52,9 +52,7 @@ void main() {
       );
 
       await socket.connect().then((_) {
-        Timer(Duration(milliseconds: 100), () {
-          socket.close();
-        });
+        Timer(Duration(milliseconds: 100), socket.close);
       });
 
       socket.closeStream.listen((event) {

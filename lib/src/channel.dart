@@ -26,22 +26,35 @@ class PhoenixChannelEvents {
   };
 }
 
+/// The different states a channel can be.
 enum PhoenixChannelState {
+  /// The channel is closed, after a normal leave.
   closed,
+
+  /// The channel is errored.
   errored,
+
+  /// The channel is joined and functional.
   joined,
+
+  /// The channel is waiting for a reply to its 'join'
+  /// request.
   joining,
+
+  /// The channel is waiting for a reply to its 'leave'
+  /// request.
   leaving,
 }
 
-/// Bi-directional and isolated communication channel shared between differents clients
-/// through a common Phoenix server.
+/// Bi-directional and isolated communication channel shared between
+/// differents clients through a common Phoenix server.
 class PhoenixChannel {
   final Map<String, String> _parameters;
   final PhoenixSocket _socket;
   final StreamController<Message> _controller;
   final ListMultimap<String, Completer<Message>> _waiters;
   final List<StreamSubscription> _subscriptions = [];
+  /// The name of the topic to which this channel will bind.
   final String topic;
 
   Duration _timeout;
@@ -52,6 +65,7 @@ class PhoenixChannel {
   Push _joinPush;
   Logger _logger;
 
+  /// A list of push to be sent out once the channel is joined.
   final List<Push> pushBuffer = [];
 
   PhoenixChannel.fromSocket(
@@ -113,8 +127,12 @@ class PhoenixChannel {
     }
     _state = PhoenixChannelState.closed;
 
-    pushBuffer.forEach((push) => push.cancelTimeout());
-    _subscriptions.forEach((sub) => sub.cancel());
+    for (final push in pushBuffer) {
+      push.cancelTimeout();
+    }
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
 
     _joinPush?.cancelTimeout();
 
@@ -227,21 +245,23 @@ class PhoenixChannel {
   void _bindJoinPush(Push push) {
     push.clearWaiters();
     push
-      ..onReply('ok', (PushResponse response) {
+      ..onReply('ok', (response) {
         _logger.finer("Join message was ok'ed");
         _state = PhoenixChannelState.joined;
         _rejoinTimer?.cancel();
-        pushBuffer.forEach((push) => push.send());
+        for (final push in pushBuffer) {
+          push.send();
+        }
         pushBuffer.clear();
       })
-      ..onReply('error', (PushResponse response) {
+      ..onReply('error', (response) {
         _logger.warning('Join message got error response', response);
         _state = PhoenixChannelState.errored;
         if (socket.isConnected) {
           _startRejoinTimer();
         }
       })
-      ..onReply('timeout', (PushResponse response) {
+      ..onReply('timeout', (response) {
         _logger.warning('Join message timed out');
         final leavePush = Push(
           this,
@@ -303,12 +323,12 @@ class PhoenixChannel {
 
     if (_waiters.containsKey(message.event)) {
       _logger.finer(
-        () =>
-            'Notifying ${_waiters[message.event].length} waiters for ${message.event}',
+        () => 'Notifying ${_waiters[message.event].length} waiters'
+            ' for ${message.event}',
       );
-      _waiters[message.event].forEach((completer) {
+      for (final completer in _waiters[message.event]) {
         completer.complete(message);
-      });
+      }
       removeWaiters(message.event);
     } else {
       _logger.finer(() => 'No waiters to notify for ${message.event}');
