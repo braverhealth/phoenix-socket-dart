@@ -34,6 +34,16 @@ class Message implements Equatable {
     );
   }
 
+  factory Message.timeoutFor(String ref) {
+    return Message(
+      event: PhoenixChannelEvent.replyFor(ref),
+      payload: {
+        'status': 'timeout',
+        'response': {},
+      },
+    );
+  }
+
   Message({
     this.joinRef,
     this.ref,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:logging/logging.dart';
+import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:quiver/collection.dart';
 import 'package:equatable/equatable.dart';
 
@@ -8,8 +9,6 @@ import 'channel.dart';
 import 'events.dart';
 import 'exception.dart';
 import 'message.dart';
-
-// ignore: avoid_catches_without_on_clauses
 
 /// Encapsulates the response to a [Push].
 class PushResponse implements Equatable {
@@ -29,9 +28,19 @@ class PushResponse implements Equatable {
 
   /// Builds a PushResponse from a Map payload.
   ///
-  /// Standard is such that the payload should be something like
-  /// `{status: "ok", response: {foo: "bar"}}`
-  factory PushResponse.fromPayload(Map<String, dynamic> data) {
+  /// Standard is such that the message payload should
+  /// be something like
+  ///
+  /// ```
+  /// {
+  ///   status: "ok",
+  ///   response: {
+  ///     foo: "bar"
+  ///   }
+  /// }
+  /// ```
+  factory PushResponse.fromMessage(Message message) {
+    final data = message.payload;
     return PushResponse(
       status: data['status'] as String,
       response: data['response'],
@@ -43,6 +52,9 @@ class PushResponse implements Equatable {
 
   /// Whether the response as a 'error' status.
   bool get isError => status == 'error';
+
+  /// Whether the response as a 'error' status.
+  bool get isTimeout => status == 'timeout';
 
   @override
   List<Object> get props => [status, response];
@@ -64,11 +76,10 @@ class Push {
   Duration timeout;
   PushResponse _received;
   bool _sent = false;
-  bool _boundCompleter = false;
+  bool _awaitingReply = false;
   Timer _timeoutTimer;
   String _ref;
-
-  String get ref => _ref ??= _channel.socket.nextRef;
+  PhoenixChannelEvent _replyEvent;
 
   Completer<PushResponse> _responseCompleter;
   Future<PushResponse> get future {
@@ -85,10 +96,16 @@ class Push {
         _logger = Logger('phoenix_socket.push.${channel.loggerName}');
 
   bool get sent => _sent;
-  PhoenixChannelEvent __replyEvent;
 
-  PhoenixChannelEvent get _replyEvent =>
-      __replyEvent ??= PhoenixChannelEvent.replyFor(ref);
+  String get ref => _ref ??= _channel.socket.nextRef;
+
+  void _resetRef() {
+    _ref = null;
+    _replyEvent = null;
+  }
+
+  PhoenixChannelEvent get replyEvent =>
+      _replyEvent ??= PhoenixChannelEvent.replyFor(ref);
 
   bool hasReceived(String status) => _received?.status == status;
 
@@ -106,10 +123,8 @@ class Push {
 
   void reset() {
     cancelTimeout();
-    _channel.removeWaiters(_replyEvent);
     _received = null;
-    _ref = null;
-    __replyEvent = null;
+    _resetRef();
     _sent = false;
     _responseCompleter = null;
   }
@@ -126,7 +141,7 @@ class Push {
       if (_responseCompleter.isCompleted) {
         _logger.warning('Push being completed more than once');
         _logger.warning(
-          () => '  event: $_replyEvent, status: ${response.status}',
+          () => '  event: $replyEvent, status: ${response.status}',
         );
         _logger.finer(
           () => '  response: ${response.response}',
@@ -134,8 +149,7 @@ class Push {
         return;
       } else {
         _logger.finer(
-          () =>
-              'Completing for $_replyEvent with response ${response.response}',
+          () => 'Completing for $replyEvent with response ${response.response}',
         );
         _responseCompleter.complete(response);
       }
@@ -150,17 +164,15 @@ class Push {
       cb(response);
     }
     _receivers.clear();
-    _channel.removeWaiters(_replyEvent);
   }
 
   void _receiveResponse(dynamic response) {
+    cancelTimeout();
     if (response is Message) {
-      cancelTimeout();
-      if (response.event == _replyEvent) {
-        trigger(PushResponse.fromPayload(response.payload));
+      if (response.event == replyEvent) {
+        trigger(PushResponse.fromMessage(response));
       }
     } else if (response is PhoenixException) {
-      cancelTimeout();
       if (_responseCompleter is Completer) {
         _responseCompleter.completeError(response);
       }
@@ -168,34 +180,28 @@ class Push {
   }
 
   void startTimeout() {
-    if (!_boundCompleter) {
-      _channel.onPushReply(_replyEvent)
+    if (!_awaitingReply) {
+      _channel.onPushReply(replyEvent)
         ..then(_receiveResponse)
         ..catchError(_receiveResponse);
-      _boundCompleter = true;
+      _awaitingReply = true;
     }
 
     _timeoutTimer ??= Timer(timeout, () {
       _timeoutTimer = null;
       _logger.warning('Push $ref timed out');
-      _channel.trigger(Message(
-        event: _replyEvent,
-        payload: {
-          'status': 'timeout',
-          'response': {},
-        },
-      ));
+      _channel.trigger(Message.timeoutFor(ref));
     });
   }
 
   Future<void> send() async {
-    if (hasReceived('timeout')) {
+    if (_received is PushResponse && _received.isTimeout) {
       _logger.warning('Trying to send push $ref after timeout');
       return;
     }
     _logger.finer('Sending out push for $ref');
     _sent = true;
-    _boundCompleter = false;
+    _awaitingReply = false;
 
     startTimeout();
     try {
@@ -206,6 +212,7 @@ class Push {
         ref: ref,
         joinRef: _channel.joinRef,
       ));
+      // ignore: avoid_catches_without_on_clauses
     } catch (err, stacktrace) {
       _logger.warning(
         'Catched error for push $ref',

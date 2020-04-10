@@ -36,7 +36,7 @@ class PhoenixChannel {
   final Map<String, String> _parameters;
   final PhoenixSocket _socket;
   final StreamController<Message> _controller;
-  final ListMultimap<PhoenixChannelEvent, Completer<Message>> _waiters;
+  final Map<PhoenixChannelEvent, Completer<Message>> _waiters;
   final List<StreamSubscription> _subscriptions = [];
 
   /// The name of the topic to which this channel will bind.
@@ -60,7 +60,7 @@ class PhoenixChannel {
     Duration timeout,
   })  : _parameters = parameters ?? {},
         _controller = StreamController.broadcast(),
-        _waiters = ListMultimap(),
+        _waiters = {},
         _timeout = timeout ?? _socket.defaultTimeout {
     _joinPush = _prepareJoin();
     _logger = Logger('phoenix_socket.channel.$loggerName');
@@ -96,14 +96,19 @@ class PhoenixChannel {
   }
 
   Future<Message> onPushReply(PhoenixChannelEvent replyEvent) {
-    _logger.finer(() => 'Hooking on channel $topic for reply to $replyEvent');
+    if (_waiters.containsKey(replyEvent)) {
+      _logger.finer(
+        () => 'Removing previous waiter for $replyEvent',
+      );
+      _waiters.remove(replyEvent);
+    }
+    _logger.finer(
+      () => 'Hooking on channel $topic for reply to $replyEvent',
+    );
     final completer = Completer<Message>();
-    _waiters[replyEvent].add(completer);
+    _waiters[replyEvent] = completer;
+    completer.future.whenComplete(() => _waiters.remove(replyEvent));
     return completer.future;
-  }
-
-  void removeWaiters(PhoenixChannelEvent replyEvent) {
-    _waiters.removeAll(replyEvent);
   }
 
   void close() {
@@ -323,15 +328,11 @@ class PhoenixChannel {
 
     if (_waiters.containsKey(message.event)) {
       _logger.finer(
-        () => 'Notifying ${_waiters[message.event].length} waiters'
-            ' for ${message.event}',
+        () => 'Notifying waiter for ${message.event}',
       );
-      for (final completer in _waiters[message.event]) {
-        completer.complete(message);
-      }
-      removeWaiters(message.event);
+      _waiters[message.event].complete(message);
     } else {
-      _logger.finer(() => 'No waiters to notify for ${message.event}');
+      _logger.finer(() => 'No waiter to notify for ${message.event}');
     }
   }
 
