@@ -1,3 +1,7 @@
+## [0.2.5]
+
+* Improved the internals quite a bit
+
 ## [0.2.4]
 
 * Fix a couple of bugs around failing states
