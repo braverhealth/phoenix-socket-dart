@@ -177,7 +177,7 @@ class Push {
 
     _timeoutTimer ??= Timer(timeout, () {
       _timeoutTimer = null;
-      _logger.warning('Push $_ref timed out');
+      _logger.warning('Push $ref timed out');
       _channel.trigger(Message(
         event: _replyEvent,
         payload: {
@@ -190,9 +190,10 @@ class Push {
 
   Future<void> send() async {
     if (hasReceived('timeout')) {
-      _logger.warning('Trying to send push $_ref after timeout');
+      _logger.warning('Trying to send push $ref after timeout');
       return;
     }
+    _logger.finer('Sending out push for $ref');
     _sent = true;
     _boundCompleter = false;
 
@@ -205,7 +206,12 @@ class Push {
         ref: ref,
         joinRef: _channel.joinRef,
       ));
-    } catch (err) {
+    } catch (err, stacktrace) {
+      _logger.warning(
+        'Catched error for push $ref',
+        err,
+        stacktrace,
+      );
       _receiveResponse(err);
     }
   }
