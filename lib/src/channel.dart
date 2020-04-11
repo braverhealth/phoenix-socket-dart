@@ -138,7 +138,9 @@ class PhoenixChannel {
     if (!(isErrored || isLeaving || isClosed)) {
       trigger(error.message);
       _logger.warning('Got error on channel', error);
-      _waiters.forEach((k, waiter) => waiter.completeError(error));
+      for (final waiter in _waiters.values) {
+        waiter.completeError(error);
+      }
       _waiters.clear();
       _state = PhoenixChannelState.errored;
       if (isJoining) {

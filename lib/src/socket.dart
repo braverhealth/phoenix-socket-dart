@@ -172,15 +172,21 @@ class PhoenixSocket {
   }
 
   void dispose() {
-    _subscriptions.forEach((sub) => sub.cancel());
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
     _subscriptions.clear();
 
     _pendingMessages.clear();
 
-    channels.forEach((_, channel) => channel.close());
+    for (final channel in channels.values) {
+      channel.close();
+    }
     channels.clear();
 
-    _topicStreams.forEach((_, controller) => controller.close());
+    for (final stream in _topicStreams.values) {
+      stream.close();
+    }
     _topicStreams.clear();
 
     _stateStreamController.close();
