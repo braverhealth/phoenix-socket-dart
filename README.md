@@ -11,8 +11,6 @@ Look at the [example project][5] for an example on how to use this library. The 
 look like javascript's as much as possible, but leveraging Dart's unique native advantages like Streams 
 and Futures.
 
-> The documentation is in a poor state for now, but it will improve soon enough.
-
 
 [1]: https://www.phoenixframework.org/
 [2]: https://hexdocs.pm/phoenix/Phoenix.Channel.html#content
