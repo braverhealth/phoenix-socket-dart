@@ -224,15 +224,25 @@ class PhoenixSocket {
     Map<String, String> parameters,
     Duration timeout,
   }) {
-    final channel = PhoenixChannel.fromSocket(
-      this,
-      topic: topic,
-      parameters: parameters,
-      timeout: timeout ?? defaultTimeout,
-    );
+    var channel = channels.entries
+        .firstWhere(
+          (element) => element.value.topic == topic,
+          orElse: null,
+        )
+        ?.value;
+    if (channel is! PhoenixChannel) {
+      channel = PhoenixChannel.fromSocket(
+        this,
+        topic: topic,
+        parameters: parameters,
+        timeout: timeout ?? defaultTimeout,
+      );
 
-    channels[channel.reference] = channel;
-    _logger.finer(() => 'Adding channel ${channel.topic}');
+      channels[channel.reference] = channel;
+      _logger.finer(() => 'Adding channel ${channel.topic}');
+    } else {
+      _logger.finer(() => 'Reusing existing channel ${channel.topic}');
+    }
     return channel;
   }
 
