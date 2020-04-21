@@ -224,12 +224,13 @@ class PhoenixSocket {
     Map<String, String> parameters,
     Duration timeout,
   }) {
-    var channel = channels.entries
-        .firstWhere(
-          (element) => element.value.topic == topic,
-          orElse: null,
-        )
-        ?.value;
+    var channel;
+    if (channels.isNotEmpty) {
+      final foundChannels =
+          channels.entries.where((element) => element.value.topic == topic);
+      channel = foundChannels.isNotEmpty ? foundChannels.first : null;
+    }
+
     if (channel is! PhoenixChannel) {
       channel = PhoenixChannel.fromSocket(
         this,
