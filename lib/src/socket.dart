@@ -158,7 +158,7 @@ class PhoenixSocket {
       }
       _ws = null;
       final duration = reconnects[durationIdx];
-      return Future.delayed(duration, () => connect());
+      return Future.delayed(duration, connect);
     }
   }
 
