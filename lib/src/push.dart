@@ -162,7 +162,7 @@ class Push {
     for (final cb in _receivers[response.status]) {
       cb(response);
     }
-    _receivers.clear();
+    clearWaiters();
   }
 
   void _receiveResponse(dynamic response) {
@@ -172,8 +172,9 @@ class Push {
         trigger(PushResponse.fromMessage(response));
       }
     } else if (response is PhoenixException) {
-      if (_responseCompleter is Completer) {
+      if (_responseCompleter is Completer && !_responseCompleter.isCompleted) {
         _responseCompleter.completeError(response);
+        clearWaiters();
       }
     }
   }
