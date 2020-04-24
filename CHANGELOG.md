@@ -1,3 +1,7 @@
+## [0.3.0]
+
+* Use dart:async Zone to isolate function calls that modify internal state.
+
 ## [0.2.5]
 
 * Improved the internals quite a bit
