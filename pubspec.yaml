@@ -3,7 +3,7 @@ description: >-
   PhoenixSocket provides a feature-complete implementation
   of Phoenix Sockets, using a single API based on StreamChannels
   compatible with any deployment of Flutter.
-version: 0.3.0
+version: 0.3.0+1
 homepage: https://www.github.com/matehat/phoenix-socket-dart
 
 environment:
@@ -17,7 +17,7 @@ dependencies:
   meta: ^1.1.8
   web_socket_channel: ^1.1.0
   pedantic: ^1.8.0
-  rxdart: ^0.23.1
+  rxdart: ^0.24.0
 
 dev_dependencies:
   test: ^1.11.1
