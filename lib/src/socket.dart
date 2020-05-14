@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 
 import 'package:rxdart/rxdart.dart';
 import 'package:pedantic/pedantic.dart';
+import 'package:quiver/async.dart';
 import 'package:meta/meta.dart';
 import 'package:web_socket_channel/status.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -26,7 +27,7 @@ final Logger _logger = Logger('phoenix_socket.socket');
 
 class PhoenixSocket {
   final Map<String, Completer<Message>> _pendingMessages = {};
-  final Map<String, StreamController> _topicStreams = {};
+  final Map<String, Stream<Message>> _topicStreams = {};
 
   final BehaviorSubject<PhoenixSocketEvent> _stateStreamController =
       BehaviorSubject();
@@ -42,6 +43,8 @@ class PhoenixSocket {
   Stream<PhoenixSocketCloseEvent> _closeStream;
   Stream<PhoenixSocketErrorEvent> _errorStream;
   Stream<Message> _messageStream;
+  StreamController<Message> _topicMessages = StreamController();
+  StreamRouter<Message> _streamRouter;
 
   Stream<PhoenixSocketOpenEvent> get openStream => _openStream;
   Stream<PhoenixSocketCloseEvent> get closeStream => _closeStream;
@@ -107,17 +110,11 @@ class PhoenixSocket {
     ];
   }
 
-  Stream<Message> streamForTopic(String topic) {
-    final controller =
-        _topicStreams.putIfAbsent(topic, () => StreamController<Message>());
-    return controller.stream;
-  }
+  StreamRouter<Message> get streamRouter =>
+      _streamRouter ??= StreamRouter(_topicMessages.stream);
 
-  StreamSink<Message> _sinkForTopic(String topic) {
-    final controller =
-        _topicStreams.putIfAbsent(topic, () => StreamController<Message>());
-    return controller.sink;
-  }
+  Stream<Message> streamForTopic(String topic) => _topicStreams.putIfAbsent(
+      topic, () => streamRouter.route((event) => event.topic == topic));
 
   Uri get mountPoint => _mountPoint;
 
@@ -214,9 +211,7 @@ class PhoenixSocket {
         channel.close();
       }
 
-      for (final stream in _topicStreams.values) {
-        stream.close();
-      }
+      _topicMessages.close();
       _topicStreams.clear();
 
       _stateStreamController.close();
@@ -372,7 +367,7 @@ class PhoenixSocket {
     }
 
     if (message.topic != null && message.topic.isNotEmpty) {
-      _sinkForTopic(message.topic).add(message);
+      _topicMessages.add(message);
     }
   }
 
