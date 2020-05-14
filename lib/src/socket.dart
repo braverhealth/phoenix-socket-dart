@@ -207,10 +207,12 @@ class PhoenixSocket {
 
       _pendingMessages.clear();
 
-      for (final channel in channels.values) {
+      final disposedChannels = channels.values.toList();
+      channels.clear();
+
+      for (final channel in disposedChannels) {
         channel.close();
       }
-      channels.clear();
 
       for (final stream in _topicStreams.values) {
         stream.close();
@@ -282,9 +284,9 @@ class PhoenixSocket {
   void removeChannel(PhoenixChannel channel) {
     _zone.run(() {
       _logger.finer(() => 'Removing channel ${channel.topic}');
-      _topicStreams.remove(channel.topic);
-      channels.remove(channel.reference);
-      channel.close();
+      if (channels.remove(channel.reference) is PhoenixChannel) {
+        _topicStreams.remove(channel.topic);
+      }
     });
   }
 
