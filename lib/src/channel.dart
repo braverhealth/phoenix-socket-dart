@@ -166,7 +166,7 @@ class PhoenixChannel {
     });
   }
 
-  Push leave([Duration timeout]) {
+  Push leave({Duration timeout}) {
     return _zone.run(() {
       _joinPush?.cancelTimeout();
       _rejoinTimer?.cancel();
@@ -181,13 +181,12 @@ class PhoenixChannel {
       );
 
       var __onClose = _zone.bindUnaryCallback(_onClose);
-      leavePush
-        ..onReply('ok', __onClose)
-        ..onReply('timeout', __onClose)
-        ..send().then((value) => close());
+      leavePush..onReply('ok', __onClose)..onReply('timeout', __onClose);
 
       if (!socket.isConnected || !isJoined) {
         leavePush.trigger(PushResponse(status: 'ok'));
+      } else {
+        leavePush.send().then((value) => close());
       }
 
       return leavePush;
