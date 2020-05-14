@@ -1,3 +1,8 @@
+## [0.3.1]
+
+* Fix bug where channels being closed by a socket would indirectly change the socket's 'channels' Map, leading to changes being concurrent to iteration, hence raising a StateError
+* Do not try to send a 'leave' push if socket is closed anyway
+
 ## [0.3.0]
 
 * Use dart:async Zone to isolate function calls that modify internal state.
