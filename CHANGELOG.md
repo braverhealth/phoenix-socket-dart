@@ -1,3 +1,7 @@
+## [0.3.2]
+
+* Use quiver.async's StreamRouter to route messages to topic-specific streams
+
 ## [0.3.1]
 
 * Fix bug where channels being closed by a socket would indirectly change the socket's 'channels' Map, leading to changes being concurrent to iteration, hence raising a StateError
