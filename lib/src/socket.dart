@@ -196,6 +196,7 @@ class PhoenixSocket {
     _zone.run(() {
       if (_disposed) return;
       _disposed = true;
+      _ws.sink.close();
 
       for (final sub in _subscriptions) {
         sub.cancel();
@@ -371,9 +372,16 @@ class PhoenixSocket {
     }
   }
 
-  void _onSocketData(message) => (message is String)
-      ? _receiveStreamController?.add(message)
-      : throw ArgumentError('Received a non-string');
+  void _onSocketData(message) {
+    if (message is String) {
+      if (_receiveStreamController is StreamController &&
+          !_receiveStreamController.isClosed) {
+        _receiveStreamController?.add(message);
+      }
+    } else {
+      throw ArgumentError('Received a non-string');
+    }
+  }
 
   void _onSocketError(dynamic error, dynamic stacktrace) {
     if (_socketState == SocketState.closing ||
@@ -382,11 +390,16 @@ class PhoenixSocket {
     }
     final socketError =
         PhoenixSocketErrorEvent(error: error, stacktrace: stacktrace);
-    _stateStreamController?.add(socketError);
+
+    if (_stateStreamController is StreamController &&
+        !_stateStreamController.isClosed) {
+      _stateStreamController?.add(socketError);
+    }
 
     for (final completer in _pendingMessages.values) {
       completer.completeError(error, stacktrace);
     }
+
     _logger.severe('Error on socket', error, stacktrace);
     _triggerChannelExceptions(PhoenixException(socketError: socketError));
     _pendingMessages.clear();
@@ -404,7 +417,11 @@ class PhoenixSocket {
       code: _ws.closeCode,
     );
     _ws = null;
-    _stateStreamController?.add(ev);
+
+    if (_stateStreamController is StreamController &&
+        !_stateStreamController.isClosed) {
+      _stateStreamController?.add(ev);
+    }
 
     if (_socketState == SocketState.closing) {
       dispose();
