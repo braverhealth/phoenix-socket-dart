@@ -1,3 +1,7 @@
+## [0.3.3]
+
+* Fix closing of underlying websocket on PhoenixSocket close
+
 ## [0.3.2]
 
 * Use quiver.async's StreamRouter to route messages to topic-specific streams
