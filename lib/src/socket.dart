@@ -33,6 +33,7 @@ class PhoenixSocket {
       BehaviorSubject();
   final StreamController<String> _receiveStreamController =
       StreamController.broadcast();
+  final String _endpoint;
 
   Uri _mountPoint;
   SocketState _socketState;
@@ -84,9 +85,9 @@ class PhoenixSocket {
   PhoenixSocket(
     String endpoint, {
     PhoenixSocketOptions socketOptions,
-  }) : _zone = Zone.current.fork() {
+  })  : _zone = Zone.current.fork(),
+        _endpoint = endpoint {
     _options = socketOptions ?? PhoenixSocketOptions();
-    _mountPoint = _buildMountPoint(endpoint, _options);
 
     _messageStream =
         _receiveStreamController.stream.map(MessageSerializer.decode);
@@ -116,6 +117,8 @@ class PhoenixSocket {
   Stream<Message> streamForTopic(String topic) => _topicStreams.putIfAbsent(
       topic, () => streamRouter.route((event) => event.topic == topic));
 
+  String get endpoint => _endpoint;
+
   Uri get mountPoint => _mountPoint;
 
   bool get isConnected =>
@@ -134,6 +137,7 @@ class PhoenixSocket {
       throw StateError('PhoenixSocket cannot connect after being disposed.');
     }
 
+    _mountPoint = await _buildMountPoint(_endpoint, _options);
     _logger.finest(() => 'Attempting to connect to $_mountPoint');
 
     var completer = Completer<PhoenixSocket>();
@@ -300,12 +304,15 @@ class PhoenixSocket {
     }
   }
 
-  static Uri _buildMountPoint(String endpoint, PhoenixSocketOptions options) {
+  static Future<Uri> _buildMountPoint(
+      String endpoint, PhoenixSocketOptions options) async {
     var decodedUri = Uri.parse(endpoint);
-    if (options?.params != null) {
-      final params = decodedUri.queryParameters.entries.toList();
-      params.addAll(options.params.entries.toList());
-      decodedUri = decodedUri.replace(queryParameters: Map.fromEntries(params));
+    var params = await options.getParams();
+    if (params != null) {
+      final queryParams = decodedUri.queryParameters.entries.toList();
+      queryParams.addAll(params.entries.toList());
+      decodedUri =
+          decodedUri.replace(queryParameters: Map.fromEntries(queryParams));
     }
     return decodedUri;
   }
