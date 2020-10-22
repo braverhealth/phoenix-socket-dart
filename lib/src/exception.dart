@@ -3,6 +3,13 @@ import 'message.dart';
 
 /// Exception yield when a [PhoenixSocket] closes for unexpected reasons.
 class PhoenixException {
+  /// The default constructor for this exception.
+  PhoenixException({
+    this.socketClosed,
+    this.socketError,
+    this.channelEvent,
+  });
+
   /// The associated error event.
   final PhoenixSocketErrorEvent socketError;
 
@@ -11,13 +18,6 @@ class PhoenixException {
 
   /// The associated channel event.
   final String channelEvent;
-
-  /// The default constructor for this exception.
-  PhoenixException({
-    this.socketClosed,
-    this.socketError,
-    this.channelEvent,
-  });
 
   /// The error message for this exception.
   Message get message {

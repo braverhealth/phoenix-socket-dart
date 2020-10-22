@@ -32,6 +32,24 @@ enum PhoenixChannelState {
 /// Bi-directional and isolated communication channel shared between
 /// differents clients through a common Phoenix server.
 class PhoenixChannel {
+  /// Build a PhoenixChannel from a [PhoenixSocket].
+  PhoenixChannel.fromSocket(
+    this.socket, {
+    this.topic,
+    this.parameters = const {},
+    Duration timeout,
+    Zone zone,
+  })  : _controller = StreamController.broadcast(),
+        _waiters = {},
+        _zone = zone.fork(),
+        _timeout = timeout ?? socket.defaultTimeout {
+    _joinPush = _prepareJoin();
+    _logger = Logger('phoenix_socket.channel.$loggerName');
+    _subscriptions
+      ..add(messages.listen(_zone.bindUnaryCallback(_onMessage)))
+      ..addAll(_subscribeToSocketStreams(socket));
+  }
+
   /// Parameters passed to the backend at join time.
   final Map<String, String> parameters;
 
@@ -57,23 +75,6 @@ class PhoenixChannel {
 
   /// A list of push to be sent out once the channel is joined.
   final List<Push> pushBuffer = [];
-
-  /// Build a PhoenixChannel from a [PhoenixSocket].
-  PhoenixChannel.fromSocket(
-    this.socket, {
-    this.topic,
-    this.parameters = const {},
-    Duration timeout,
-    Zone zone,
-  })  : _controller = StreamController.broadcast(),
-        _waiters = {},
-        _zone = zone.fork(),
-        _timeout = timeout ?? socket.defaultTimeout {
-    _joinPush = _prepareJoin();
-    _logger = Logger('phoenix_socket.channel.$loggerName');
-    _subscriptions.add(messages.listen(_zone.bindUnaryCallback(_onMessage)));
-    _subscriptions.addAll(_subscribeToSocketStreams(socket));
-  }
 
   /// Stream of all messages coming through this channel from the backend.
   Stream<Message> get messages => _controller.stream;
@@ -210,7 +211,7 @@ class PhoenixChannel {
         timeout: timeout,
       );
 
-      var __onClose = _zone.bindUnaryCallback(_onClose);
+      final __onClose = _zone.bindUnaryCallback(_onClose);
       leavePush..onReply('ok', __onClose)..onReply('timeout', __onClose);
 
       if (!socket.isConnected || !isJoined) {
@@ -325,8 +326,8 @@ class PhoenixChannel {
 
   void _bindJoinPush(Push push) {
     _zone.run(() {
-      push.clearWaiters();
       push
+        ..clearWaiters()
         ..onReply('ok', _zone.bindUnaryCallback((response) {
           _logger.finer("Join message was ok'ed");
           _state = PhoenixChannelState.joined;
@@ -345,13 +346,14 @@ class PhoenixChannel {
         }))
         ..onReply('timeout', _zone.bindUnaryCallback((response) {
           _logger.warning('Join message timed out');
-          final leavePush = Push(
+
+          Push(
             this,
             event: PhoenixChannelEvent.leave,
             payload: () => {},
             timeout: _timeout,
-          );
-          leavePush.send();
+          ).send();
+
           _state = PhoenixChannelState.errored;
           _joinPush.reset();
           if (socket.isConnected) {

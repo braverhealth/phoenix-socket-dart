@@ -14,7 +14,7 @@ import 'channel.dart';
 import 'events.dart';
 import 'exception.dart';
 import 'message.dart';
-import 'message_serializer.dart';
+import 'push.dart';
 import 'socket_options.dart';
 
 /// State of a [PhoenixSocket].
@@ -37,6 +37,45 @@ final Logger _logger = Logger('phoenix_socket.socket');
 /// Main class to use when wishing to establish a persistent connection
 /// with a Phoenix backend using WebSockets.
 class PhoenixSocket {
+  /// Creates an instance of PhoenixSocket
+  ///
+  /// endpoint is the full url to which you wish to connect
+  /// e.g. `ws://localhost:4000/websocket/socket`
+  PhoenixSocket(
+    /// The URL of the Phoenix server.
+    String endpoint, {
+
+    /// The options used when initiating and maintaining the
+    /// websocket connection.
+    PhoenixSocketOptions socketOptions,
+  })  : _zone = Zone.current.fork(),
+        _endpoint = endpoint {
+    _options = socketOptions ?? PhoenixSocketOptions();
+
+    _reconnects = _options.reconnectDelays;
+
+    _messageStream =
+        _receiveStreamController.stream.map(_options.serializer.decode);
+
+    _openStream = _stateStreamController.stream
+        .where((event) => event is PhoenixSocketOpenEvent)
+        .cast<PhoenixSocketOpenEvent>();
+
+    _closeStream = _stateStreamController.stream
+        .where((event) => event is PhoenixSocketCloseEvent)
+        .cast<PhoenixSocketCloseEvent>();
+
+    _errorStream = _stateStreamController.stream
+        .where((event) => event is PhoenixSocketErrorEvent)
+        .cast<PhoenixSocketErrorEvent>();
+
+    _subscriptions = [
+      _messageStream.listen(_zone.bindUnaryCallback(_onMessage)),
+      _openStream.listen(_zone.bindUnaryCallback((_) => _startHeartbeat())),
+      _closeStream.listen(_zone.bindUnaryCallback((_) => _cancelHeartbeat()))
+    ];
+  }
+
   final Map<String, Completer<Message>> _pendingMessages = {};
   final Map<String, Stream<Message>> _topicStreams = {};
 
@@ -100,45 +139,6 @@ class PhoenixSocket {
   final Zone _zone;
   bool _disposed = false;
 
-  /// Creates an instance of PhoenixSocket
-  ///
-  /// endpoint is the full url to which you wish to connect
-  /// e.g. `ws://localhost:4000/websocket/socket`
-  PhoenixSocket(
-    /// The URL of the Phoenix server.
-    String endpoint, {
-
-    /// The options used when initiating and maintaining the
-    /// websocket connection.
-    PhoenixSocketOptions socketOptions,
-  })  : _zone = Zone.current.fork(),
-        _endpoint = endpoint {
-    _options = socketOptions ?? PhoenixSocketOptions();
-
-    _reconnects = _options.reconnectDelays;
-
-    _messageStream =
-        _receiveStreamController.stream.map(_options.serializer.decode);
-
-    _openStream = _stateStreamController.stream
-        .where((event) => event is PhoenixSocketOpenEvent)
-        .cast<PhoenixSocketOpenEvent>();
-
-    _closeStream = _stateStreamController.stream
-        .where((event) => event is PhoenixSocketCloseEvent)
-        .cast<PhoenixSocketCloseEvent>();
-
-    _errorStream = _stateStreamController.stream
-        .where((event) => event is PhoenixSocketErrorEvent)
-        .cast<PhoenixSocketErrorEvent>();
-
-    _subscriptions = [
-      _messageStream.listen(_zone.bindUnaryCallback(_onMessage)),
-      _openStream.listen(_zone.bindUnaryCallback((_) => _startHeartbeat())),
-      _closeStream.listen(_zone.bindUnaryCallback((_) => _cancelHeartbeat()))
-    ];
-  }
-
   /// A [StreamRouter] for the stream of incoming messages.
   ///
   /// Use [streamForTopic] instead of this if you don't know how to use
@@ -148,8 +148,9 @@ class PhoenixSocket {
 
   /// A stream yielding [Message] instances for a given topic.
   ///
-  /// The [Channel] for this topic may not be open yet, it'll still eventually
-  /// yield messages when the channel is open and it receives messages.
+  /// The [PhoenixChannel] for this topic may not be open yet, it'll still
+  /// eventually yield messages when the channel is open and it receives
+  /// messages.
   Stream<Message> streamForTopic(String topic) => _topicStreams.putIfAbsent(
       topic, () => streamRouter.route((event) => event.topic == topic));
 
@@ -180,7 +181,7 @@ class PhoenixSocket {
     _mountPoint = await _buildMountPoint(_endpoint, _options);
     _logger.finest(() => 'Attempting to connect to $_mountPoint');
 
-    var completer = Completer<PhoenixSocket>();
+    final completer = Completer<PhoenixSocket>();
 
     // Run the heartbeat callback in our isolated zone.
     _zone.run(() {
@@ -213,7 +214,7 @@ class PhoenixSocket {
         _ws = null;
         _socketState = SocketState.closed;
 
-        var duration;
+        Duration duration;
         if (durationIdx >= _reconnects.length) {
           duration = _reconnects.last;
         } else {
@@ -291,7 +292,7 @@ class PhoenixSocket {
   /// Send a channel on the socket.
   ///
   /// Used internall to send prepared message. If you need to send
-  /// a message on a channel, you would usually use [Channel.push]
+  /// a message on a channel, you would usually use [PhoenixChannel.push]
   /// instead.
   Future<Message> sendMessage(Message message) {
     return _zone.run(() {
@@ -314,11 +315,11 @@ class PhoenixSocket {
     Duration timeout,
   }) {
     return _zone.run(() {
-      var channel;
+      PhoenixChannel channel;
       if (channels.isNotEmpty) {
         final foundChannels =
             channels.entries.where((element) => element.value.topic == topic);
-        channel = foundChannels.isNotEmpty ? foundChannels.first : null;
+        channel = foundChannels.isNotEmpty ? foundChannels.first.value : null;
       }
 
       if (channel is! PhoenixChannel) {
@@ -361,8 +362,8 @@ class PhoenixSocket {
     } else {
       _logger.warning(
         'Message from socket dropped because PhoenixSocket is closed',
+        '  $event',
       );
-      _logger.warning('  $event');
       return false;
     }
   }
@@ -370,10 +371,11 @@ class PhoenixSocket {
   static Future<Uri> _buildMountPoint(
       String endpoint, PhoenixSocketOptions options) async {
     var decodedUri = Uri.parse(endpoint);
-    var params = await options.getParams();
+    final params = await options.getParams();
     if (params != null) {
-      final queryParams = decodedUri.queryParameters.entries.toList();
-      queryParams.addAll(params.entries.toList());
+      final queryParams = decodedUri.queryParameters.entries.toList()
+        ..addAll(params.entries.toList());
+
       decodedUri =
           decodedUri.replace(queryParameters: Map.fromEntries(queryParams));
     }

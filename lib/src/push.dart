@@ -11,14 +11,6 @@ import 'message.dart';
 
 /// Encapsulates the response to a [Push].
 class PushResponse implements Equatable {
-  /// Status provided by the backend.
-  ///
-  /// Value is usually either 'ok' or 'error'.
-  final String status;
-
-  /// Arbitrary JSON content provided by the backend.
-  final dynamic response;
-
   /// Builds a PushResponse from a status and response.
   PushResponse({
     this.status,
@@ -46,6 +38,14 @@ class PushResponse implements Equatable {
     );
   }
 
+  /// Status provided by the backend.
+  ///
+  /// Value is usually either 'ok' or 'error'.
+  final String status;
+
+  /// Arbitrary JSON content provided by the backend.
+  final dynamic response;
+
   /// Whether the response as a 'ok' status.
   bool get isOk => status == 'ok';
 
@@ -67,6 +67,17 @@ typedef PayloadGetter = Map<String, dynamic> Function();
 /// Object produced by [PhoenixChannel.push] to encapsulate
 /// the message sent and its lifecycle.
 class Push {
+  /// Build a Push message from its content and associated channel.
+  ///
+  /// Prefer using [PhoenixChannel.push] instead of using this.
+  Push(
+    PhoenixChannel channel, {
+    this.event,
+    this.payload,
+    this.timeout,
+  })  : _channel = channel,
+        _logger = Logger('phoenix_socket.push.${channel.loggerName}');
+
   final Logger _logger;
   final ListMultimap<String, void Function(PushResponse)> _receivers =
       ListMultimap();
@@ -98,17 +109,6 @@ class Push {
     _responseCompleter ??= Completer<PushResponse>();
     return _responseCompleter.future;
   }
-
-  /// Build a Push message from its content and associated channel.
-  ///
-  /// Prefer using [PhoenixChannel.push] instead of using this.
-  Push(
-    PhoenixChannel channel, {
-    this.event,
-    this.payload,
-    this.timeout,
-  })  : _channel = channel,
-        _logger = Logger('phoenix_socket.push.${channel.loggerName}');
 
   /// Indicates whether the push has been sent.
   bool get sent => _sent;
@@ -222,13 +222,15 @@ class Push {
 
     if (_responseCompleter != null) {
       if (_responseCompleter.isCompleted) {
-        _logger.warning('Push being completed more than once');
-        _logger.warning(
-          () => '  event: $replyEvent, status: ${response.status}',
-        );
-        _logger.finer(
-          () => '  response: ${response.response}',
-        );
+        _logger
+          ..warning('Push being completed more than once')
+          ..warning(
+            () => '  event: $replyEvent, status: ${response.status}',
+          )
+          ..finer(
+            () => '  response: ${response.response}',
+          );
+
         return;
       } else {
         _logger.finer(

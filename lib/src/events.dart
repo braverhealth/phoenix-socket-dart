@@ -1,5 +1,8 @@
 import 'package:equatable/equatable.dart';
 
+import 'channel.dart';
+import 'socket.dart';
+
 /// Base socket event
 class PhoenixSocketEvent {}
 
@@ -8,46 +11,36 @@ class PhoenixSocketOpenEvent extends PhoenixSocketEvent {}
 
 /// Close event for a [PhoenixSocket].
 class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
-  /// The reason the socket was closed.
-  final String reason;
-
-  /// The code of the socket close.
-  final int code;
-
   /// Default constructor for this close event.
   PhoenixSocketCloseEvent({
     this.reason,
     this.code,
   });
+
+  /// The reason the socket was closed.
+  final String reason;
+
+  /// The code of the socket close.
+  final int code;
 }
 
 /// Error event for a [PhoenixSocket].
 class PhoenixSocketErrorEvent extends PhoenixSocketEvent {
-  /// The error that happened on the socket
-  final dynamic error;
-
-  /// The stacktrace associated with the error.
-  final dynamic stacktrace;
-
   /// Default constructor for the error event.
   PhoenixSocketErrorEvent({
     this.error,
     this.stacktrace,
   });
+
+  /// The error that happened on the socket
+  final dynamic error;
+
+  /// The stacktrace associated with the error.
+  final dynamic stacktrace;
 }
 
 /// Encapsulates constants used in the protocol over [PhoenixChannel].
 class PhoenixChannelEvent extends Equatable {
-  static const String __closeEventName = 'phx_close';
-  static const String __errorEventName = 'phx_error';
-  static const String __joinEventName = 'phx_join';
-  static const String __replyEventName = 'phx_reply';
-  static const String __leaveEventName = 'phx_leave';
-  static const String __chanReplyEventName = 'chan_reply';
-
-  /// The string value for a channel event.
-  final String value;
-
   PhoenixChannelEvent._(this.value);
 
   /// A reply event name for a given push ref value.
@@ -78,6 +71,15 @@ class PhoenixChannelEvent extends Equatable {
         throw ArgumentError.value(value);
     }
   }
+  static const String __closeEventName = 'phx_close';
+  static const String __errorEventName = 'phx_error';
+  static const String __joinEventName = 'phx_join';
+  static const String __replyEventName = 'phx_reply';
+  static const String __leaveEventName = 'phx_leave';
+  static const String __chanReplyEventName = 'chan_reply';
+
+  /// The string value for a channel event.
+  final String value;
 
   /// The constant close event
   static PhoenixChannelEvent close = PhoenixChannelEvent._(__closeEventName);

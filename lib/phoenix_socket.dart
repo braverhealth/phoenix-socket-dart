@@ -11,6 +11,11 @@
 /// class can be used.
 library phoenix_socket;
 
+import 'src/channel.dart';
+import 'src/message.dart';
+import 'src/push.dart';
+import 'src/socket.dart';
+
 export 'src/channel.dart';
 export 'src/events.dart';
 export 'src/exception.dart';

@@ -24,6 +24,12 @@ void noopWithThreeArgs(String a, dynamic b, dynamic c) {}
 void noopWithNoArg() {}
 
 class PhoenixPresence {
+  PhoenixPresence({this.channel, this.eventNames}) {
+    final eventNames = {stateEventName, diffEventName};
+    _subscription = channel.messages
+        .where((message) => eventNames.contains(message.event.value))
+        .listen(_onMessage);
+  }
   final PhoenixChannel channel;
   StreamSubscription _subscription;
   final Map<String, String> eventNames;
@@ -35,13 +41,6 @@ class PhoenixPresence {
   JoinHandler joinHandler = noopWithThreeArgs;
   LeaveHandler leaveHandler = noopWithThreeArgs;
   Function() syncHandler = noopWithNoArg;
-
-  PhoenixPresence({this.channel, this.eventNames}) {
-    final eventNames = {stateEventName, diffEventName};
-    _subscription = channel.messages
-        .where((message) => eventNames.contains(message.event))
-        .listen(_onMessage);
-  }
 
   bool get inPendingSyncState =>
       _joinRef == null || _joinRef != channel.joinRef;
@@ -73,7 +72,7 @@ class PhoenixPresence {
       _joinRef = channel.joinRef;
       final newState = message.payload;
       state = _syncState(state, newState, joinHandler, leaveHandler);
-      for (var diff in pendingDiffs) {
+      for (final diff in pendingDiffs) {
         state = _syncDiff(state, diff, joinHandler, leaveHandler);
       }
       pendingDiffs = [];
@@ -143,8 +142,8 @@ Map<String, dynamic> _syncDiff(
 ) {
   final state = _clone(currentState);
 
-  Map<String, dynamic> joins = diff['joins'];
-  Map<String, dynamic> leaves = diff['leaves'];
+  final Map<String, dynamic> joins = diff['joins'];
+  final Map<String, dynamic> leaves = diff['leaves'];
 
   _map(joins, (key, newPresence) {
     final currentPresence = state[key];
