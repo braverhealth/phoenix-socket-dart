@@ -1,3 +1,7 @@
+## [0.4.1]
+
+- Fix code analysis (from very_good_analysis) issues
+
 ## [0.4.0]
 
 - Improve code readability and inline documentation
