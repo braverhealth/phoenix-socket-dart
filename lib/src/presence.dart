@@ -1,8 +1,13 @@
+// ignore_for_file: public_member_api_docs
+
+// TODO: This is a very much a non-tested port of the javascript code!
+//       Feel free to test, improve and make a pull request.
+
 import 'dart:async';
 import 'dart:convert';
 
-import 'message.dart';
 import 'channel.dart';
+import 'message.dart';
 
 typedef JoinHandler = void Function(
   String key,
@@ -15,6 +20,9 @@ typedef LeaveHandler = void Function(
   dynamic left,
 );
 
+void noopWithThreeArgs(String a, dynamic b, dynamic c) {}
+void noopWithNoArg() {}
+
 class PhoenixPresence {
   final PhoenixChannel channel;
   StreamSubscription _subscription;
@@ -24,27 +32,15 @@ class PhoenixPresence {
 
   String _joinRef;
 
-  JoinHandler _joinHandler = (a, b, c) {};
-  LeaveHandler _leaveHandler = (a, b, c) {};
-  Function() _syncHandler = () {};
+  JoinHandler joinHandler = noopWithThreeArgs;
+  LeaveHandler leaveHandler = noopWithThreeArgs;
+  Function() syncHandler = noopWithNoArg;
 
   PhoenixPresence({this.channel, this.eventNames}) {
     final eventNames = {stateEventName, diffEventName};
     _subscription = channel.messages
-        .where((Message message) => eventNames.contains(message.event))
+        .where((message) => eventNames.contains(message.event))
         .listen(_onMessage);
-  }
-
-  void onJoin(JoinHandler joinHandler) {
-    _joinHandler = joinHandler;
-  }
-
-  void onLeave(LeaveHandler leaveHandler) {
-    _leaveHandler = leaveHandler;
-  }
-
-  void onSync(Function() syncHandler) {
-    _syncHandler = syncHandler;
   }
 
   bool get inPendingSyncState =>
@@ -76,19 +72,19 @@ class PhoenixPresence {
     if (message.event.value == stateEventName) {
       _joinRef = channel.joinRef;
       final newState = message.payload;
-      state = _syncState(state, newState, _joinHandler, _leaveHandler);
-      pendingDiffs.forEach((diff) {
-        state = _syncDiff(state, diff, _joinHandler, _leaveHandler);
-      });
+      state = _syncState(state, newState, joinHandler, leaveHandler);
+      for (var diff in pendingDiffs) {
+        state = _syncDiff(state, diff, joinHandler, leaveHandler);
+      }
       pendingDiffs = [];
-      _syncHandler();
+      syncHandler();
     } else if (message.event.value == diffEventName) {
       final diff = message.payload;
       if (inPendingSyncState) {
         pendingDiffs.add(diff);
       } else {
-        state = _syncDiff(state, diff, _joinHandler, _leaveHandler);
-        _syncHandler();
+        state = _syncDiff(state, diff, joinHandler, leaveHandler);
+        syncHandler();
       }
     }
   }
