@@ -78,13 +78,6 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "0.16.1"
-  effective_dart:
-    dependency: "direct main"
-    description:
-      name: effective_dart
-      url: "https://pub.dartlang.org"
-    source: hosted
-    version: "1.2.1"
   equatable:
     dependency: "direct main"
     description:
@@ -351,6 +344,13 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "1.1.6"
+  very_good_analysis:
+    dependency: "direct dev"
+    description:
+      name: very_good_analysis
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "1.0.3"
   vm_service:
     dependency: transitive
     description:
