@@ -1,3 +1,7 @@
+## [0.4.2]
+
+- Auto-reconnect when connection drops unexpectedly
+
 ## [0.4.1]
 
 - Fix code analysis (from very_good_analysis) issues
