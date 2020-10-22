@@ -64,15 +64,26 @@ class PushResponse implements Equatable {
 
 typedef PayloadGetter = Map<String, dynamic> Function();
 
+/// Object produced by [PhoenixChannel.push] to encapsulate
+/// the message sent and its lifecycle.
 class Push {
   final Logger _logger;
-  final PhoenixChannelEvent event;
-  final PayloadGetter payload;
-  final PhoenixChannel _channel;
   final ListMultimap<String, void Function(PushResponse)> _receivers =
       ListMultimap();
 
+  /// The event name associated with the pushed message
+  final PhoenixChannelEvent event;
+
+  /// A getter function that yields the payload of the pushed message,
+  /// usually a JSON object.
+  final PayloadGetter payload;
+
+  /// Channel through which the message was sent.
+  final PhoenixChannel _channel;
+
+  /// The expected timeout, after which the push is considered failed.
   Duration timeout;
+
   PushResponse _received;
   bool _sent = false;
   bool _awaitingReply = false;
@@ -81,11 +92,16 @@ class Push {
   PhoenixChannelEvent _replyEvent;
 
   Completer<PushResponse> _responseCompleter;
+
+  /// A future that will yield the response to the original message.
   Future<PushResponse> get future {
     _responseCompleter ??= Completer<PushResponse>();
     return _responseCompleter.future;
   }
 
+  /// Build a Push message from its content and associated channel.
+  ///
+  /// Prefer using [PhoenixChannel.push] instead of using this.
   Push(
     PhoenixChannel channel, {
     this.event,
@@ -94,8 +110,10 @@ class Push {
   })  : _channel = channel,
         _logger = Logger('phoenix_socket.push.${channel.loggerName}');
 
+  /// Indicates whether the push has been sent.
   bool get sent => _sent;
 
+  /// The unique identifier of the message used throughout its lifecycle.
   String get ref => _ref ??= _channel.socket.nextRef;
 
   void _resetRef() {
@@ -103,11 +121,58 @@ class Push {
     _replyEvent = null;
   }
 
+  /// The event name of the expected reply coming from the Phoenix backend.
   PhoenixChannelEvent get replyEvent =>
       _replyEvent ??= PhoenixChannelEvent.replyFor(ref);
 
+  /// Returns whether the given status was received from the backend as
+  /// a reply.
   bool hasReceived(String status) => _received?.status == status;
 
+  /// Send the push message.
+  ///
+  /// This also schedules the timeout to be triggered in the future.
+  Future<void> send() async {
+    if (_received is PushResponse && _received.isTimeout) {
+      _logger.warning('Trying to send push $ref after timeout');
+      return;
+    }
+    _logger.finer('Sending out push for $ref');
+    _sent = true;
+    _awaitingReply = false;
+
+    startTimeout();
+    try {
+      await _channel.socket.sendMessage(Message(
+        event: event,
+        topic: _channel.topic,
+        payload: payload(),
+        ref: ref,
+        joinRef: _channel.joinRef,
+      ));
+      // ignore: avoid_catches_without_on_clauses
+    } catch (err, stacktrace) {
+      _logger.warning(
+        'Catched error for push $ref',
+        err,
+        stacktrace,
+      );
+      _receiveResponse(err);
+    }
+  }
+
+  /// Retry to send the push message.
+  ///
+  /// This is usually done automatically by the managing [PhoenixChannel]
+  /// after a reconnection.
+  Future<void> resend(Duration newTimeout) async {
+    timeout = newTimeout ?? timeout;
+    reset();
+    await send();
+  }
+
+  /// Associate a callback to be called if and when a reply with the given
+  /// status is received.
   void onReply(
     String status,
     void Function(PushResponse) callback,
@@ -115,11 +180,30 @@ class Push {
     _receivers[status].add(callback);
   }
 
+  /// Schedule a timeout to be triggered if no reply occurs
+  /// within the expected time frame.
+  void startTimeout() {
+    if (!_awaitingReply) {
+      _channel.onPushReply(replyEvent)
+        ..then(_receiveResponse)
+        ..catchError(_receiveResponse);
+      _awaitingReply = true;
+    }
+
+    _timeoutTimer ??= Timer(timeout, () {
+      _timeoutTimer = null;
+      _logger.warning('Push $ref timed out');
+      _channel.trigger(Message.timeoutFor(ref));
+    });
+  }
+
+  /// Cancel the scheduled timeout for this push.
   void cancelTimeout() {
     _timeoutTimer?.cancel();
     _timeoutTimer = null;
   }
 
+  /// Reset the scheduled timeout for this push.
   void reset() {
     cancelTimeout();
     _received = null;
@@ -128,11 +212,11 @@ class Push {
     _responseCompleter = null;
   }
 
-  void clearWaiters() {
-    _receivers.clear();
-    _responseCompleter = null;
-  }
-
+  /// Trigger the appropriate waiters and future associated for this push,
+  /// given the provided response.
+  ///
+  /// This will only trigger the waiters associated with the response's status,
+  /// e.g. 'ok' or 'error'.
   void trigger(PushResponse response) {
     _received = response;
 
@@ -165,6 +249,12 @@ class Push {
     clearWaiters();
   }
 
+  /// Dispose the set of waiters and future associated with this push.
+  void clearWaiters() {
+    _receivers.clear();
+    _responseCompleter = null;
+  }
+
   void _receiveResponse(dynamic response) {
     cancelTimeout();
     if (response is Message) {
@@ -177,55 +267,5 @@ class Push {
         clearWaiters();
       }
     }
-  }
-
-  void startTimeout() {
-    if (!_awaitingReply) {
-      _channel.onPushReply(replyEvent)
-        ..then(_receiveResponse)
-        ..catchError(_receiveResponse);
-      _awaitingReply = true;
-    }
-
-    _timeoutTimer ??= Timer(timeout, () {
-      _timeoutTimer = null;
-      _logger.warning('Push $ref timed out');
-      _channel.trigger(Message.timeoutFor(ref));
-    });
-  }
-
-  Future<void> send() async {
-    if (_received is PushResponse && _received.isTimeout) {
-      _logger.warning('Trying to send push $ref after timeout');
-      return;
-    }
-    _logger.finer('Sending out push for $ref');
-    _sent = true;
-    _awaitingReply = false;
-
-    startTimeout();
-    try {
-      await _channel.socket.sendMessage(Message(
-        event: event,
-        topic: _channel.topic,
-        payload: payload(),
-        ref: ref,
-        joinRef: _channel.joinRef,
-      ));
-      // ignore: avoid_catches_without_on_clauses
-    } catch (err, stacktrace) {
-      _logger.warning(
-        'Catched error for push $ref',
-        err,
-        stacktrace,
-      );
-      _receiveResponse(err);
-    }
-  }
-
-  Future<void> resend(Duration newTimeout) async {
-    timeout = newTimeout ?? timeout;
-    reset();
-    await send();
   }
 }

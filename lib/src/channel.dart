@@ -32,14 +32,20 @@ enum PhoenixChannelState {
 /// Bi-directional and isolated communication channel shared between
 /// differents clients through a common Phoenix server.
 class PhoenixChannel {
-  final Map<String, String> _parameters;
-  final PhoenixSocket _socket;
+  /// Parameters passed to the backend at join time.
+  final Map<String, String> parameters;
+
+  /// The [PhoenixSocket] through which this channel is established.
+  final PhoenixSocket socket;
+
   final StreamController<Message> _controller;
   final Map<PhoenixChannelEvent, Completer<Message>> _waiters;
   final List<StreamSubscription> _subscriptions = [];
 
   /// The name of the topic to which this channel will bind.
   final String topic;
+
+  final Zone _zone;
 
   Duration _timeout;
   PhoenixChannelState _state = PhoenixChannelState.closed;
@@ -48,55 +54,72 @@ class PhoenixChannel {
   String _reference;
   Push _joinPush;
   Logger _logger;
-  Zone _zone;
 
   /// A list of push to be sent out once the channel is joined.
   final List<Push> pushBuffer = [];
 
+  /// Build a PhoenixChannel from a [PhoenixSocket].
   PhoenixChannel.fromSocket(
-    this._socket, {
+    this.socket, {
     this.topic,
-    Map<String, String> parameters,
+    this.parameters = const {},
     Duration timeout,
     Zone zone,
-  })  : _parameters = parameters ?? {},
-        _controller = StreamController.broadcast(),
+  })  : _controller = StreamController.broadcast(),
         _waiters = {},
         _zone = zone.fork(),
-        _timeout = timeout ?? _socket.defaultTimeout {
+        _timeout = timeout ?? socket.defaultTimeout {
     _joinPush = _prepareJoin();
     _logger = Logger('phoenix_socket.channel.$loggerName');
     _subscriptions.add(messages.listen(_zone.bindUnaryCallback(_onMessage)));
-    _subscriptions.addAll(_subscribeToSocketStreams(_socket));
+    _subscriptions.addAll(_subscribeToSocketStreams(socket));
   }
 
-  Duration get timeout => _timeout;
-  Map<String, String> get parameters => _parameters;
+  /// Stream of all messages coming through this channel from the backend.
   Stream<Message> get messages => _controller.stream;
+
+  /// Unique identifier of the 'join' push message.
   String get joinRef => _joinPush.ref;
-  PhoenixSocket get socket => _socket;
+
+  /// State of the channel.
   PhoenixChannelState get state => _state;
 
+  /// Whether the channel is closed.
   bool get isClosed => _state == PhoenixChannelState.closed;
+
+  /// Whether the channel is errored.
   bool get isErrored => _state == PhoenixChannelState.errored;
+
+  /// Whether the channel is joined and ready to interact.
   bool get isJoined => _state == PhoenixChannelState.joined;
+
+  /// Whether the channel is currently joining and waiting for the end
+  /// of the handshake.
   bool get isJoining => _state == PhoenixChannelState.joining;
+
+  /// Whether the channel is currently leaving.
   bool get isLeaving => _state == PhoenixChannelState.leaving;
 
+  /// Whether the channel can send messages.
   bool get canPush => socket.isConnected && isJoined;
 
   String _loggerName;
+
+  /// The name of the logger associated to this channel.
   String get loggerName => _loggerName ??= topic.replaceAll(
       RegExp(
         '[:,*&?!@#\$%]',
       ),
       '_');
 
+  /// This channel's unique numeric reference.
   String get reference {
-    _reference ??= _socket.nextRef;
+    _reference ??= socket.nextRef;
     return _reference;
   }
 
+  /// Returns a future that will complete (or throw) when the provided
+  /// reply arrives (or throws).
   Future<Message> onPushReply(PhoenixChannelEvent replyEvent) {
     return _zone.run(() {
       if (_waiters.containsKey(replyEvent)) {
@@ -115,6 +138,10 @@ class PhoenixChannel {
     });
   }
 
+  /// Close this channel.
+  ///
+  /// As a side effect, this method also remove this channel from
+  /// the encompassing [PhoenixSocket].
   void close() {
     _zone.run(() {
       if (_state == PhoenixChannelState.closed) {
@@ -133,10 +160,11 @@ class PhoenixChannel {
 
       _controller.close();
       _waiters.clear();
-      _socket.removeChannel(this);
+      socket.removeChannel(this);
     });
   }
 
+  /// Trigger the reception of a message.
   void trigger(Message message) {
     _zone.run(() {
       if (!_controller.isClosed) {
@@ -145,6 +173,7 @@ class PhoenixChannel {
     });
   }
 
+  /// Trigger an error on this channel.
   void triggerError(PhoenixException error) {
     _zone.run(() {
       _logger.fine('Receiving error on channel', error);
@@ -166,6 +195,7 @@ class PhoenixChannel {
     });
   }
 
+  /// Leave this channel.
   Push leave({Duration timeout}) {
     return _zone.run(() {
       _joinPush?.cancelTimeout();
@@ -193,6 +223,7 @@ class PhoenixChannel {
     });
   }
 
+  /// Join this channel using the associated [PhoenixSocket].
   Push join([Duration newTimeout]) {
     assert(!_joinedOnce);
     return _zone.run(() {
@@ -207,9 +238,22 @@ class PhoenixChannel {
     });
   }
 
+  /// Push a message to the Phoenix server.
   Push push(
+    /// The name of the message's event.
+    ///
+    /// This can be any string, as long as it matches with something
+    /// expected on the backend implementation.
     String eventName,
+
+    /// The message payload.
+    ///
+    /// This needs to be a JSON encodable object.
     Map<String, dynamic> payload, [
+
+    /// Manually set timeout value for this push.
+    ///
+    /// If not provided, the default timeout will be used.
     Duration newTimeout,
   ]) =>
       pushEvent(
@@ -218,6 +262,10 @@ class PhoenixChannel {
         newTimeout,
       );
 
+  /// Push a message with a valid [PhoenixChannelEvent] name.
+  ///
+  /// This variant is used internally for channel joining/leaving. Prefer
+  /// using [push] instead.
   Push pushEvent(
     PhoenixChannelEvent event,
     Map<String, dynamic> payload, [
@@ -230,7 +278,7 @@ class PhoenixChannel {
         this,
         event: event,
         payload: () => payload,
-        timeout: newTimeout ?? timeout,
+        timeout: newTimeout ?? _timeout,
       );
 
       if (canPush) {
@@ -269,7 +317,7 @@ class PhoenixChannel {
       this,
       event: PhoenixChannelEvent.join,
       payload: () => parameters,
-      timeout: providedTimeout ?? timeout,
+      timeout: providedTimeout ?? _timeout,
     );
     _bindJoinPush(push);
     return push;
@@ -301,7 +349,7 @@ class PhoenixChannel {
             this,
             event: PhoenixChannelEvent.leave,
             payload: () => {},
-            timeout: timeout,
+            timeout: _timeout,
           );
           leavePush.send();
           _state = PhoenixChannelState.errored;
@@ -315,7 +363,7 @@ class PhoenixChannel {
 
   void _startRejoinTimer() {
     _rejoinTimer?.cancel();
-    _rejoinTimer = Timer(timeout, () {
+    _rejoinTimer = Timer(_timeout, () {
       if (socket.isConnected) _attemptJoin();
     });
   }
@@ -324,7 +372,7 @@ class PhoenixChannel {
     if (!isLeaving) {
       _state = PhoenixChannelState.joining;
       _bindJoinPush(_joinPush);
-      unawaited(_joinPush.resend(timeout));
+      unawaited(_joinPush.resend(_timeout));
     }
   }
 

@@ -14,17 +14,28 @@ import 'channel.dart';
 import 'events.dart';
 import 'exception.dart';
 import 'message.dart';
+import 'message_serializer.dart';
 import 'socket_options.dart';
 
+/// State of a [PhoenixSocket].
 enum SocketState {
+  /// The connection is closed
   closed,
+
+  /// The connection is closing
   closing,
+
+  /// The connection is opening
   connecting,
+
+  /// The connection is established
   connected,
 }
 
 final Logger _logger = Logger('phoenix_socket.socket');
 
+/// Main class to use when wishing to establish a persistent connection
+/// with a Phoenix backend using WebSockets.
 class PhoenixSocket {
   final Map<String, Completer<Message>> _pendingMessages = {};
   final Map<String, Stream<Message>> _topicStreams = {};
@@ -34,6 +45,7 @@ class PhoenixSocket {
   final StreamController<String> _receiveStreamController =
       StreamController.broadcast();
   final String _endpoint;
+  final StreamController<Message> _topicMessages = StreamController();
 
   Uri _mountPoint;
   SocketState _socketState;
@@ -44,21 +56,25 @@ class PhoenixSocket {
   Stream<PhoenixSocketCloseEvent> _closeStream;
   Stream<PhoenixSocketErrorEvent> _errorStream;
   Stream<Message> _messageStream;
-  StreamController<Message> _topicMessages = StreamController();
   StreamRouter<Message> _streamRouter;
 
+  /// Stream of [PhoenixSocketOpenEvent] being produced whenever
+  /// the connection is open.
   Stream<PhoenixSocketOpenEvent> get openStream => _openStream;
+
+  /// Stream of [PhoenixSocketCloseEvent] being produced whenever
+  /// the connection closes.
   Stream<PhoenixSocketCloseEvent> get closeStream => _closeStream;
+
+  /// Stream of [PhoenixSocketErrorEvent] being produced in
+  /// the lifetime of the [PhoenixSocket].
   Stream<PhoenixSocketErrorEvent> get errorStream => _errorStream;
+
+  /// Stream of all [Message] instances received.
   Stream<Message> get messageStream => _messageStream;
 
-  List<Duration> reconnects = [
-    Duration(seconds: 1000),
-    Duration(seconds: 2000),
-    Duration(seconds: 5000),
-    Duration(seconds: 10000),
-    Duration(seconds: 15000),
-  ];
+  /// Reconnection durations, increasing in length.
+  List<Duration> _reconnects;
 
   List<StreamSubscription> _subscriptions = [];
 
@@ -66,13 +82,19 @@ class PhoenixSocket {
   String _nextHeartbeatRef;
   Timer _heartbeatTimeout;
 
+  /// A property yielding unique message reference ids,
+  /// monotonically increasing.
   String get nextRef => '${_ref++}';
+
   int _reconnectAttempts = 0;
 
+  /// [Map] of topic names to [PhoenixChannel] instances being
+  /// maintained and tracked by the socket.
   Map<String, PhoenixChannel> channels = {};
 
   PhoenixSocketOptions _options;
 
+  /// Default duration for a connection timeout.
   Duration get defaultTimeout => _options.timeout;
 
   final Zone _zone;
@@ -83,14 +105,20 @@ class PhoenixSocket {
   /// endpoint is the full url to which you wish to connect
   /// e.g. `ws://localhost:4000/websocket/socket`
   PhoenixSocket(
+    /// The URL of the Phoenix server.
     String endpoint, {
+
+    /// The options used when initiating and maintaining the
+    /// websocket connection.
     PhoenixSocketOptions socketOptions,
   })  : _zone = Zone.current.fork(),
         _endpoint = endpoint {
     _options = socketOptions ?? PhoenixSocketOptions();
 
+    _reconnects = _options.reconnectDelays;
+
     _messageStream =
-        _receiveStreamController.stream.map(MessageSerializer.decode);
+        _receiveStreamController.stream.map(_options.serializer.decode);
 
     _openStream = _stateStreamController.stream
         .where((event) => event is PhoenixSocketOpenEvent)
@@ -111,20 +139,32 @@ class PhoenixSocket {
     ];
   }
 
+  /// A [StreamRouter] for the stream of incoming messages.
+  ///
+  /// Use [streamForTopic] instead of this if you don't know how to use
+  /// a [StreamRouter].
   StreamRouter<Message> get streamRouter =>
       _streamRouter ??= StreamRouter(_topicMessages.stream);
 
+  /// A stream yielding [Message] instances for a given topic.
+  ///
+  /// The [Channel] for this topic may not be open yet, it'll still eventually
+  /// yield messages when the channel is open and it receives messages.
   Stream<Message> streamForTopic(String topic) => _topicStreams.putIfAbsent(
       topic, () => streamRouter.route((event) => event.topic == topic));
 
+  /// The string URL of the remote Phoenix server.
   String get endpoint => _endpoint;
 
+  /// The [Uri] containing all the parameters and options for the
+  /// remote connection to occue.
   Uri get mountPoint => _mountPoint;
 
+  /// Whether the underlying socket is connected of not.
   bool get isConnected =>
       _ws is WebSocketChannel && _socketState == SocketState.connected;
 
-  /// Attempts to make a WebSocket connection to your backend
+  /// Attempts to make a WebSocket connection to the Phoenix backend.
   ///
   /// If the attempt fails, retries will be triggered at intervals specified
   /// by retryAfterIntervalMS
@@ -170,13 +210,15 @@ class PhoenixSocket {
         );
       } catch (err) {
         final durationIdx = _reconnectAttempts++;
-        if (durationIdx >= reconnects.length) {
-          rethrow;
-        }
         _ws = null;
         _socketState = SocketState.closed;
 
-        final duration = reconnects[durationIdx];
+        var duration;
+        if (durationIdx >= _reconnects.length) {
+          duration = _reconnects.last;
+        } else {
+          duration = _reconnects[durationIdx];
+        }
 
         completer.complete(Future.delayed(duration, connect));
       }
@@ -185,6 +227,7 @@ class PhoenixSocket {
     return completer.future;
   }
 
+  /// Close the underlying connection supporting the socket.
   void close([int code, String reason]) {
     _zone.run(() {
       if (isConnected) {
@@ -196,11 +239,15 @@ class PhoenixSocket {
     });
   }
 
+  /// Dispose of the socket.
+  ///
+  /// Don't forget to call this at the end of the lifetime of
+  /// a socket.
   void dispose() {
     _zone.run(() {
       if (_disposed) return;
       _disposed = true;
-      _ws.sink.close();
+      _ws?.sink?.close();
 
       for (final sub in _subscriptions) {
         sub.cancel();
@@ -224,6 +271,12 @@ class PhoenixSocket {
     });
   }
 
+  /// Wait for an expected message to arrive.
+  ///
+  /// Used internally when expecting a message like a heartbeat
+  /// reply, a join reply, etc. If you need to wait for the
+  /// reply of message you sent on a channel, you would usually
+  /// use wait the returned [Push.future].
   Future<Message> waitForMessage(Message message) {
     if (_pendingMessages.containsKey(message.ref)) {
       return _pendingMessages[message.ref].future;
@@ -235,6 +288,11 @@ class PhoenixSocket {
     );
   }
 
+  /// Send a channel on the socket.
+  ///
+  /// Used internall to send prepared message. If you need to send
+  /// a message on a channel, you would usually use [Channel.push]
+  /// instead.
   Future<Message> sendMessage(Message message) {
     return _zone.run(() {
       if (_ws?.sink is! WebSocketSink) {
@@ -242,7 +300,7 @@ class PhoenixSocket {
           socketClosed: PhoenixSocketCloseEvent(),
         ));
       }
-      _ws.sink.add(MessageSerializer.encode(message));
+      _ws.sink.add(_options.serializer.encode(message));
       _pendingMessages[message.ref] = Completer<Message>();
       return _pendingMessages[message.ref].future;
     });
@@ -281,6 +339,11 @@ class PhoenixSocket {
     });
   }
 
+  /// Stop managing and tracking a channel on this phoenix
+  /// socket.
+  ///
+  /// Used internally by PhoenixChannel to remove itself after
+  /// leaving the channel.
   void removeChannel(PhoenixChannel channel) {
     _zone.run(() {
       _logger.finer(() => 'Removing channel ${channel.topic}');
@@ -340,7 +403,7 @@ class PhoenixSocket {
     try {
       await sendMessage(_heartbeatMessage());
       _logger.fine('[phoenix_socket] Heartbeat completed');
-    } catch (err, stacktrace) {
+    } on PhoenixException catch (err, stacktrace) {
       _logger.severe(
         '[phoenix_socket] Heartbeat message failed with error',
         err,

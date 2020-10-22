@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:logging/logging.dart';
 import 'package:equatable/equatable.dart';
 
@@ -7,13 +5,34 @@ import 'events.dart';
 
 final Logger _logger = Logger('phoenix_socket.message');
 
+/// Class that encapsulate a message being sent or received on a
+/// [PhoenixSocket].
 class Message implements Equatable {
+  /// Reference of the channel on which the message is received.
+  ///
+  /// Used by the [PhoenixSocket] to route the message on the proper
+  /// [PhoenixChannel].
   final String joinRef;
+
+  /// The unique identifier for this message.
+  ///
+  /// This identifier is used in the reply event name, allowing us
+  /// to consider a message as a reply to a previous message.
   final String ref;
+
+  /// The topic of the channel on which this message is sent.
   final String topic;
+
+  /// The event name of this message.
   final PhoenixChannelEvent event;
+
+  /// The payload of this message.
+  ///
+  /// This needs to be a JSON-encodable object.
   final Map<String, dynamic> payload;
 
+  /// Given a parsed JSON coming from the backend, yield
+  /// a [Message] instance.
   factory Message.fromJson(List<dynamic> parts) {
     _logger.finest('Message decoded from $parts');
     return Message(
@@ -25,6 +44,7 @@ class Message implements Equatable {
     );
   }
 
+  /// Given a unique reference, generate a heartbeat message.
   factory Message.heartbeat(String ref) {
     return Message(
       topic: 'phoenix',
@@ -34,6 +54,8 @@ class Message implements Equatable {
     );
   }
 
+  /// Given a unique reference, generate a timeout message that
+  /// will be used to error out a push.
   factory Message.timeoutFor(String ref) {
     return Message(
       event: PhoenixChannelEvent.replyFor(ref),
@@ -44,6 +66,7 @@ class Message implements Equatable {
     );
   }
 
+  /// Build a [Message] from its constituents.
   Message({
     this.joinRef,
     this.ref,
@@ -52,6 +75,7 @@ class Message implements Equatable {
     this.payload,
   }) : assert(event is PhoenixChannelEvent);
 
+  /// Encode a message to a JSON-encodable list of values.
   Object encode() {
     final parts = [
       joinRef,
@@ -67,11 +91,14 @@ class Message implements Equatable {
   @override
   List<Object> get props => [joinRef, ref, topic, event, payload];
 
-  bool get isReply => event.isReply;
-
   @override
   bool get stringify => true;
 
+  /// Whether the message is a reply message.
+  bool get isReply => event.isReply;
+
+  /// Return a new [Message] with the event name being that of
+  /// a proper reply message.
   Message asReplyEvent() {
     return Message(
       ref: ref,
@@ -80,15 +107,5 @@ class Message implements Equatable {
       topic: topic,
       joinRef: joinRef,
     );
-  }
-}
-
-class MessageSerializer {
-  static Message decode(String rawData) {
-    return Message.fromJson(jsonDecode(rawData));
-  }
-
-  static String encode(Message message) {
-    return jsonEncode(message.encode());
   }
 }
