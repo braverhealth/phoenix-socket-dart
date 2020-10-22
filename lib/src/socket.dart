@@ -127,6 +127,9 @@ class PhoenixSocket {
 
   int _reconnectAttempts = 0;
 
+  bool _shouldReconnect = true;
+  bool _reconnecting = false;
+
   /// [Map] of topic names to [PhoenixChannel] instances being
   /// maintained and tracked by the socket.
   Map<String, PhoenixChannel> channels = {};
@@ -173,6 +176,8 @@ class PhoenixSocket {
     if (_ws != null) {
       return this;
     }
+
+    _shouldReconnect = true;
 
     if (_disposed) {
       throw StateError('PhoenixSocket cannot connect after being disposed.');
@@ -221,7 +226,7 @@ class PhoenixSocket {
           duration = _reconnects[durationIdx];
         }
 
-        completer.complete(Future.delayed(duration, connect));
+        completer.complete(_delayedReconnect(duration));
       }
     });
 
@@ -229,12 +234,17 @@ class PhoenixSocket {
   }
 
   /// Close the underlying connection supporting the socket.
-  void close([int code, String reason]) {
+  void close([
+    int code,
+    String reason,
+    reconnect = false,
+  ]) {
+    _shouldReconnect = reconnect;
     _zone.run(() {
       if (isConnected) {
         _socketState = SocketState.closing;
         _ws.sink.close(code, reason);
-      } else {
+      } else if (!_shouldReconnect) {
         dispose();
       }
     });
@@ -245,8 +255,10 @@ class PhoenixSocket {
   /// Don't forget to call this at the end of the lifetime of
   /// a socket.
   void dispose() {
+    _shouldReconnect = false;
     _zone.run(() {
       if (_disposed) return;
+
       _disposed = true;
       _ws?.sink?.close();
 
@@ -480,6 +492,10 @@ class PhoenixSocket {
   }
 
   void _onSocketClosed() {
+    if (_shouldReconnect) {
+      _delayedReconnect();
+    }
+
     if (_socketState == SocketState.closed) {
       return;
     }
@@ -496,7 +512,9 @@ class PhoenixSocket {
     }
 
     if (_socketState == SocketState.closing) {
-      dispose();
+      if (!_shouldReconnect) {
+        dispose();
+      }
       return;
     } else {
       _logger.info(
@@ -510,5 +528,19 @@ class PhoenixSocket {
       completer.completeError(ev);
     }
     _pendingMessages.clear();
+  }
+
+  Future<PhoenixSocket> _delayedReconnect([Duration delay]) async {
+    if (_reconnecting) return null;
+
+    _reconnecting = true;
+    await Future.delayed(delay ?? _options.reconnectDelays.first);
+
+    if (!_disposed) {
+      _reconnecting = false;
+      return connect();
+    }
+
+    return null;
   }
 }

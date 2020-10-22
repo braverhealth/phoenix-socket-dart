@@ -62,5 +62,33 @@ void main() {
 
       await completer.future;
     });
+
+    test('reconnects automatically after a socket close', () async {
+      final socket = PhoenixSocket(
+        addr,
+        socketOptions: PhoenixSocketOptions(
+          params: {'user_id': 'this_is_a_userid'},
+        ),
+      );
+
+      await socket.connect();
+
+      var i = 0;
+      socket.openStream.listen((event) async {
+        if (i++ < 3) {
+          await Future.delayed(const Duration(milliseconds: 50));
+          socket.close(null, null, true);
+        }
+      });
+
+      expect(
+        socket.openStream,
+        emitsInOrder([
+          isA<PhoenixSocketOpenEvent>(),
+          isA<PhoenixSocketOpenEvent>(),
+          isA<PhoenixSocketOpenEvent>(),
+        ]),
+      );
+    });
   });
 }
