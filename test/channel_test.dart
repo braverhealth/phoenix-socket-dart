@@ -1,18 +1,24 @@
+import 'dart:async';
+
 import 'package:test/test.dart';
 
 import 'package:phoenix_socket/phoenix_socket.dart';
 
 void main() {
-  var addr = 'ws://localhost:4001/socket/websocket';
+  const addr = 'ws://localhost:4001/socket/websocket';
 
   group('PhoenixChannel', () {
     test('can join a channel through a socket', () async {
       final socket = PhoenixSocket(addr);
+      final completer = Completer<Null>();
 
       await socket.connect();
-      await socket.addChannel(topic: 'channel1').join().onReply('ok', (reply) {
+      socket.addChannel(topic: 'channel1').join().onReply('ok', (reply) {
         expect(reply.status, equals('ok'));
+        completer.complete();
       });
+
+      await completer.future;
     });
 
     test('can join a channel requiring parameters', () async {
@@ -20,7 +26,7 @@ void main() {
 
       await socket.connect();
 
-      var channel1 = socket.addChannel(
+      final channel1 = socket.addChannel(
           topic: 'channel1:hello', parameters: {'password': 'deadbeef'});
 
       expect(channel1.join().future, completes);
@@ -28,29 +34,37 @@ void main() {
 
     test('can handle channel join failures', () async {
       final socket = PhoenixSocket(addr);
+      final completer = Completer<Null>();
 
       await socket.connect();
 
-      var channel1 = socket.addChannel(
+      final channel1 = socket.addChannel(
           topic: 'channel1:hello', parameters: {'password': 'deadbee?'});
 
-      await channel1.join().onReply('error', (error) {
+      channel1.join().onReply('error', (error) {
         expect(error.status, equals('error'));
+        completer.complete();
       });
+
+      await completer.future;
     });
 
     test('can handle channel crash on join', () async {
       final socket = PhoenixSocket(addr);
+      final completer = Completer<Null>();
 
       await socket.connect();
 
-      var channel1 = socket
+      final channel1 = socket
           .addChannel(topic: 'channel1:hello', parameters: {'crash!': '11'});
 
-      await channel1.join().onReply('error', (error) {
+      channel1.join().onReply('error', (error) {
         expect(error.status, equals('error'));
         expect(error.response, equals({'reason': 'join crashed'}));
+        completer.complete();
       });
+
+      await completer.future;
     });
 
     test('can send messages to channels and receive a reply', () async {
@@ -58,10 +72,10 @@ void main() {
 
       await socket.connect();
 
-      var channel1 = socket.addChannel(topic: 'channel1');
+      final channel1 = socket.addChannel(topic: 'channel1');
       await channel1.join().future;
 
-      var reply = await channel1.push('hello!', {'foo': 'bar'}).future;
+      final reply = await channel1.push('hello!', {'foo': 'bar'}).future;
       expect(reply.status, equals('ok'));
       expect(reply.response, equals({'name': 'bar'}));
     });
@@ -71,11 +85,11 @@ void main() {
 
       await socket.connect();
 
-      var channel2 = socket.addChannel(topic: 'channel2');
+      final channel2 = socket.addChannel(topic: 'channel2');
       await channel2.join().future;
 
       var count = 0;
-      await for (var msg in channel2.messages) {
+      await for (final msg in channel2.messages) {
         expect(msg.event.value, equals('ping'));
         expect(msg.payload, equals({}));
         if (++count == 5) break;
@@ -85,12 +99,12 @@ void main() {
     test('can send and receive messages from multiple channels', () async {
       final socket1 = PhoenixSocket(addr);
       await socket1.connect();
-      var channel1 = socket1.addChannel(topic: 'channel3');
+      final channel1 = socket1.addChannel(topic: 'channel3');
       await channel1.join().future;
 
       final socket2 = PhoenixSocket(addr);
       await socket2.connect();
-      var channel2 = socket2.addChannel(topic: 'channel3');
+      final channel2 = socket2.addChannel(topic: 'channel3');
       await channel2.join().future;
 
       expect(
@@ -130,8 +144,9 @@ void main() {
       );
 
       channel1.push('ping', {'from': 'socket1'});
-      channel2.push('ping', {'from': 'socket2'});
-      channel2.push('ping', {'from': 'socket2'});
+      channel2
+        ..push('ping', {'from': 'socket2'})
+        ..push('ping', {'from': 'socket2'});
     });
   });
 }

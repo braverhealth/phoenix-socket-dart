@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 import 'package:phoenix_socket/phoenix_socket.dart';
 
 void main() {
-  var addr = 'ws://localhost:4001/socket/websocket';
+  const addr = 'ws://localhost:4001/socket/websocket';
 
   group('PhoenixSocket', () {
     test('can connect to a running Phoenix server', () async {
@@ -35,7 +35,7 @@ void main() {
 
       unawaited(socket.connect());
 
-      await for (var event in socket.openStream) {
+      await for (final event in socket.openStream) {
         expect(event, isA<PhoenixSocketOpenEvent>());
         socket.close();
         break;
@@ -52,7 +52,7 @@ void main() {
       );
 
       await socket.connect().then((_) {
-        Timer(Duration(milliseconds: 100), socket.close);
+        Timer(const Duration(milliseconds: 100), socket.close);
       });
 
       socket.closeStream.listen((event) {
