@@ -1,8 +1,9 @@
 import 'events.dart';
 import 'message.dart';
+import 'socket.dart';
 
 /// Exception yield when a [PhoenixSocket] closes for unexpected reasons.
-class PhoenixException {
+class PhoenixException implements Exception {
   /// The default constructor for this exception.
   PhoenixException({
     this.socketClosed,
@@ -27,5 +28,14 @@ class PhoenixException {
       return Message(event: PhoenixChannelEvent.error);
     }
     return null;
+  }
+
+  @override
+  String toString() {
+    if (socketError is PhoenixSocketErrorEvent) {
+      return socketError.error.toString();
+    } else {
+      return 'PhoenixException: socket closed';
+    }
   }
 }
