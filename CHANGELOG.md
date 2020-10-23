@@ -1,3 +1,7 @@
+## [0.4.3]
+
+- Improve error handling
+
 ## [0.4.2]
 
 - Auto-reconnect when connection drops unexpectedly
