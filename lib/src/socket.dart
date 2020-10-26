@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:core';
-import 'dart:io';
 
 import 'package:logging/logging.dart';
 
@@ -424,7 +423,7 @@ class PhoenixSocket {
         err,
         stacktrace,
       );
-    } on HttpException catch (err, stacktrace) {
+    } on WebSocketChannelException catch (err, stacktrace) {
       _logger.severe(
         '[phoenix_socket] Heartbeat message failed with error',
         err,
