@@ -38,15 +38,13 @@ class PhoenixChannel {
     this.topic,
     this.parameters = const {},
     Duration timeout,
-    Zone zone,
   })  : _controller = StreamController.broadcast(),
         _waiters = {},
-        _zone = zone.fork(),
         _timeout = timeout ?? socket.defaultTimeout {
     _joinPush = _prepareJoin();
     _logger = Logger('phoenix_socket.channel.$loggerName');
     _subscriptions
-      ..add(messages.listen(_zone.bindUnaryCallback(_onMessage)))
+      ..add(messages.listen(_onMessage))
       ..addAll(_subscribeToSocketStreams(socket));
   }
 
@@ -62,8 +60,6 @@ class PhoenixChannel {
 
   /// The name of the topic to which this channel will bind.
   final String topic;
-
-  final Zone _zone;
 
   Duration _timeout;
   PhoenixChannelState _state = PhoenixChannelState.closed;
@@ -122,21 +118,19 @@ class PhoenixChannel {
   /// Returns a future that will complete (or throw) when the provided
   /// reply arrives (or throws).
   Future<Message> onPushReply(PhoenixChannelEvent replyEvent) {
-    return _zone.run(() {
-      if (_waiters.containsKey(replyEvent)) {
-        _logger.finer(
-          () => 'Removing previous waiter for $replyEvent',
-        );
-        _waiters.remove(replyEvent);
-      }
+    if (_waiters.containsKey(replyEvent)) {
       _logger.finer(
-        () => 'Hooking on channel $topic for reply to $replyEvent',
+        () => 'Removing previous waiter for $replyEvent',
       );
-      final completer = Completer<Message>();
-      _waiters[replyEvent] = completer;
-      completer.future.whenComplete(() => _waiters.remove(replyEvent));
-      return completer.future;
-    });
+      _waiters.remove(replyEvent);
+    }
+    _logger.finer(
+      () => 'Hooking on channel $topic for reply to $replyEvent',
+    );
+    final completer = Completer<Message>();
+    _waiters[replyEvent] = completer;
+    completer.future.whenComplete(() => _waiters.remove(replyEvent));
+    return completer.future;
   }
 
   /// Close this channel.
@@ -144,99 +138,89 @@ class PhoenixChannel {
   /// As a side effect, this method also remove this channel from
   /// the encompassing [PhoenixSocket].
   void close() {
-    _zone.run(() {
-      if (_state == PhoenixChannelState.closed) {
-        return;
-      }
-      _state = PhoenixChannelState.closed;
+    if (_state == PhoenixChannelState.closed) {
+      return;
+    }
+    _state = PhoenixChannelState.closed;
 
-      for (final push in pushBuffer) {
-        push.cancelTimeout();
-      }
-      for (final sub in _subscriptions) {
-        sub.cancel();
-      }
+    for (final push in pushBuffer) {
+      push.cancelTimeout();
+    }
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
 
-      _joinPush?.cancelTimeout();
+    _joinPush?.cancelTimeout();
 
-      _controller.close();
-      _waiters.clear();
-      socket.removeChannel(this);
-    });
+    _controller.close();
+    _waiters.clear();
+    socket.removeChannel(this);
   }
 
   /// Trigger the reception of a message.
   void trigger(Message message) {
-    _zone.run(() {
-      if (!_controller.isClosed) {
-        _controller.add(message);
-      }
-    });
+    if (!_controller.isClosed) {
+      _controller.add(message);
+    }
   }
 
   /// Trigger an error on this channel.
   void triggerError(PhoenixException error) {
-    _zone.run(() {
-      _logger.fine('Receiving error on channel', error);
-      if (!(isErrored || isLeaving || isClosed)) {
-        trigger(error.message);
-        _logger.warning('Got error on channel', error);
-        for (final waiter in _waiters.values) {
-          waiter.completeError(error);
-        }
-        _waiters.clear();
-        _state = PhoenixChannelState.errored;
-        if (isJoining) {
-          _joinPush.reset();
-        }
-        if (socket.isConnected) {
-          _startRejoinTimer();
-        }
+    _logger.fine('Receiving error on channel', error);
+    if (!(isErrored || isLeaving || isClosed)) {
+      trigger(error.message);
+      _logger.warning('Got error on channel', error);
+      for (final waiter in _waiters.values) {
+        waiter.completeError(error);
       }
-    });
+      _waiters.clear();
+      _state = PhoenixChannelState.errored;
+      if (isJoining) {
+        _joinPush.reset();
+      }
+      if (socket.isConnected) {
+        _startRejoinTimer();
+      }
+    }
   }
 
   /// Leave this channel.
   Push leave({Duration timeout}) {
-    return _zone.run(() {
-      _joinPush?.cancelTimeout();
-      _rejoinTimer?.cancel();
+    _joinPush?.cancelTimeout();
+    _rejoinTimer?.cancel();
 
-      _state = PhoenixChannelState.leaving;
+    _state = PhoenixChannelState.leaving;
 
-      final leavePush = Push(
-        this,
-        event: PhoenixChannelEvent.leave,
-        payload: () => {},
-        timeout: timeout,
-      );
+    final leavePush = Push(
+      this,
+      event: PhoenixChannelEvent.leave,
+      payload: () => {},
+      timeout: timeout,
+    );
 
-      final __onClose = _zone.bindUnaryCallback(_onClose);
-      leavePush..onReply('ok', __onClose)..onReply('timeout', __onClose);
+    final __onClose = _onClose;
+    leavePush..onReply('ok', __onClose)..onReply('timeout', __onClose);
 
-      if (!socket.isConnected || !isJoined) {
-        leavePush.trigger(PushResponse(status: 'ok'));
-      } else {
-        leavePush.send().then((value) => close());
-      }
+    if (!socket.isConnected || !isJoined) {
+      leavePush.trigger(PushResponse(status: 'ok'));
+    } else {
+      leavePush.send().then((value) => close());
+    }
 
-      return leavePush;
-    });
+    return leavePush;
   }
 
   /// Join this channel using the associated [PhoenixSocket].
   Push join([Duration newTimeout]) {
     assert(!_joinedOnce);
-    return _zone.run(() {
-      if (newTimeout is Duration) {
-        _timeout = newTimeout;
-      }
+    if (newTimeout is Duration) {
+      _timeout = newTimeout;
+    }
 
-      _joinedOnce = true;
-      _attemptJoin();
+    _joinedOnce = true;
+    _attemptJoin();
 
-      return _joinPush;
-    });
+    return _joinPush;
   }
 
   /// Push a message to the Phoenix server.
@@ -272,43 +256,37 @@ class PhoenixChannel {
     Map<String, dynamic> payload, [
     Duration newTimeout,
   ]) {
-    return _zone.run(() {
-      assert(_joinedOnce);
+    assert(_joinedOnce);
 
-      final pushEvent = Push(
-        this,
-        event: event,
-        payload: () => payload,
-        timeout: newTimeout ?? _timeout,
-      );
+    final pushEvent = Push(
+      this,
+      event: event,
+      payload: () => payload,
+      timeout: newTimeout ?? _timeout,
+    );
 
-      if (canPush) {
-        pushEvent.send();
-      } else {
-        pushBuffer.add(pushEvent);
-      }
+    if (canPush) {
+      pushEvent.send();
+    } else {
+      pushBuffer.add(pushEvent);
+    }
 
-      return pushEvent;
-    });
+    return pushEvent;
   }
 
   List<StreamSubscription> _subscribeToSocketStreams(PhoenixSocket socket) {
     return [
       socket.streamForTopic(topic).where(_isMember).listen(_controller.add),
       socket.errorStream.listen(
-        _zone.bindUnaryCallback<Null, dynamic>(
-          (error) => _rejoinTimer?.cancel(),
-        ),
+        (error) => _rejoinTimer?.cancel(),
       ),
       socket.openStream.listen(
-        _zone.bindUnaryCallback<Null, PhoenixSocketOpenEvent>(
-          (event) {
-            _rejoinTimer?.cancel();
-            if (isErrored) {
-              _attemptJoin();
-            }
-          },
-        ),
+        (event) {
+          _rejoinTimer?.cancel();
+          if (isErrored) {
+            _attemptJoin();
+          }
+        },
       )
     ];
   }
@@ -325,42 +303,40 @@ class PhoenixChannel {
   }
 
   void _bindJoinPush(Push push) {
-    _zone.run(() {
-      push
-        ..clearWaiters()
-        ..onReply('ok', _zone.bindUnaryCallback((response) {
-          _logger.finer("Join message was ok'ed");
-          _state = PhoenixChannelState.joined;
-          _rejoinTimer?.cancel();
-          for (final push in pushBuffer) {
-            push.send();
-          }
-          pushBuffer.clear();
-        }))
-        ..onReply('error', _zone.bindUnaryCallback((response) {
-          _logger.warning('Join message got error response', response);
-          _state = PhoenixChannelState.errored;
-          if (socket.isConnected) {
-            _startRejoinTimer();
-          }
-        }))
-        ..onReply('timeout', _zone.bindUnaryCallback((response) {
-          _logger.warning('Join message timed out');
+    push
+      ..clearWaiters()
+      ..onReply('ok', (response) {
+        _logger.finer("Join message was ok'ed");
+        _state = PhoenixChannelState.joined;
+        _rejoinTimer?.cancel();
+        for (final push in pushBuffer) {
+          push.send();
+        }
+        pushBuffer.clear();
+      })
+      ..onReply('error', (response) {
+        _logger.warning('Join message got error response', response);
+        _state = PhoenixChannelState.errored;
+        if (socket.isConnected) {
+          _startRejoinTimer();
+        }
+      })
+      ..onReply('timeout', (response) {
+        _logger.warning('Join message timed out');
 
-          Push(
-            this,
-            event: PhoenixChannelEvent.leave,
-            payload: () => {},
-            timeout: _timeout,
-          ).send();
+        Push(
+          this,
+          event: PhoenixChannelEvent.leave,
+          payload: () => {},
+          timeout: _timeout,
+        ).send();
 
-          _state = PhoenixChannelState.errored;
-          _joinPush.reset();
-          if (socket.isConnected) {
-            _startRejoinTimer();
-          }
-        }));
-    });
+        _state = PhoenixChannelState.errored;
+        _joinPush.reset();
+        if (socket.isConnected) {
+          _startRejoinTimer();
+        }
+      });
   }
 
   void _startRejoinTimer() {
