@@ -224,6 +224,10 @@ class PhoenixSocket {
         duration = _reconnects[durationIdx];
       }
 
+      // Some random number to prevent many clients from retrying to
+      // connect at exactly the same time.
+      duration += Duration(milliseconds: _random.nextInt(1000));
+
       completer.complete(_delayedReconnect(duration));
     }
 
