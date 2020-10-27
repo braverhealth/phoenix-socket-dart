@@ -20,14 +20,13 @@ class PhoenixSocketOptions {
     ///
     /// The last duration will be repeated until it works.
     this.reconnectDelays = const [
-      Duration(milliseconds: 300),
+      Duration(milliseconds: 0),
       Duration(milliseconds: 1000),
-      Duration(milliseconds: 1500),
-      Duration(milliseconds: 3000),
-      Duration(milliseconds: 5000),
-      Duration(milliseconds: 10000),
-      Duration(milliseconds: 20000),
-      Duration(milliseconds: 30000),
+      Duration(milliseconds: 2000),
+      Duration(milliseconds: 4000),
+      Duration(milliseconds: 8000),
+      Duration(milliseconds: 16000),
+      Duration(milliseconds: 32000),
     ],
 
     /// Parameters passed to the connection string as query string.
