@@ -1,3 +1,9 @@
+## [0.4.4]
+
+- Add simple flutter example
+- Get rid of Zone (introduced in 0.3.0)
+- Further improve error handling (fixed #5 and #6) and reconnection
+
 ## [0.4.3]
 
 - Improve error handling
