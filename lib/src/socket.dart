@@ -477,8 +477,10 @@ class PhoenixSocket {
         _socketState == SocketState.closed) {
       return;
     }
-    final socketError =
-        PhoenixSocketErrorEvent(error: error, stacktrace: stacktrace);
+    final socketError = PhoenixSocketErrorEvent(
+      error: error,
+      stacktrace: stacktrace,
+    );
 
     if (_stateStreamController is StreamController &&
         !_stateStreamController.isClosed) {
@@ -509,6 +511,7 @@ class PhoenixSocket {
       reason: _ws.closeReason,
       code: _ws.closeCode,
     );
+    final exc = PhoenixException(socketClosed: ev);
     _ws = null;
 
     if (_stateStreamController is StreamController &&
@@ -525,12 +528,12 @@ class PhoenixSocket {
       _logger.info(
         'Socket closed with reason ${ev.reason} and code ${ev.code}',
       );
-      _triggerChannelExceptions(PhoenixException(socketClosed: ev));
+      _triggerChannelExceptions(exc);
     }
     _socketState = SocketState.closed;
 
     for (final completer in _pendingMessages.values) {
-      completer.completeError(ev);
+      completer.completeError(exc);
     }
     _pendingMessages.clear();
   }
