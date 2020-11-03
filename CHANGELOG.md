@@ -1,3 +1,8 @@
+## [0.4.5]
+
+- Add readme.md to example/
+- Improve handling of errors raised when Flutter app is put in background
+
 ## [0.4.4]
 
 - Add simple flutter example
