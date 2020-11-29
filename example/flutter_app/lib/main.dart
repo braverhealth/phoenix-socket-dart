@@ -65,17 +65,15 @@ class _MyHomePageState extends State<MyHomePage> {
   PhoenixChannel _channel;
 
   _MyHomePageState() {
-    _socket = PhoenixSocket('ws://localhost:4001/socket/websocket');
-    _socket.connect().then((socket) {
-      setState(() {
-        _channel = socket.addChannel(topic: 'channel3');
-      });
-    });
+    _socket = PhoenixSocket('ws://localhost:4001/socket/websocket')..connect();
     _socket.closeStream.listen((event) {
       setState(() => _connected = false);
     });
     _socket.openStream.listen((event) {
-      setState(() => _connected = true);
+      setState(() {
+        _channel = _socket.addChannel(topic: 'channel3');
+        return _connected = true;
+      });
     });
   }
 
