@@ -1,3 +1,7 @@
+## [0.4.6]
+
+- Improve error handling on initial socket connection
+
 ## [0.4.5]
 
 - Add readme.md to example/
