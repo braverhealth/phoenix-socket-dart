@@ -62,6 +62,7 @@ class PushResponse implements Equatable {
   bool get stringify => true;
 }
 
+/// Removes Warning about doc
 typedef PayloadGetter = Map<String, dynamic> Function();
 
 /// Object produced by [PhoenixChannel.push] to encapsulate

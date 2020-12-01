@@ -62,7 +62,6 @@ class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
   bool _connected = false;
   PhoenixSocket _socket;
-  PhoenixChannel _channel;
 
   _MyHomePageState() {
     _socket = PhoenixSocket('ws://localhost:4001/socket/websocket')..connect();
@@ -71,7 +70,7 @@ class _MyHomePageState extends State<MyHomePage> {
     });
     _socket.openStream.listen((event) {
       setState(() {
-        _channel = _socket.addChannel(topic: 'channel3');
+        _socket.addChannel(topic: 'channel3');
         return _connected = true;
       });
     });
