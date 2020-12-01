@@ -6,6 +6,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:meta/meta.dart';
+
 import 'channel.dart';
 import 'message.dart';
 
@@ -24,10 +26,15 @@ void noopWithThreeArgs(String a, dynamic b, dynamic c) {}
 void noopWithNoArg() {}
 
 class PhoenixPresence {
-  PhoenixPresence({this.channel, this.eventNames}) {
-    final eventNames = {stateEventName, diffEventName};
+  PhoenixPresence({
+    @required this.channel,
+    this.eventNames = const {
+      'state': 'presence_state',
+      'diff': 'presence_diff'
+    },
+  }) {
     _subscription = channel.messages
-        .where((message) => eventNames.contains(message.event.value))
+        .where((message) => eventNames.containsValue(message.event.value))
         .listen(_onMessage);
   }
   final PhoenixChannel channel;
@@ -96,8 +103,8 @@ Map<String, dynamic> _syncState(
   LeaveHandler onLeave,
 ) {
   final state = _clone(currentState);
-  final joins = {};
-  final leaves = {};
+  final joins = <String, dynamic>{};
+  final leaves = <String, dynamic>{};
 
   _map(state, (key, presence) {
     if (newState.containsKey(key)) {
@@ -107,25 +114,26 @@ Map<String, dynamic> _syncState(
   _map(newState, (key, newPresence) {
     if (state.containsKey(key)) {
       final currentPresence = state[key];
-      final newRefs = (newPresence.metas as List).map((m) => m.phx_ref).toSet();
+      final newRefs =
+          (newPresence['metas'] as List).map((m) => m['phx_ref']).toSet();
       final curRefs =
-          (currentPresence.metas as List).map((m) => m.phx_ref).toSet();
+          (currentPresence['metas'] as List).map((m) => m['phx_ref']).toSet();
 
-      final joinedMetas = (newPresence.metas as List)
-          .where((m) => !curRefs.contains(m.phx_ref))
+      final joinedMetas = (newPresence['metas'] as List)
+          .where((m) => !curRefs.contains(m['phx_ref']))
           .toList();
 
-      final leftMetas = (currentPresence.metas as List)
-          .where((m) => !newRefs.contains(m.phx_ref))
+      final leftMetas = (currentPresence['metas'] as List)
+          .where((m) => !newRefs.contains(m['phx_ref']))
           .toList();
 
       if (joinedMetas.isNotEmpty) {
         joins[key] = newPresence;
-        joins[key].metas = joinedMetas;
+        joins[key]['metas'] = joinedMetas;
       }
       if (leftMetas.isNotEmpty) {
         leaves[key] = _clone(currentPresence);
-        leaves[key].metas = leftMetas;
+        leaves[key]['metas'] = leftMetas;
       }
     } else {
       joins[key] = newPresence;
@@ -148,24 +156,25 @@ Map<String, dynamic> _syncDiff(
   _map(joins, (key, newPresence) {
     final currentPresence = state[key];
     state[key] = newPresence;
-    if (currentPresence) {
+    if ((currentPresence != null) && (currentPresence != {})) {
       final joinedRefs =
-          (state[key].metas as List).map((m) => m.phx_ref).toSet();
-      final curMetas = (currentPresence.metas as List)
-          .where((m) => !joinedRefs.contains(m.phx_ref));
-      (state[key].metas as List).insertAll(0, curMetas);
+          (state[key]['metas'] as List).map((m) => m['phx_ref']).toSet();
+      final curMetas = (currentPresence['metas'] as List)
+          .where((m) => !joinedRefs.contains(m['phx_ref']));
+      (state[key]['metas'] as List).insertAll(0, curMetas);
     }
     onJoin(key, currentPresence, newPresence);
   });
   _map(leaves, (key, leftPresence) {
     final currentPresence = state[key];
-    if (!currentPresence) return;
+    if ((currentPresence == null) | (currentPresence == {})) return;
     final refsToRemove =
-        (leftPresence.metas as List).map((m) => m.phx_ref).toSet();
-    currentPresence.metas = (currentPresence.metas as List)
-        .where((p) => !refsToRemove.contains(p.phx_ref));
+        (leftPresence['metas'] as List).map((m) => m['phx_ref']).toSet();
+    currentPresence['metas'] = (currentPresence['metas'] as List)
+        .where((p) => !refsToRemove.contains(p['phx_ref']))
+        .toList();
     onLeave(key, currentPresence, leftPresence);
-    if ((currentPresence.metas as List).isEmpty) {
+    if ((currentPresence['metas'] as List).isEmpty) {
       state.remove(key);
     }
   });
