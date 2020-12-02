@@ -37,9 +37,9 @@ class PhoenixPresence {
         .listen(_onMessage);
   }
   final PhoenixChannel channel;
-  StreamSubscription _subscription;
   final Map<String, String> eventNames;
-  Map<String, Presence> state = {};
+  StreamSubscription _subscription;
+  var state = <String, Presence>{};
   var pendingDiffs = <Map<String, Map<String, Presence>>>[];
 
   String _joinRef;
@@ -87,7 +87,7 @@ class PhoenixPresence {
     } else if (message.event.value == diffEventName) {
       final diff = message.payload.map((key, presence) {
         if ((presence as Map).isEmpty) {
-          return MapEntry(key, null);
+          return MapEntry(key, <String, Presence>{});
         }
         final presenceKey = (presence as Map<String, dynamic>).keys.first;
         return MapEntry(
