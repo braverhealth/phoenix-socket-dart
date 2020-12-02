@@ -74,12 +74,8 @@ class PhoenixPresence {
   }
 
   void _onMessage(Message message) {
-    print(message.event.value);
-    print(message.payload);
     if (message.event.value == stateEventName) {
       _joinRef = channel.joinRef;
-      print('message payload');
-      print(message.payload);
       final newState = message.payload.map(
           (key, metas) => MapEntry(key, Presence.fromJson(key, {key: metas})));
       state = _syncState(state, newState, joinHandler, leaveHandler);
@@ -94,10 +90,6 @@ class PhoenixPresence {
           return MapEntry(key, null);
         }
         final presenceKey = (presence as Map<String, dynamic>).keys.first;
-        print('key');
-        print(key);
-        print('presence');
-        print(presence);
         return MapEntry(
             key, {presenceKey: Presence.fromJson(presenceKey, presence)});
       });
@@ -207,37 +199,13 @@ List<dynamic> _map(
 
 Map<String, Presence> _clone(Map<String, Presence> presences) {
   return presences.map((key, value) => MapEntry(key, value.clone()));
-  // return jsonDecode(jsonEncode(presences));
 }
 
 class Presence {
-  // factory Presence.fromJson(key, Map<String, dynamic> events) {
-  //   print('events');
-  //   print(events);
-  //   final Map<String, dynamic> presence = events[key];
-  //   print('presence');
-  //   print(presence);
-  //   List<Map<String, dynamic>> metasList;
-  //   List<dynamic> list = presence['metas'];
-  //   metasList = list.cast<Map<String, dynamic>>();
-  //   print('metasList');
-  //   print(metasList);
-  //   final metas = metasList.map((meta) {
-  //     print('meta');
-  //     print(meta);
-  //     return PhoenixPresenceMeta.fromJson(meta);
-  //   }).toList();
-  //   print('metas');
-  //   print(metas);
-  //   return Presence._(key, metas);
-  // }
-
   Presence.fromJson(this.key, Map<String, dynamic> events)
       : metas = List<Map<String, dynamic>>.from(events[key]['metas'])
             .map((meta) => PhoenixPresenceMeta.fromJson(meta))
             .toList();
-
-  // Presence._(this.key, this.metas);
 
   final String key;
   List<PhoenixPresenceMeta> metas;
@@ -257,18 +225,10 @@ class Presence {
 }
 
 class PhoenixPresenceMeta {
-  // factory PhoenixPresenceMeta(Map<String, dynamic> meta) {
-  //   final onlineAt = DateTime.fromMillisecondsSinceEpoch(meta['online_at']);
-  //   final phxRef = meta['phx_ref'];
-  //   return PhoenixPresenceMeta._(onlineAt, phxRef);
-  // }
-
   PhoenixPresenceMeta.fromJson(Map<String, dynamic> meta)
       : onlineAt =
             DateTime.fromMillisecondsSinceEpoch(int.parse(meta['online_at'])),
         phxRef = meta['phx_ref'];
-
-  // PhoenixPresenceMeta._(this.onlineAt, this.phxRef);
 
   final DateTime onlineAt;
   final String phxRef;
