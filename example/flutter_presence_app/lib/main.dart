@@ -46,6 +46,14 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void initState() {
+    // In case of difficulties to connect to the server:
+    // - Try replacing 'localhost' by the ip address of the server where the example Phoenix backend server is running
+    // - For testing only!!! Make sure non-secure HTTP connection are allowed in the android manifest at
+    // android\app\src\main\AndroidManifest.xml:
+    //   ...<application
+    //       ...
+		//       android:usesCleartextTraffic="true">
+    //       <activity...
     _socket = PhoenixSocket('ws://localhost:4001/socket/websocket',
         socketOptions: _socketOptions);
     _channel = _socket.addChannel(topic: 'presence:lobby');
