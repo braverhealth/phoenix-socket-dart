@@ -2,7 +2,6 @@ name: phoenix_socket_example
 description: A PhoenixSocket example
 version: 0.0.2
 homepage: https://www.github.com/matehat/phoenix-socket-dart
-publish_to: none # removes a warning.
 
 environment:
   sdk: ">=2.3.0 <3.0.0"
