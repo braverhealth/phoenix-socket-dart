@@ -6,6 +6,8 @@ defmodule BackendWeb.UserSocket do
   channel("channel1:*", BackendWeb.Channel1)
   channel("channel2", BackendWeb.Channel2)
   channel("channel3", BackendWeb.Channel3)
+  channel("presence:lobby", BackendWeb.PresenceChannel)
+
 
   # Socket params are passed from the client and can
   # be used to verify and authenticate a user. After
