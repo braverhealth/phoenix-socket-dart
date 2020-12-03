@@ -124,10 +124,8 @@ class PhoenixPresence {
     if (message.event.value == stateEventName) {
       _joinRef = channel.joinRef;
       final newState = _decodeStateFromPayload(message.payload);
-      // state = _syncState(state, newState, joinHandler, leaveHandler);
       state = _syncState(state, newState);
       for (final diff in pendingDiffs) {
-        // state = _syncDiff(state, diff, joinHandler, leaveHandler);
         state = _syncDiff(state, diff);
       }
       pendingDiffs = [];
@@ -139,7 +137,6 @@ class PhoenixPresence {
       if (inPendingSyncState) {
         pendingDiffs.add(diff);
       } else {
-        // state = _syncDiff(state, diff, joinHandler, leaveHandler);
         state = _syncDiff(state, diff);
         onSync();
       }
@@ -174,8 +171,6 @@ class PhoenixPresence {
   Map<String, Presence> _syncState(
     Map<String, Presence> currentState,
     Map<String, Presence> newState,
-    //JoinHandler onJoin,
-    //LeaveHandler onLeave,
   ) {
     final state = _clone(currentState);
     final joins = <String, Presence>{};
@@ -212,8 +207,6 @@ class PhoenixPresence {
         joins[key] = newPresence;
       }
     });
-    // return _syncDiff(
-    //     state, {'joins': joins, 'leaves': leaves}, onJoin, onLeave);
     return _syncDiff(state, {'joins': joins, 'leaves': leaves});
   }
 
@@ -224,8 +217,6 @@ class PhoenixPresence {
   Map<String, Presence> _syncDiff(
     Map<String, Presence> currentState,
     Map<String, Map<String, Presence>> diff,
-    //JoinHandler joinHandler,
-    //LeaveHandler leaveHandler,
   ) {
     final state = _clone(currentState);
 
