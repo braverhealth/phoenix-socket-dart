@@ -49,7 +49,7 @@ class PhoenixChannel {
   }
 
   /// Parameters passed to the backend at join time.
-  final Map<String, String> parameters;
+  final Map<String, dynamic> parameters;
 
   /// The [PhoenixSocket] through which this channel is established.
   final PhoenixSocket socket;
