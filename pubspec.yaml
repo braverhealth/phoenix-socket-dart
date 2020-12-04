@@ -14,9 +14,11 @@ dependencies:
   equatable: ^1.2.5
   quiver: ^2.1.5
   logging: ^0.11.4
-  very_good_analysis: ^1.0.3
+  pedantic: ^1.9.2
+  meta: ^1.2.4
   web_socket_channel: ^1.1.0
   rxdart: ^0.24.1
 
 dev_dependencies:
+  very_good_analysis: ^1.0.3
   test: ^1.11.1
