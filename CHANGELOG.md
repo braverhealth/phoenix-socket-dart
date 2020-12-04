@@ -1,3 +1,7 @@
+## [0.4.7]
+
+- Improve typing of channel parameters (#12 @carlosmobile)
+
 ## [0.4.6]
 
 - Improve error handling on initial socket connection
