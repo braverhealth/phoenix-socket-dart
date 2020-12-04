@@ -318,7 +318,7 @@ class PhoenixSocket {
   /// [parameters] are any options parameters you wish to send
   PhoenixChannel addChannel({
     @required String topic,
-    Map<String, String> parameters,
+    Map<String, dynamic> parameters,
     Duration timeout,
   }) {
     PhoenixChannel channel;
