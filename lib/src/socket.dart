@@ -3,11 +3,10 @@ import 'dart:core';
 import 'dart:math';
 
 import 'package:logging/logging.dart';
-
-import 'package:rxdart/rxdart.dart';
+import 'package:meta/meta.dart';
 import 'package:pedantic/pedantic.dart';
 import 'package:quiver/async.dart';
-import 'package:meta/meta.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:web_socket_channel/status.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -175,6 +174,8 @@ class PhoenixSocket {
   /// by retryAfterIntervalMS
   Future<PhoenixSocket> connect() async {
     if (_ws != null) {
+      _logger.warning(
+          'Calling connect() on already connected or connecting socket.');
       return this;
     }
 
