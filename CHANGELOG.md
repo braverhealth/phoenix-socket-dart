@@ -1,3 +1,7 @@
+## [0.4.9]
+
+- Bugfix (#15)
+
 ## [0.4.8]
 
 - Bugfix (#13 @carlosmobile)
