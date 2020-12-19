@@ -1,8 +1,7 @@
 import 'dart:async';
 
-import 'package:test/test.dart';
-
 import 'package:phoenix_socket/phoenix_socket.dart';
+import 'package:test/test.dart';
 
 void main() {
   const addr = 'ws://localhost:4001/socket/websocket';
@@ -147,6 +146,35 @@ void main() {
       channel2
         ..push('ping', {'from': 'socket2'})
         ..push('ping', {'from': 'socket2'});
+    });
+
+    test('closes successfully', () async {
+      final socket1 = PhoenixSocket(addr);
+      await socket1.connect();
+      final channel1 = socket1.addChannel(topic: 'channel3');
+      await channel1.join().future;
+
+      final socket2 = PhoenixSocket(addr);
+      await socket2.connect();
+      final channel2 = socket2.addChannel(topic: 'channel3');
+      await channel2.join().future;
+
+      channel1.push('ping', {'from': 'socket1'});
+
+      expect(
+        channel2.messages,
+        emits(
+          predicate(
+            (msg) => msg.payload['from'] == 'socket1',
+            'was from socket1',
+          ),
+        ),
+      );
+
+      await channel1.leave().future;
+
+      expect(channel1.state, equals(PhoenixChannelState.closed));
+      expect(socket1.channels.length, equals(0));
     });
   });
 }
