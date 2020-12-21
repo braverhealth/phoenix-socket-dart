@@ -6,7 +6,7 @@ import 'package:quiver/collection.dart';
 
 import 'channel.dart';
 import 'events.dart';
-import 'exception.dart';
+import 'exceptions.dart';
 import 'message.dart';
 
 /// Encapsulates the response to a [Push].

@@ -1,5 +1,6 @@
 import 'events.dart';
 import 'message.dart';
+import 'push.dart';
 import 'socket.dart';
 
 /// Exception yield when a [PhoenixSocket] closes for unexpected reasons.
@@ -38,4 +39,14 @@ class PhoenixException implements Exception {
       return 'PhoenixException: socket closed';
     }
   }
+}
+
+/// Exception thrown when a [Push]'s reply was awaited for, and
+/// the allowed delay has passed.
+class ChannelTimeoutException implements Exception {
+  /// Default constructor
+  ChannelTimeoutException(this.response);
+
+  /// The PushReponse containing the timeout event.
+  PushResponse response;
 }
