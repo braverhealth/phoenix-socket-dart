@@ -199,7 +199,6 @@ class PhoenixChannel {
       final onClose = (PushResponse reply) {
         _onClose(reply);
         close();
-        leavePush.trigger(PushResponse(status: 'ok'));
       };
       leavePush
         ..onReply('ok', onClose)
