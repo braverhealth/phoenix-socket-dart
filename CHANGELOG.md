@@ -1,3 +1,7 @@
+## [0.4.10]
+
+- Make sure Push instances trigger only one event, and only once (#18)
+
 ## [0.4.9]
 
 - Bugfix (#15)
