@@ -176,5 +176,49 @@ void main() {
       expect(channel1.state, equals(PhoenixChannelState.closed));
       expect(socket1.channels.length, equals(0));
     });
+
+    test('can join another channel after closing a previous one', () async {
+      final socket1 = PhoenixSocket(addr);
+      await socket1.connect();
+      final channel1 = socket1.addChannel(topic: 'channel3');
+      await channel1.join().future;
+
+      final socket2 = PhoenixSocket(addr);
+      await socket2.connect();
+      final channel2 = socket2.addChannel(topic: 'channel3');
+      await channel2.join().future;
+
+      channel1.push('ping', {'from': 'socket1'});
+
+      expect(
+        channel2.messages,
+        emits(
+          predicate(
+            (msg) => msg.payload['from'] == 'socket1',
+            'was from socket1',
+          ),
+        ),
+      );
+
+      await channel1.leave().future;
+
+      expect(channel1.state, equals(PhoenixChannelState.closed));
+      expect(socket1.channels.length, equals(0));
+
+      final channel3 = socket1.addChannel(topic: 'channel3');
+      await channel3.join().future;
+
+      channel3.push('ping', {'from': 'socket1'});
+
+      expect(
+        channel2.messages,
+        emits(
+          predicate(
+            (msg) => msg.payload['from'] == 'socket1',
+            'was from socket1',
+          ),
+        ),
+      );
+    });
   });
 }

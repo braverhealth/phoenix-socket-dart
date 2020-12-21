@@ -1,3 +1,7 @@
+## [0.4.11]
+
+- Fix a channel re-join issue (#20)
+
 ## [0.4.10]
 
 - Make sure Push instances trigger only one event, and only once (#18)

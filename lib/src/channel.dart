@@ -4,7 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:pedantic/pedantic.dart';
 
 import 'events.dart';
-import 'exception.dart';
+import 'exceptions.dart';
 import 'message.dart';
 import 'push.dart';
 import 'socket.dart';
