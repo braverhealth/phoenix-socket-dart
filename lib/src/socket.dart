@@ -5,7 +5,6 @@ import 'dart:math';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 import 'package:pedantic/pedantic.dart';
-import 'package:quiver/async.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:web_socket_channel/status.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -16,6 +15,8 @@ import 'exceptions.dart';
 import 'message.dart';
 import 'push.dart';
 import 'socket_options.dart';
+
+part '_stream_router.dart';
 
 /// State of a [PhoenixSocket].
 enum SocketState {
@@ -96,7 +97,7 @@ class PhoenixSocket {
   Stream<PhoenixSocketCloseEvent> _closeStream;
   Stream<PhoenixSocketErrorEvent> _errorStream;
   Stream<Message> _messageStream;
-  StreamRouter<Message> _streamRouter;
+  _StreamRouter<Message> _router;
 
   /// Stream of [PhoenixSocketOpenEvent] being produced whenever
   /// the connection is open.
@@ -142,12 +143,8 @@ class PhoenixSocket {
 
   bool _disposed = false;
 
-  /// A [StreamRouter] for the stream of incoming messages.
-  ///
-  /// Use [streamForTopic] instead of this if you don't know how to use
-  /// a [StreamRouter].
-  StreamRouter<Message> get streamRouter =>
-      _streamRouter ??= StreamRouter(_topicMessages.stream);
+  _StreamRouter<Message> get _streamRouter =>
+      _router ??= _StreamRouter<Message>(_topicMessages.stream);
 
   /// A stream yielding [Message] instances for a given topic.
   ///
@@ -155,7 +152,7 @@ class PhoenixSocket {
   /// eventually yield messages when the channel is open and it receives
   /// messages.
   Stream<Message> streamForTopic(String topic) => _topicStreams.putIfAbsent(
-      topic, () => streamRouter.route((event) => event.topic == topic));
+      topic, () => _streamRouter.route((event) => event.topic == topic));
 
   /// The string URL of the remote Phoenix server.
   String get endpoint => _endpoint;
