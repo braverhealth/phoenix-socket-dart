@@ -1,8 +1,8 @@
 import 'dart:async';
 
+import 'package:equatable/equatable.dart';
 import 'package:logging/logging.dart';
 import 'package:quiver/collection.dart';
-import 'package:equatable/equatable.dart';
 
 import 'channel.dart';
 import 'events.dart';
@@ -239,16 +239,19 @@ class Push {
         _responseCompleter.complete(response);
       }
     }
+
     _logger.finer(() {
       if (_receivers[response.status].isNotEmpty) {
         return 'Triggering ${_receivers[response.status].length} callbacks';
       }
       return 'Not triggering any callbacks';
     });
-    for (final cb in _receivers[response.status]) {
+
+    final receivers = _receivers[response.status].toList();
+    clearWaiters();
+    for (final cb in receivers) {
       cb(response);
     }
-    clearWaiters();
   }
 
   /// Dispose the set of waiters and future associated with this push.
