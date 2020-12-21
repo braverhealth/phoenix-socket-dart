@@ -105,9 +105,13 @@ class Push {
   Completer<PushResponse> _responseCompleter;
 
   /// A future that will yield the response to the original message.
-  Future<PushResponse> get future {
+  Future<PushResponse> get future async {
     _responseCompleter ??= Completer<PushResponse>();
-    return _responseCompleter.future;
+    final response = await _responseCompleter.future;
+    if (response.isTimeout) {
+      throw ChannelTimeoutException(response);
+    }
+    return response;
   }
 
   /// Indicates whether the push has been sent.
