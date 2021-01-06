@@ -1,12 +1,12 @@
 import 'dart:async';
 
+import 'package:equatable/equatable.dart';
 import 'package:logging/logging.dart';
 import 'package:quiver/collection.dart';
-import 'package:equatable/equatable.dart';
 
 import 'channel.dart';
 import 'events.dart';
-import 'exception.dart';
+import 'exceptions.dart';
 import 'message.dart';
 
 /// Encapsulates the response to a [Push].
@@ -105,9 +105,13 @@ class Push {
   Completer<PushResponse> _responseCompleter;
 
   /// A future that will yield the response to the original message.
-  Future<PushResponse> get future {
+  Future<PushResponse> get future async {
     _responseCompleter ??= Completer<PushResponse>();
-    return _responseCompleter.future;
+    final response = await _responseCompleter.future;
+    if (response.isTimeout) {
+      throw ChannelTimeoutException(response);
+    }
+    return response;
   }
 
   /// Indicates whether the push has been sent.
@@ -239,16 +243,19 @@ class Push {
         _responseCompleter.complete(response);
       }
     }
+
     _logger.finer(() {
       if (_receivers[response.status].isNotEmpty) {
         return 'Triggering ${_receivers[response.status].length} callbacks';
       }
       return 'Not triggering any callbacks';
     });
-    for (final cb in _receivers[response.status]) {
+
+    final receivers = _receivers[response.status].toList();
+    clearWaiters();
+    for (final cb in receivers) {
       cb(response);
     }
-    clearWaiters();
   }
 
   /// Dispose the set of waiters and future associated with this push.

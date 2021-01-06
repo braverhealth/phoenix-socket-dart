@@ -4,7 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:pedantic/pedantic.dart';
 
 import 'events.dart';
-import 'exception.dart';
+import 'exceptions.dart';
 import 'message.dart';
 import 'push.dart';
 import 'socket.dart';
@@ -29,6 +29,14 @@ enum PhoenixChannelState {
   leaving,
 }
 
+/// A set of States where an error triggered by the parent
+/// socket do not end up triggering an error on the channel.
+const statesIgnoringErrors = {
+  PhoenixChannelState.errored,
+  PhoenixChannelState.leaving,
+  PhoenixChannelState.closed,
+};
+
 /// Bi-directional and isolated communication channel shared between
 /// differents clients through a common Phoenix server.
 class PhoenixChannel {
@@ -49,7 +57,7 @@ class PhoenixChannel {
   }
 
   /// Parameters passed to the backend at join time.
-  final Map<String, String> parameters;
+  final Map<String, dynamic> parameters;
 
   /// The [PhoenixSocket] through which this channel is established.
   final PhoenixSocket socket;
@@ -81,24 +89,9 @@ class PhoenixChannel {
   /// State of the channel.
   PhoenixChannelState get state => _state;
 
-  /// Whether the channel is closed.
-  bool get isClosed => _state == PhoenixChannelState.closed;
-
-  /// Whether the channel is errored.
-  bool get isErrored => _state == PhoenixChannelState.errored;
-
-  /// Whether the channel is joined and ready to interact.
-  bool get isJoined => _state == PhoenixChannelState.joined;
-
-  /// Whether the channel is currently joining and waiting for the end
-  /// of the handshake.
-  bool get isJoining => _state == PhoenixChannelState.joining;
-
-  /// Whether the channel is currently leaving.
-  bool get isLeaving => _state == PhoenixChannelState.leaving;
-
   /// Whether the channel can send messages.
-  bool get canPush => socket.isConnected && isJoined;
+  bool get canPush =>
+      socket.isConnected && _state == PhoenixChannelState.joined;
 
   String _loggerName;
 
@@ -167,15 +160,16 @@ class PhoenixChannel {
   /// Trigger an error on this channel.
   void triggerError(PhoenixException error) {
     _logger.fine('Receiving error on channel', error);
-    if (!(isErrored || isLeaving || isClosed)) {
+    if (!statesIgnoringErrors.contains(_state)) {
       trigger(error.message);
       _logger.warning('Got error on channel', error);
       for (final waiter in _waiters.values) {
         waiter.completeError(error);
       }
       _waiters.clear();
+      final prevState = _state;
       _state = PhoenixChannelState.errored;
-      if (isJoining) {
+      if (prevState == PhoenixChannelState.joining) {
         _joinPush.reset();
       }
       if (socket.isConnected) {
@@ -189,22 +183,27 @@ class PhoenixChannel {
     _joinPush?.cancelTimeout();
     _rejoinTimer?.cancel();
 
+    final prevState = _state;
     _state = PhoenixChannelState.leaving;
 
     final leavePush = Push(
       this,
       event: PhoenixChannelEvent.leave,
       payload: () => {},
-      timeout: timeout,
+      timeout: timeout ?? _timeout,
     );
 
-    final __onClose = _onClose;
-    leavePush..onReply('ok', __onClose)..onReply('timeout', __onClose);
-
-    if (!socket.isConnected || !isJoined) {
+    if (!socket.isConnected || prevState != PhoenixChannelState.joined) {
       leavePush.trigger(PushResponse(status: 'ok'));
     } else {
-      leavePush.send().then((value) => close());
+      final onClose = (PushResponse reply) {
+        _onClose(reply);
+        close();
+      };
+      leavePush
+        ..onReply('ok', onClose)
+        ..onReply('timeout', onClose)
+        ..send();
     }
 
     return leavePush;
@@ -283,7 +282,7 @@ class PhoenixChannel {
       socket.openStream.listen(
         (event) {
           _rejoinTimer?.cancel();
-          if (isErrored) {
+          if (_state == PhoenixChannelState.errored) {
             _attemptJoin();
           }
         },
@@ -347,7 +346,7 @@ class PhoenixChannel {
   }
 
   void _attemptJoin() {
-    if (!isLeaving) {
+    if (_state != PhoenixChannelState.leaving) {
       _state = PhoenixChannelState.joining;
       _bindJoinPush(_joinPush);
       unawaited(_joinPush.resend(_timeout));
@@ -370,7 +369,7 @@ class PhoenixChannel {
       close();
     } else if (message.event == PhoenixChannelEvent.error) {
       _logger.finer('Erroring channel $topic');
-      if (isJoining) {
+      if (_state == PhoenixChannelState.joining) {
         _joinPush.reset();
       }
       _state = PhoenixChannelState.errored;
