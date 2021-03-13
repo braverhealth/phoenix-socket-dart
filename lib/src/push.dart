@@ -62,6 +62,7 @@ class PushResponse implements Equatable {
   bool get stringify => true;
 }
 
+/// Type of function that should return a push payload
 typedef PayloadGetter = Map<String, dynamic> Function();
 
 /// Object produced by [PhoenixChannel.push] to encapsulate
@@ -189,8 +190,7 @@ class Push {
   void startTimeout() {
     if (!_awaitingReply) {
       _channel.onPushReply(replyEvent)
-        ..then(_receiveResponse)
-        ..catchError(_receiveResponse);
+        ..then<void>(_receiveResponse).catchError(_receiveResponse);
       _awaitingReply = true;
     }
 

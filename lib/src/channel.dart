@@ -63,7 +63,7 @@ class PhoenixChannel {
   /// The [PhoenixSocket] through which this channel is established.
   final PhoenixSocket socket;
 
-  final StreamController<Message > _controller;
+  final StreamController<Message> _controller;
   final Map<PhoenixChannelEvent, Completer<Message>> _waiters;
   final List<StreamSubscription> _subscriptions = [];
 
