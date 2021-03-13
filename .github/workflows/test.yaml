@@ -22,7 +22,7 @@ jobs:
         with:
           architecture: x64
           release-channel: stable
-          version: "2.10.3"
+          version: "2.12.1"
 
       - name: Fetch sources
         uses: actions/checkout@v2
