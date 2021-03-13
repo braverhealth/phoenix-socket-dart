@@ -1,5 +1,5 @@
-import 'package:logging/logging.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:phoenix_socket/phoenix_socket.dart';
 
 void main() {
@@ -41,7 +41,7 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+  MyHomePage({Key? key, required this.title}) : super(key: key);
 
   // This widget is the home page of your application. It is stateful, meaning
   // that it has a State object (defined below) that contains fields that affect
@@ -61,8 +61,8 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
   bool _connected = false;
-  PhoenixSocket _socket;
-  PhoenixChannel _channel;
+  late PhoenixSocket _socket;
+  PhoenixChannel? _channel;
 
   _MyHomePageState() {
     _socket = PhoenixSocket('ws://localhost:4001/socket/websocket')..connect();
@@ -72,7 +72,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _socket.openStream.listen((event) {
       setState(() {
         _channel = _socket.addChannel(topic: 'channel3');
-        return _connected = true;
+        _connected = true;
       });
     });
   }
@@ -100,7 +100,9 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         // Here we take the value from the MyHomePage object that was created by
         // the App.build method, and use it to set our appbar title.
-        title: Text(_connected ? "Connected" : "Disconnected"),
+        title: Text(
+          _channel != null && _connected ? "Connected" : "Disconnected",
+        ),
       ),
       body: Center(
         // Center is a layout widget. It takes a single child and positions it

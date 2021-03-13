@@ -1,3 +1,7 @@
+## [0.5.0]
+
+- Add sound null safety
+
 ## [0.4.11]
 
 - Fix a channel re-join issue (#20)

@@ -9,7 +9,7 @@ class MessageSerializer {
   /// Default constructor returning the singleton instance of this class.
   factory MessageSerializer() => _instance ??= MessageSerializer._();
 
-  static MessageSerializer _instance;
+  static MessageSerializer? _instance;
 
   /// Yield a [Message] from some raw string arriving from a websocket.
   Message decode(String rawData) {
