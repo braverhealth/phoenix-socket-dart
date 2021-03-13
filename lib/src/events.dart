@@ -18,10 +18,10 @@ class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
   });
 
   /// The reason the socket was closed.
-  final String reason;
+  final String? reason;
 
   /// The code of the socket close.
-  final int code;
+  final int? code;
 }
 
 /// Error event for a [PhoenixSocket].
@@ -99,11 +99,8 @@ class PhoenixChannelEvent extends Equatable {
   /// The constant heartbeat event
   static PhoenixChannelEvent heartbeat = PhoenixChannelEvent._('heartbeat');
 
-  static Set<PhoenixChannelEvent> _statuses;
-
   /// The constant set of possible internal channel event names.
-  static Set<PhoenixChannelEvent> get statuses =>
-      _statuses ??= {close, error, join, reply, leave};
+  static Set<PhoenixChannelEvent> statuses = {close, error, join, reply, leave};
 
   /// Whether the event name is an 'reply' event
   bool get isReply => value.startsWith(__chanReplyEventName);

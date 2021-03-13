@@ -26,41 +26,41 @@ void noopWithNoArg() {}
 class PhoenixPresence {
   PhoenixPresence({this.channel, this.eventNames}) {
     final eventNames = {stateEventName, diffEventName};
-    _subscription = channel.messages
+    _subscription = channel!.messages
         .where((message) => eventNames.contains(message.event.value))
         .listen(_onMessage);
   }
-  final PhoenixChannel channel;
-  StreamSubscription _subscription;
-  final Map<String, String> eventNames;
-  Map<String, dynamic> state = {};
+  final PhoenixChannel? channel;
+  late StreamSubscription _subscription;
+  final Map<String, String>? eventNames;
+  Map<String, dynamic>? state = {};
   List pendingDiffs = [];
 
-  String _joinRef;
+  String? _joinRef;
 
   JoinHandler joinHandler = noopWithThreeArgs;
   LeaveHandler leaveHandler = noopWithThreeArgs;
   Function() syncHandler = noopWithNoArg;
 
   bool get inPendingSyncState =>
-      _joinRef == null || _joinRef != channel.joinRef;
+      _joinRef == null || _joinRef != channel!.joinRef;
 
-  String get stateEventName {
-    if (eventNames.containsKey('state')) return eventNames['state'];
+  String? get stateEventName {
+    if (eventNames!.containsKey('state')) return eventNames!['state'];
     return 'presence_state';
   }
 
-  String get diffEventName {
-    if (eventNames.containsKey('diff')) return eventNames['diff'];
+  String? get diffEventName {
+    if (eventNames!.containsKey('diff')) return eventNames!['diff'];
     return 'presence_diff';
   }
 
   List<dynamic> list(
     Map<String, dynamic> presences, [
-    dynamic Function(String, dynamic) chooser,
+    dynamic Function(String, dynamic)? chooser,
   ]) {
     chooser = chooser ?? (k, v) => v;
-    return _map(presences, (k, v) => chooser(k, v));
+    return _map(presences, (k, v) => chooser!(k, v));
   }
 
   void dispose() {
@@ -69,8 +69,8 @@ class PhoenixPresence {
 
   void _onMessage(Message message) {
     if (message.event.value == stateEventName) {
-      _joinRef = channel.joinRef;
-      final newState = message.payload;
+      _joinRef = channel!.joinRef;
+      final newState = message.payload!;
       state = _syncState(state, newState, joinHandler, leaveHandler);
       for (final diff in pendingDiffs) {
         state = _syncDiff(state, diff, joinHandler, leaveHandler);
@@ -82,20 +82,20 @@ class PhoenixPresence {
       if (inPendingSyncState) {
         pendingDiffs.add(diff);
       } else {
-        state = _syncDiff(state, diff, joinHandler, leaveHandler);
+        state = _syncDiff(state, diff!, joinHandler, leaveHandler);
         syncHandler();
       }
     }
   }
 }
 
-Map<String, dynamic> _syncState(
-  Map<String, dynamic> currentState,
+Map<String, dynamic>? _syncState(
+  Map<String, dynamic>? currentState,
   Map<String, dynamic> newState,
   JoinHandler onJoin,
   LeaveHandler onLeave,
 ) {
-  final state = _clone(currentState);
+  final state = _clone(currentState)!;
   final joins = {};
   final leaves = {};
 
@@ -134,8 +134,8 @@ Map<String, dynamic> _syncState(
   return _syncDiff(state, {'joins': joins, 'leaves': leaves}, onJoin, onLeave);
 }
 
-Map<String, dynamic> _syncDiff(
-  Map<String, dynamic> currentState,
+Map<String, dynamic>? _syncDiff(
+  Map<String, dynamic>? currentState,
   Map<String, dynamic> diff,
   JoinHandler onJoin,
   LeaveHandler onLeave,
@@ -146,7 +146,7 @@ Map<String, dynamic> _syncDiff(
   final Map<String, dynamic> leaves = diff['leaves'];
 
   _map(joins, (key, newPresence) {
-    final currentPresence = state[key];
+    final currentPresence = state![key];
     state[key] = newPresence;
     if (currentPresence) {
       final joinedRefs =
@@ -158,7 +158,7 @@ Map<String, dynamic> _syncDiff(
     onJoin(key, currentPresence, newPresence);
   });
   _map(leaves, (key, leftPresence) {
-    final currentPresence = state[key];
+    final currentPresence = state![key];
     if (!currentPresence) return;
     final refsToRemove =
         (leftPresence.metas as List).map((m) => m.phx_ref).toSet();
@@ -181,6 +181,6 @@ List<dynamic> _map(
       .toList();
 }
 
-Map<String, dynamic> _clone(Map<String, dynamic> presences) {
+Map<String, dynamic>? _clone(Map<String, dynamic>? presences) {
   return jsonDecode(jsonEncode(presences));
 }
