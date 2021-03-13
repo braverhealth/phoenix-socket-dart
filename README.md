@@ -1,8 +1,8 @@
 # phoenix_socket
 
 [![ci-test](https://github.com/braverhealth/phoenix-socket-dart/actions/workflows/test.yaml/badge.svg)](https://github.com/braverhealth/phoenix-socket-dart/actions/workflows/test.yaml)
-[[!pub-package](https://img.shields.io/pub/v/phoenix_socket.svg)](https://pub.dev/packages/phoenix_socket)
-[[!pub-points](https://badges.bar/phoenix_socket/pub%20points)](https://pub.dev/packages/phoenix_socket/score)
+[![pub-package](https://img.shields.io/pub/v/phoenix_socket.svg)](https://pub.dev/packages/phoenix_socket)
+[![pub-points](https://badges.bar/phoenix_socket/pub%20points)](https://pub.dev/packages/phoenix_socket/score)
 
 Dart library to interact with [Phoenix][1] [Channels][2] ([Presence][3] coming up next) over WebSockets.
 
