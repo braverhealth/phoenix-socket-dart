@@ -208,7 +208,7 @@ class PhoenixSocket {
     try {
       _socketState = SocketState.connected;
       _logger.finest('Waiting for initial heartbeat roundtrip');
-      if (await _sendHeartbeat()) {
+      if (await _sendHeartbeat(ignorePreviousHeartbeat: true)) {
         _stateStreamController.add(PhoenixSocketOpenEvent());
         _logger.info('Socket open');
         completer.complete(this);
@@ -413,10 +413,10 @@ class PhoenixSocket {
     _heartbeatTimeout = null;
   }
 
-  Future<bool> _sendHeartbeat() async {
+  Future<bool> _sendHeartbeat({bool ignorePreviousHeartbeat = false}) async {
     if (!isConnected) return false;
 
-    if (_nextHeartbeatRef != null) {
+    if (_nextHeartbeatRef != null && !ignorePreviousHeartbeat) {
       _nextHeartbeatRef = null;
       if (_ws != null) {
         unawaited(_ws!.sink.close(normalClosure, 'heartbeat timeout'));
