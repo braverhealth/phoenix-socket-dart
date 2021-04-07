@@ -1,3 +1,7 @@
+## [0.5.1.]
+
+- Fix re-connection issue
+
 ## [0.5.0]
 
 - Add sound null safety
