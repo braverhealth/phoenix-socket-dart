@@ -9,7 +9,7 @@ final Logger _logger = Logger('phoenix_socket.message');
 
 /// Class that encapsulate a message being sent or received on a
 /// [PhoenixSocket].
-class Message implements Equatable {
+class Message extends Equatable {
   /// Given a parsed JSON coming from the backend, yield
   /// a [Message] instance.
   factory Message.fromJson(List<dynamic> parts) {

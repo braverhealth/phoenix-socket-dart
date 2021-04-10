@@ -10,7 +10,7 @@ import 'exceptions.dart';
 import 'message.dart';
 
 /// Encapsulates the response to a [Push].
-class PushResponse implements Equatable {
+class PushResponse extends Equatable {
   /// Builds a PushResponse from a status and response.
   PushResponse({
     this.status,
