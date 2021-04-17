@@ -5,8 +5,6 @@
 
 import 'dart:async';
 
-import 'package:meta/meta.dart';
-
 import 'channel.dart';
 import 'message.dart';
 
@@ -40,7 +38,7 @@ class PhoenixPresence {
   /// This can be customized by passing a custom
   /// name map [eventNames] for those events.
   PhoenixPresence({
-    @required this.channel,
+    required this.channel,
     this.eventNames = const {
       'state': 'presence_state',
       'diff': 'presence_diff'
@@ -64,7 +62,7 @@ class PhoenixPresence {
   /// ```
   final Map<String, String> eventNames;
 
-  StreamSubscription _subscription;
+  late StreamSubscription _subscription;
 
   /// All presences advertised by the Phoenix backend in real time.
   var state = <String, Presence>{};
@@ -86,19 +84,19 @@ class PhoenixPresence {
 
   /// Checks whether the presence channel is currently syncing with the server.
   bool get inPendingSyncState =>
-      _joinRef == null || _joinRef != channel!.joinRef;
+      _joinRef == null || _joinRef != channel.joinRef;
 
   /// Gets the name of the 'state' event to listen to if different
   /// than the default 'presence_state'.
   String get stateEventName {
-    if (eventNames.containsKey('state')) return eventNames['state'];
+    if (eventNames.containsKey('state')) return eventNames['state']!;
     return 'presence_state';
   }
 
   /// Gets the name of the 'diff' event to listen to if different
   /// than the default 'presence_diff'.
   String get diffEventName {
-    if (eventNames.containsKey('diff')) return eventNames['diff'];
+    if (eventNames.containsKey('diff')) return eventNames['diff']!;
     return 'presence_diff';
   }
 
@@ -107,7 +105,7 @@ class PhoenixPresence {
   /// See Example for better understanding and implementation details.
   List<dynamic> list(
     Map<String, Presence> presences, [
-    dynamic Function(String, Presence) chooser,
+    dynamic Function(String, Presence)? chooser,
   ]) {
     chooser = chooser ?? (k, v) => v;
     return _map(presences, (k, v) => chooser!(k, v));
@@ -123,7 +121,7 @@ class PhoenixPresence {
     // Processing of 'state' events.
     if (message.event.value == stateEventName) {
       _joinRef = channel.joinRef;
-      final newState = _decodeStateFromPayload(message.payload);
+      final newState = _decodeStateFromPayload(message.payload!);
       state = _syncState(state, newState);
       for (final diff in pendingDiffs) {
         state = _syncDiff(state, diff);
@@ -133,7 +131,7 @@ class PhoenixPresence {
 
       // Processing of 'diff' events.
     } else if (message.event.value == diffEventName) {
-      final diff = _decodeDiffFromPayload(message.payload);
+      final diff = _decodeDiffFromPayload(message.payload!);
       if (inPendingSyncState) {
         pendingDiffs.add(diff);
       } else {
@@ -183,7 +181,7 @@ class PhoenixPresence {
     });
     _map(newState, (key, newPresence) {
       if (state.containsKey(key)) {
-        final currentPresence = state[key];
+        final currentPresence = state[key]!;
         final newRefs = (newPresence.metas).map((m) => m.phxRef).toSet();
         final curRefs = (currentPresence.metas).map((m) => m.phxRef).toSet();
 
@@ -197,11 +195,11 @@ class PhoenixPresence {
 
         if (joinedMetas.isNotEmpty) {
           joins[key] = newPresence;
-          joins[key].metas = joinedMetas;
+          joins[key]!.metas = joinedMetas;
         }
         if (leftMetas.isNotEmpty) {
           leaves[key] = currentPresence.clone();
-          leaves[key].metas = leftMetas;
+          leaves[key]!.metas = leftMetas;
         }
       } else {
         joins[key] = newPresence;
@@ -220,17 +218,17 @@ class PhoenixPresence {
   ) {
     final state = _clone(currentState);
 
-    final joins = diff['joins'];
-    final leaves = diff['leaves'];
+    final joins = diff['joins'] ?? {};
+    final leaves = diff['leaves'] ?? {};
 
     _map(joins, (key, newPresence) {
       final currentPresence = state[key];
       state[key] = newPresence;
       if (currentPresence != null) {
-        final joinedRefs = (state[key].metas).map((m) => m.phxRef).toSet();
+        final joinedRefs = (state[key]!.metas).map((m) => m.phxRef).toSet();
         final curMetas = (currentPresence.metas)
             .where((m) => !joinedRefs.contains(m.phxRef));
-        (state[key].metas).insertAll(0, curMetas);
+        (state[key]!.metas).insertAll(0, curMetas);
       }
       onJoin(key, currentPresence, newPresence);
     });
@@ -250,10 +248,10 @@ class PhoenixPresence {
   }
 
   List<dynamic> _map(
-    Map<String, dynamic> presences,
+    Map<String, Presence> presences,
     dynamic Function(String, Presence) mapper,
   ) {
-    if (presences?.isNotEmpty ?? false) {
+    if (presences.isNotEmpty) {
       return presences.entries
           .map((entry) => mapper(entry.key, entry.value))
           .toList();
