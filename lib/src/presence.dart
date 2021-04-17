@@ -70,7 +70,7 @@ class PhoenixPresence {
   var state = <String, Presence>{};
   var pendingDiffs = <Map<String, Map<String, Presence>>>[];
 
-  String _joinRef;
+  String? _joinRef;
 
   /// Optional callback to react to changes in the client's local presences when
   /// connecting/reconnecting with the server.
@@ -86,7 +86,7 @@ class PhoenixPresence {
 
   /// Checks whether the presence channel is currently syncing with the server.
   bool get inPendingSyncState =>
-      _joinRef == null || _joinRef != channel.joinRef;
+      _joinRef == null || _joinRef != channel!.joinRef;
 
   /// Gets the name of the 'state' event to listen to if different
   /// than the default 'presence_state'.
@@ -110,7 +110,7 @@ class PhoenixPresence {
     dynamic Function(String, Presence) chooser,
   ]) {
     chooser = chooser ?? (k, v) => v;
-    return _map(presences, (k, v) => chooser(k, v));
+    return _map(presences, (k, v) => chooser!(k, v));
   }
 
   /// Stops listening to new messages on [channel].

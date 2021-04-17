@@ -35,7 +35,7 @@ class _StreamRouter<T> {
   }
 
   final Stream<T> _incoming;
-  StreamSubscription<T> _subscription;
+  late StreamSubscription<T> _subscription;
 
   final List<_Route<T>> _routes = <_Route<T>>[];
   final StreamController<T> _defaultController =
@@ -44,7 +44,7 @@ class _StreamRouter<T> {
   /// Events that match [predicate] are sent to the stream created by this
   /// method, and not sent to any other router streams.
   Stream<T> route(_Predicate<T> predicate) {
-    _Route route;
+    _Route<T>? route;
     final controller = StreamController<T>.broadcast(onCancel: () {
       _routes.remove(route);
     });
@@ -62,8 +62,7 @@ class _StreamRouter<T> {
   }
 
   void _handle(T event) {
-    final route =
-        _routes.firstWhere((r) => r.predicate(event), orElse: () => null);
+    final route = _routes.firstWhereOrNull((r) => r.predicate(event));
     ((route != null) ? route.controller : _defaultController).add(event);
   }
 }

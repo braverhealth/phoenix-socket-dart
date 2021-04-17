@@ -1,0 +1,41 @@
+name: ci-test
+
+on:
+  pull_request:
+    paths:
+      - "lib/**"
+      - "test/**"
+      - ".github/workflows/**"
+
+jobs:
+  test:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+
+    services:
+      phoenix:
+        image: braverhq/phoenix-dart-server
+        ports:
+          - 4001:4001
+
+    steps:
+      - name: Set up Dart
+        uses: cedx/setup-dart@v2
+        with:
+          architecture: x64
+          release-channel: stable
+          version: "2.12.1"
+
+      - name: Fetch sources
+        uses: actions/checkout@v2
+
+      - name: Fetch dependencies
+        run: pub get
+
+      - name: Run analysis
+        run: |
+          dart analyze --fatal-infos lib/
+          dart analyze test/
+
+      - name: Run tests
+        run: pub run test

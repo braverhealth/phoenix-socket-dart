@@ -33,6 +33,7 @@ void main() {
 
     test('can handle channel join failures', () async {
       final socket = PhoenixSocket(addr);
+
       final completer = Completer<Null>();
 
       await socket.connect();
@@ -110,15 +111,15 @@ void main() {
         channel1.messages,
         emitsInOrder([
           predicate(
-            (msg) => msg.payload['from'] == 'socket1',
+            (dynamic msg) => msg.payload['from'] == 'socket1',
             'was from socket1',
           ),
           predicate(
-            (msg) => msg.payload['from'] == 'socket2',
+            (dynamic msg) => msg.payload['from'] == 'socket2',
             'was from socket2',
           ),
           predicate(
-            (msg) => msg.payload['from'] == 'socket2',
+            (dynamic msg) => msg.payload['from'] == 'socket2',
             'was from socket2',
           ),
         ]),
@@ -128,15 +129,15 @@ void main() {
         channel2.messages,
         emitsInOrder([
           predicate(
-            (msg) => msg.payload['from'] == 'socket1',
+            (dynamic msg) => msg.payload['from'] == 'socket1',
             'was from socket1',
           ),
           predicate(
-            (msg) => msg.payload['from'] == 'socket2',
+            (dynamic msg) => msg.payload['from'] == 'socket2',
             'was from socket2',
           ),
           predicate(
-            (msg) => msg.payload['from'] == 'socket2',
+            (dynamic msg) => msg.payload['from'] == 'socket2',
             'was from socket2',
           ),
         ]),
@@ -165,7 +166,7 @@ void main() {
         channel2.messages,
         emits(
           predicate(
-            (msg) => msg.payload['from'] == 'socket1',
+            (dynamic msg) => msg.payload['from'] == 'socket1',
             'was from socket1',
           ),
         ),
@@ -194,7 +195,7 @@ void main() {
         channel2.messages,
         emits(
           predicate(
-            (msg) => msg.payload['from'] == 'socket1',
+            (dynamic msg) => msg.payload['from'] == 'socket1',
             'was from socket1',
           ),
         ),
@@ -214,7 +215,7 @@ void main() {
         channel2.messages,
         emits(
           predicate(
-            (msg) => msg.payload['from'] == 'socket1',
+            (dynamic msg) => msg.payload['from'] == 'socket1',
             'was from socket1',
           ),
         ),
