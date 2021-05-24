@@ -2,13 +2,15 @@ name: phoenix_socket_example
 description: A PhoenixSocket example
 version: 0.0.2
 homepage: https://www.github.com/matehat/phoenix-socket-dart
+publish_to: none
 
 environment:
-  sdk: ">=2.3.0 <3.0.0"
+  sdk: ">=2.12.0 <3.0.0"
 
 dependencies:
   phoenix_socket:
     path: ../../
-  uuid: ^2.0.4
+
+  uuid: ^3.0.1
 
 dev_dependencies: {}

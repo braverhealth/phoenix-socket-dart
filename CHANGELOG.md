@@ -1,3 +1,31 @@
+## [0.5.1.]
+
+- Fix re-connection issue
+
+## [0.5.0]
+
+- Add sound null safety
+
+## [0.4.11]
+
+- Fix a channel re-join issue (#20)
+
+## [0.4.10]
+
+- Make sure Push instances trigger only one event, and only once (#18)
+
+## [0.4.9]
+
+- Bugfix (#15)
+
+## [0.4.8]
+
+- Bugfix (#13 @carlosmobile)
+
+## [0.4.7]
+
+- Improve typing of channel parameters (#12 @carlosmobile)
+
 ## [0.4.6]
 
 - Improve error handling on initial socket connection

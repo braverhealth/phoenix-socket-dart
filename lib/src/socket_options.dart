@@ -11,10 +11,10 @@ class PhoenixSocketOptions {
   PhoenixSocketOptions({
     /// The duration after which a connection attempt
     /// is considered failed
-    Duration timeout,
+    Duration? timeout,
 
     /// The interval between heartbeat roundtrips
-    Duration heartbeat,
+    Duration? heartbeat,
 
     /// The list of delays between reconnection attempts.
     ///
@@ -39,7 +39,7 @@ class PhoenixSocketOptions {
     ///
     /// Either this or [params] car to be provided, but not both.
     this.dynamicParams,
-    MessageSerializer serializer,
+    MessageSerializer? serializer,
   })  : _timeout = timeout ?? const Duration(seconds: 10),
         serializer = serializer ?? MessageSerializer(),
         _heartbeat = heartbeat ?? const Duration(seconds: 30) {
@@ -65,14 +65,14 @@ class PhoenixSocketOptions {
 
   /// Parameters sent to your Phoenix backend on connection.
   /// Use [dynamicParams] if your params are dynamic.
-  final Map<String, String> params;
+  final Map<String, String>? params;
 
   /// Will be called to get fresh params before each connection attempt.
-  final Future<Map<String, String>> Function() dynamicParams;
+  final Future<Map<String, String>> Function()? dynamicParams;
 
   /// Get connection params.
   Future<Map<String, String>> getParams() async {
-    final res = dynamicParams != null ? await dynamicParams() : params ?? {};
+    final res = dynamicParams != null ? await dynamicParams!() : params ?? {};
     res['vsn'] = '2.0.0';
     return res;
   }

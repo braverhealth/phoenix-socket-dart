@@ -18,7 +18,7 @@ import 'src/socket.dart';
 
 export 'src/channel.dart';
 export 'src/events.dart';
-export 'src/exception.dart';
+export 'src/exceptions.dart';
 export 'src/message.dart';
 export 'src/presence.dart';
 export 'src/push.dart';
