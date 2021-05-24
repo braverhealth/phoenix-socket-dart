@@ -28,7 +28,7 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+  MyHomePage({Key? key, required this.title}) : super(key: key);
 
   final String title;
 
@@ -42,6 +42,10 @@ class _MyHomePageState extends State<MyHomePage> {
   PhoenixSocket _socket;
   PhoenixChannel _channel;
   PhoenixPresence _presence;
+  });
+  late PhoenixSocket _socket;
+  late PhoenixChannel _channel;
+  late PhoenixPresence _presence;
   var _responses = [];
 
   @override
@@ -52,14 +56,17 @@ class _MyHomePageState extends State<MyHomePage> {
     // android\app\src\main\AndroidManifest.xml:
     //   ...<application
     //       ...
-		//       android:usesCleartextTraffic="true">
+    //       android:usesCleartextTraffic="true">
     //       <activity...
     _socket = PhoenixSocket('ws://localhost:4001/socket/websocket',
         socketOptions: _socketOptions);
     _channel = _socket.addChannel(topic: 'presence:lobby');
     _presence = PhoenixPresence(channel: _channel);
 
-    _socket.closeStream.listen((event) {});
+    _socket.closeStream.listen((event) {
+      // Temporary fix until https://github.com/braverhealth/phoenix-socket-dart/issues/34 is resolved.
+      _socket.close();
+    });
     _socket.openStream.listen((event) {
       _channel.join();
     });
@@ -81,31 +88,27 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     print('state:');
-    print(_presence?.state);
+    print(_presence.state);
 
     _responses =
-        _presence?.list(_presence?.state, (String id, Presence presence) {
+        _presence.list(_presence.state, (String id, Presence presence) {
       final metas = presence.metas;
       var count = metas.length;
       final response = '${id} (count: ${count})';
       return response;
     });
-    if (_responses != null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Presence Example')),
-        body: Container(
-          child: ListView.builder(
-            itemCount: _responses.length,
-            itemBuilder: (BuildContext context, int index) {
-              return ListTile(
-                title: Text(_responses[index]),
-              );
-            },
-          ),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Presence Example')),
+      body: Container(
+        child: ListView.builder(
+          itemCount: _responses.length,
+          itemBuilder: (BuildContext context, int index) {
+            return ListTile(
+              title: Text(_responses[index]),
+            );
+          },
         ),
-      );
-    } else {
-      return Container();
-    }
+      ),
+    );
   }
 }
