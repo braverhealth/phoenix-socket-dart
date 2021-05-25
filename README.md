@@ -4,7 +4,7 @@
 [![pub-package](https://img.shields.io/pub/v/phoenix_socket.svg)](https://pub.dev/packages/phoenix_socket)
 [![pub-points](https://badges.bar/phoenix_socket/pub%20points)](https://pub.dev/packages/phoenix_socket/score)
 
-Dart library to interact with [Phoenix][1] [Channels][2] ([Presence][3] coming up next) over WebSockets.
+Dart library to interact with [Phoenix][1] [Channels][2] ([Presence][3] support is currently _experimental_) over WebSockets.
 
 This library uses [web_socket_channel][4] for WebSockets, making the API consistent across web and native
 environments.
