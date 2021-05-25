@@ -94,7 +94,15 @@ class _MyHomePageState extends State<MyHomePage> {
         _presence.list(_presence.state, (String id, Presence presence) {
       final metas = presence.metas;
       var count = metas.length;
-      final response = '${id} (count: ${count})';
+
+      // Sort latest connection to the end of the metas list.
+      metas.sort((a, b) => int.parse(a.data['online_at'])
+          .compareTo(int.parse(b.data['online_at'])));
+      final latestOnline = DateTime.fromMillisecondsSinceEpoch(
+          int.parse(metas.last.data['online_at']));
+          
+      final response =
+          '$id (count: $count, latest online at: ${latestOnline.hour}:${latestOnline.minute}:${latestOnline.second})';
       return response;
     });
     return Scaffold(

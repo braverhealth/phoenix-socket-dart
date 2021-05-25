@@ -237,7 +237,7 @@ class PhoenixPresence {
       if (currentPresence == null) return;
       final refsToRemove = (leftPresence.metas).map((m) => m.phxRef).toSet();
       currentPresence.metas = (currentPresence.metas)
-          .where((p) => !refsToRemove.contains(p.phxRef))
+          .where((m) => !refsToRemove.contains(m.phxRef))
           .toList();
       onLeave(key, currentPresence, leftPresence);
       if ((currentPresence.metas).isEmpty) {
@@ -294,18 +294,47 @@ class Presence {
   }
 }
 
-// TODO this is should accepts custom metadata fields...
+// // TODO this is should accepts custom metadata fields...
+// /// Class that encapsulate the various metadata for a [Presence] event.
+// /// This class only implements the two default metadata
+// /// fields [onlineAt] and [phxRef].
+// class PhoenixPresenceMeta {
+//   PhoenixPresenceMeta.fromJson(Map<String, dynamic> meta)
+//       : onlineAt =
+//             DateTime.fromMillisecondsSinceEpoch(int.parse(meta['online_at'])),
+//         phxRef = meta['phx_ref'];
+
+//   /// The UTC time at which the [Presence] event happened.
+//   final DateTime onlineAt;
+
+//   /// The [Presence] event reference on the backend Phoenix server.
+//   final String phxRef;
+
+//   /// Clones a [PhoenixPresenceMeta] object
+//   PhoenixPresenceMeta clone() {
+//     final json = _toJson();
+//     return PhoenixPresenceMeta.fromJson(json);
+//   }
+
+//   Map<String, dynamic> _toJson() {
+//     final json = <String, dynamic>{};
+//     json['online_at'] = onlineAt.millisecondsSinceEpoch.toString();
+//     json['phx_ref'] = phxRef;
+//     return json;
+//   }
+// }
+
 /// Class that encapsulate the various metadata for a [Presence] event.
-/// This class only implements the two default metadata
-/// fields [onlineAt] and [phxRef].
+/// This class only implements the default metadata field [phxRef], all
+/// other custom fields are available in the json map [data] (including
+/// the 'phxRef' field).
 class PhoenixPresenceMeta {
   PhoenixPresenceMeta.fromJson(Map<String, dynamic> meta)
-      : onlineAt =
-            DateTime.fromMillisecondsSinceEpoch(int.parse(meta['online_at'])),
+      : data = {...meta},
         phxRef = meta['phx_ref'];
 
-  /// The UTC time at which the [Presence] event happened.
-  final DateTime onlineAt;
+  /// The raw data associated with the meta.
+  final Map<String, dynamic> data;
 
   /// The [Presence] event reference on the backend Phoenix server.
   final String phxRef;
@@ -316,10 +345,5 @@ class PhoenixPresenceMeta {
     return PhoenixPresenceMeta.fromJson(json);
   }
 
-  Map<String, dynamic> _toJson() {
-    final json = <String, dynamic>{};
-    json['online_at'] = onlineAt.millisecondsSinceEpoch.toString();
-    json['phx_ref'] = phxRef;
-    return json;
-  }
+  Map<String, dynamic> _toJson() => data;
 }
