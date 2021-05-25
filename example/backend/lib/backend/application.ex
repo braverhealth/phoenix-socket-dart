@@ -9,7 +9,8 @@ defmodule Backend.Application do
     # List all child processes to be supervised
     children = [
       # Start the endpoint when the application starts
-      BackendWeb.Endpoint
+      BackendWeb.Endpoint,
+      BackendWeb.Presence
       # Starts a worker by calling: Backend.Worker.start_link(arg)
       # {Backend.Worker, arg},
     ]
