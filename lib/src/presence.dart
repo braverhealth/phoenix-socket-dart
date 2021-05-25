@@ -294,40 +294,12 @@ class Presence {
   }
 }
 
-// // TODO this is should accepts custom metadata fields...
-// /// Class that encapsulate the various metadata for a [Presence] event.
-// /// This class only implements the two default metadata
-// /// fields [onlineAt] and [phxRef].
-// class PhoenixPresenceMeta {
-//   PhoenixPresenceMeta.fromJson(Map<String, dynamic> meta)
-//       : onlineAt =
-//             DateTime.fromMillisecondsSinceEpoch(int.parse(meta['online_at'])),
-//         phxRef = meta['phx_ref'];
-
-//   /// The UTC time at which the [Presence] event happened.
-//   final DateTime onlineAt;
-
-//   /// The [Presence] event reference on the backend Phoenix server.
-//   final String phxRef;
-
-//   /// Clones a [PhoenixPresenceMeta] object
-//   PhoenixPresenceMeta clone() {
-//     final json = _toJson();
-//     return PhoenixPresenceMeta.fromJson(json);
-//   }
-
-//   Map<String, dynamic> _toJson() {
-//     final json = <String, dynamic>{};
-//     json['online_at'] = onlineAt.millisecondsSinceEpoch.toString();
-//     json['phx_ref'] = phxRef;
-//     return json;
-//   }
-// }
-
 /// Class that encapsulate the various metadata for a [Presence] event.
 /// This class only implements the default metadata field [phxRef], all
 /// other custom fields are available in the json map [data] (including
-/// the 'phxRef' field).
+/// the 'phxRef' field). It can be extended with custom field as
+/// required, see 'example/flutter_presence_app' for an example on
+/// how to implement this in your code.
 class PhoenixPresenceMeta {
   PhoenixPresenceMeta.fromJson(Map<String, dynamic> meta)
       : data = {...meta},

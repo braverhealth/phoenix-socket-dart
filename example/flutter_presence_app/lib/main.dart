@@ -83,19 +83,18 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    print('state:');
-    print(_presence.state);
-
     _responses =
         _presence.list(_presence.state, (String id, Presence presence) {
       final metas = presence.metas;
       var count = metas.length;
 
+      // Optional step, cast [PhoenixPresenceMeta] to [MyCustomPhoenixPresenceMeta]
+      // for ease of use with custom fields.
+      final myMetas = metas.map((m) => MyCustomPhoenixPresenceMeta(m)).toList();
+
       // Sort latest connection to the end of the metas list.
-      metas.sort((a, b) => int.parse(a.data['online_at'])
-          .compareTo(int.parse(b.data['online_at'])));
-      final latestOnline = DateTime.fromMillisecondsSinceEpoch(
-          int.parse(metas.last.data['online_at']));
+      myMetas.sort((a, b) => a.onlineAt.compareTo(b.onlineAt));
+      final latestOnline = myMetas.last.onlineAt;
 
       final response =
           '$id (count: $count, latest online at: ${latestOnline.hour}:${latestOnline.minute}:${latestOnline.second})';
@@ -114,5 +113,30 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
     );
+  }
+}
+
+/// Optionally, you can extends the PhoenixPresenceMeta class with your custom meta fields
+/// so they are easily accessible from your code.
+/// Below is an example with a custom [online_at] field in the metas from the server which indicates
+/// the connection time in millisecondsSinceEpoch.
+class MyCustomPhoenixPresenceMeta extends PhoenixPresenceMeta {
+  /// The time at which the [Presence] event happened in the local time zone.
+  DateTime get onlineAt => _onlineAt;
+
+  MyCustomPhoenixPresenceMeta._fromJson(Map<String, dynamic> meta)
+      : _onlineAt =
+            DateTime.fromMillisecondsSinceEpoch(int.parse(meta['online_at'])),
+        super.fromJson(meta);
+
+  factory MyCustomPhoenixPresenceMeta(PhoenixPresenceMeta meta) {
+    return MyCustomPhoenixPresenceMeta._fromJson(meta.data);
+  }
+
+  final DateTime _onlineAt;
+
+  @override
+  MyCustomPhoenixPresenceMeta clone() {
+    return MyCustomPhoenixPresenceMeta(super.clone());
   }
 }
