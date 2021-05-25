@@ -39,10 +39,6 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   final _socketOptions =
       PhoenixSocketOptions(params: {'user_id': 'example user 1'});
-  PhoenixSocket _socket;
-  PhoenixChannel _channel;
-  PhoenixPresence _presence;
-  });
   late PhoenixSocket _socket;
   late PhoenixChannel _channel;
   late PhoenixPresence _presence;
@@ -100,7 +96,7 @@ class _MyHomePageState extends State<MyHomePage> {
           .compareTo(int.parse(b.data['online_at'])));
       final latestOnline = DateTime.fromMillisecondsSinceEpoch(
           int.parse(metas.last.data['online_at']));
-          
+
       final response =
           '$id (count: $count, latest online at: ${latestOnline.hour}:${latestOnline.minute}:${latestOnline.second})';
       return response;
