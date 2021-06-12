@@ -1,0 +1,48 @@
+# inspiration
+# https://dev.to/pfreitag/running-postgresql-in-docker-for-local-dev-2ojk
+# https://medium.com/faun/managing-mongodb-on-docker-with-docker-compose-26bf8a0bbae3
+# https://rharshad.com/dynamodb-local-docker/
+# https://docs.fauna.com/fauna/current/integrations/dev.html#requirements
+
+# instructions
+# 1. start 'em up
+# docker-compose up -d
+# 2. stop them
+# docker-compose stop
+# 3. delete 'em. Will also delete data on the container
+# docker-compose down
+# 4. to use `psql`
+# `docker run -it --rm --network api_default postgres psql -h pg-phx-flutter-api -U postgres`
+# psql postgresql://user:password@host:5432/dbname
+
+version: "3.7"
+services:
+  pg:
+    # still need to `brew install postgresql` for the `pg` gem etc.
+    container_name: "pg-phx-flutter-api"
+    image: postgres:latest
+    ports:
+      - "5432:5432"
+    environment:
+      # - "POSTGRES_PASSWORD=${DB_PASS}" # using an environment variable
+      - "POSTGRES_PASSWORD=postgres"
+    volumes:
+      # - ./pg:/docker-entrypoint-initdb.d/ # file
+      - local-data:/pg/docker-entrypoint-initdb.d/ # container
+
+  # dynamo:
+  #   container_name: 'ddb-phx-flutter-api'
+  #   image: amazon/dynamodb-local:latest
+  #   ports:
+  #     - "8000:8000"
+  #     # localhost:8000/shell
+  #   command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+
+  redis:
+    container_name: "redis-phx-flutter-api"
+    image: redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  local-data:
