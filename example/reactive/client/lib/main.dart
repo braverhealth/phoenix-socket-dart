@@ -59,7 +59,6 @@ class _MyHomePageState extends State<MyHomePage> {
               'You have pushed the button this many times:',
             ),
             StreamBuilder(
-              // todo only have stream be responses from "sum" event, or room:math topic, or with times payload?
               stream: _channel?.messages,
               initialData: Message(
                 event: PhoenixChannelEvent.join,
@@ -73,9 +72,12 @@ class _MyHomePageState extends State<MyHomePage> {
                 if (!snapshot.hasData) {
                   return Container();
                 }
-                var times = snapshot.data?.payload?['times'];
-                if (times != null) {
-                  _counter = times;
+                // only modify widget with events from the `sum` channel
+                if (snapshot.data?.event.value == 'sum') {
+                  var times = snapshot.data?.payload?['times'];
+                  if (times != null) {
+                    _counter = times;
+                  }
                 }
                 return Container(
                   child: Text(
