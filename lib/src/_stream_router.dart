@@ -45,6 +45,7 @@ class _StreamRouter<T> {
   /// method, and not sent to any other router streams.
   Stream<T> route(_Predicate<T> predicate) {
     _Route<T>? route;
+    // ignore: close_sinks
     final controller = StreamController<T>.broadcast(onCancel: () {
       _routes.remove(route);
     });
@@ -55,7 +56,8 @@ class _StreamRouter<T> {
 
   Stream<T> get defaultStream => _defaultController.stream;
 
-  Future close() {
+  Future close() async {
+    await _defaultController.close();
     return Future.wait(_routes.map((r) => r.controller.close())).then((_) {
       _subscription.cancel();
     });

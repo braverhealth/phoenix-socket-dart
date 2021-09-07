@@ -1,5 +1,5 @@
-import 'package:logging/logging.dart';
 import 'package:equatable/equatable.dart';
+import 'package:logging/logging.dart';
 
 import 'channel.dart';
 import 'events.dart';
@@ -28,7 +28,7 @@ class Message extends Equatable {
     return Message(
       topic: 'phoenix',
       event: PhoenixChannelEvent.heartbeat,
-      payload: {},
+      payload: const {},
       ref: ref,
     );
   }
@@ -38,7 +38,7 @@ class Message extends Equatable {
   factory Message.timeoutFor(String ref) {
     return Message(
       event: PhoenixChannelEvent.replyFor(ref),
-      payload: {
+      payload: const {
         'status': 'timeout',
         'response': {},
       },

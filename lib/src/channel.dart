@@ -99,7 +99,7 @@ class PhoenixChannel {
   /// The name of the logger associated to this channel.
   String get loggerName => _loggerName ??= topic.replaceAll(
       RegExp(
-        '[:,*&?!@#\$%]',
+        r'[:,*&?!@#$%]',
       ),
       '_');
 
@@ -401,7 +401,7 @@ class PhoenixChannel {
     _logger.finer('Leave message has completed');
     trigger(Message(
       event: PhoenixChannelEvent.close,
-      payload: {'ok': 'leave'},
+      payload: const <String, String>{'ok': 'leave'},
     ));
   }
 }

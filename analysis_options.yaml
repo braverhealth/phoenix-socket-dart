@@ -1,4 +1,4 @@
-include: package:very_good_analysis/analysis_options.yaml
+include: package:lints/analysis_options.yaml
 
 linter:
   rules:
@@ -14,7 +14,7 @@ linter:
     avoid_catching_errors: false
     avoid_classes_with_only_static_members: true
     avoid_double_and_int_checks: true
-    avoid_dynamic_calls: true
+    avoid_dynamic_calls: false
     avoid_empty_else: true
     avoid_equals_and_hash_code_on_mutable_classes: false
     avoid_escaping_inner_quotes: false # TODO
@@ -119,7 +119,7 @@ linter:
     prefer_final_parameters: false # TODO
     prefer_for_elements_to_map_fromIterable: true
     prefer_foreach: false
-    prefer_function_declarations_over_variables: true
+    prefer_function_declarations_over_variables: false
     prefer_generic_function_type_aliases: true
     prefer_if_elements_to_conditional_expressions: true
     prefer_if_null_operators: true
