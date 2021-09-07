@@ -319,7 +319,7 @@ class PhoenixChannel {
         pushBuffer.clear();
       })
       ..onReply('error', (response) {
-        _logger.warning('Join message got error response', response);
+        _logger.warning('Join message got error response: $response');
         _state = PhoenixChannelState.errored;
         if (socket.isConnected) {
           _startRejoinTimer();
