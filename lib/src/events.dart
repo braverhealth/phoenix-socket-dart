@@ -103,7 +103,9 @@ class PhoenixChannelEvent extends Equatable {
   static Set<PhoenixChannelEvent> statuses = {close, error, join, reply, leave};
 
   /// Whether the event name is an 'reply' event
-  bool get isReply => value.startsWith(__chanReplyEventName);
+  bool get isReply =>
+      value.startsWith(__chanReplyEventName) ||
+      value.startsWith(__replyEventName);
 
   @override
   List<Object> get props => [value];
