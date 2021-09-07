@@ -189,8 +189,10 @@ class Push {
   /// within the expected time frame.
   void startTimeout() {
     if (!_awaitingReply) {
-      _channel.onPushReply(replyEvent)
-        ..then<void>(_receiveResponse).catchError(_receiveResponse);
+      _channel
+          .onPushReply(replyEvent)
+          .then<void>(_receiveResponse)
+          .catchError(_receiveResponse);
       _awaitingReply = true;
     }
 

@@ -99,7 +99,7 @@ class PhoenixChannel {
   /// The name of the logger associated to this channel.
   String get loggerName => _loggerName ??= topic.replaceAll(
       RegExp(
-        '[:,*&?!@#\$%]',
+        r'[:,*&?!@#$%]',
       ),
       '_');
 
@@ -319,7 +319,7 @@ class PhoenixChannel {
         pushBuffer.clear();
       })
       ..onReply('error', (response) {
-        _logger.warning('Join message got error response', response);
+        _logger.warning('Join message got error response: $response');
         _state = PhoenixChannelState.errored;
         if (socket.isConnected) {
           _startRejoinTimer();
@@ -401,7 +401,7 @@ class PhoenixChannel {
     _logger.finer('Leave message has completed');
     trigger(Message(
       event: PhoenixChannelEvent.close,
-      payload: {'ok': 'leave'},
+      payload: const <String, String>{'ok': 'leave'},
     ));
   }
 }

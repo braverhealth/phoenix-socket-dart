@@ -215,8 +215,8 @@ class PhoenixSocket {
       } else {
         throw PhoenixException();
       }
-    } on PhoenixException catch (err) {
-      print(err);
+    } on PhoenixException catch (err, stackTrace) {
+      _logger.severe('Raised PhoenixException', err, stackTrace);
       final durationIdx = _reconnectAttempts++;
       _ws = null;
       _socketState = SocketState.closed;

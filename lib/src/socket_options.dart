@@ -20,7 +20,7 @@ class PhoenixSocketOptions {
     ///
     /// The last duration will be repeated until it works.
     this.reconnectDelays = const [
-      Duration(milliseconds: 0),
+      Duration.zero,
       Duration(milliseconds: 1000),
       Duration(milliseconds: 2000),
       Duration(milliseconds: 4000),
@@ -42,10 +42,9 @@ class PhoenixSocketOptions {
     MessageSerializer? serializer,
   })  : _timeout = timeout ?? const Duration(seconds: 10),
         serializer = serializer ?? MessageSerializer(),
-        _heartbeat = heartbeat ?? const Duration(seconds: 30) {
-    assert(!(params != null && dynamicParams != null),
-        "Can't set both params and dynamicParams");
-  }
+        _heartbeat = heartbeat ?? const Duration(seconds: 30),
+        assert(!(params != null && dynamicParams != null),
+            "Can't set both params and dynamicParams");
 
   /// The serializer used to serialize and deserialize messages on
   /// applicable sockets.
