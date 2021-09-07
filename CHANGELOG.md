@@ -1,3 +1,8 @@
+## [0.5.2.]
+
+- Fix bug in `PhoenixChannelEvent.isReply`
+- Replace `print` call with `Logger.severe`
+
 ## [0.5.1.]
 
 - Fix re-connection issue
