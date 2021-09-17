@@ -533,7 +533,7 @@ class PhoenixSocket {
     final exc = PhoenixException(socketClosed: ev);
     _ws = null;
 
-    if (_stateStreamController != null && !_stateStreamController.isClosed) {
+    if (!_stateStreamController.isClosed) {
       _stateStreamController.add(ev);
     }
 
