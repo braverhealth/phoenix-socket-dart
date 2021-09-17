@@ -1,3 +1,8 @@
+## [0.5.3.]
+
+- Minor optimizations
+- Improve debugging
+
 ## [0.5.2.]
 
 - Fix bug in `PhoenixChannelEvent.isReply`

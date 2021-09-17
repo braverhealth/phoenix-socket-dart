@@ -63,17 +63,14 @@ class PhoenixSocket {
     _messageStream =
         _receiveStreamController.stream.map(_options.serializer.decode);
 
-    _openStream = _stateStreamController.stream
-        .where((event) => event is PhoenixSocketOpenEvent)
-        .cast<PhoenixSocketOpenEvent>();
+    _openStream =
+        _stateStreamController.stream.whereType<PhoenixSocketOpenEvent>();
 
-    _closeStream = _stateStreamController.stream
-        .where((event) => event is PhoenixSocketCloseEvent)
-        .cast<PhoenixSocketCloseEvent>();
+    _closeStream =
+        _stateStreamController.stream.whereType<PhoenixSocketCloseEvent>();
 
-    _errorStream = _stateStreamController.stream
-        .where((event) => event is PhoenixSocketErrorEvent)
-        .cast<PhoenixSocketErrorEvent>();
+    _errorStream =
+        _stateStreamController.stream.whereType<PhoenixSocketErrorEvent>();
 
     _subscriptions = [
       _messageStream.listen(_onMessage),
@@ -197,8 +194,8 @@ class PhoenixSocket {
       _ws!.stream
           .where(_shouldPipeMessage)
           .listen(_onSocketData, cancelOnError: true)
-            ..onError(_onSocketError)
-            ..onDone(_onSocketClosed);
+        ..onError(_onSocketError)
+        ..onDone(_onSocketClosed);
     } catch (error, stacktrace) {
       _onSocketError(error, stacktrace);
     }
@@ -536,8 +533,7 @@ class PhoenixSocket {
     final exc = PhoenixException(socketClosed: ev);
     _ws = null;
 
-    if (_stateStreamController is StreamController &&
-        !_stateStreamController.isClosed) {
+    if (!_stateStreamController.isClosed) {
       _stateStreamController.add(ev);
     }
 
@@ -548,7 +544,7 @@ class PhoenixSocket {
       return;
     } else {
       _logger.info(
-        'Socket closed with reason ${ev.reason} and code ${ev.code}',
+        () => 'Socket closed with reason ${ev.reason} and code ${ev.code}',
       );
       _triggerChannelExceptions(exc);
     }

@@ -4,10 +4,16 @@ import 'channel.dart';
 import 'socket.dart';
 
 /// Base socket event
-class PhoenixSocketEvent {}
+abstract class PhoenixSocketEvent extends Equatable {
+  @override
+  bool get stringify => true;
+}
 
 /// Open event for a [PhoenixSocket].
-class PhoenixSocketOpenEvent extends PhoenixSocketEvent {}
+class PhoenixSocketOpenEvent extends PhoenixSocketEvent {
+  @override
+  List<Object?> get props => [];
+}
 
 /// Close event for a [PhoenixSocket].
 class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
@@ -22,6 +28,9 @@ class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
 
   /// The code of the socket close.
   final int? code;
+
+  @override
+  List<Object?> get props => [code, reason];
 }
 
 /// Error event for a [PhoenixSocket].
@@ -37,6 +46,9 @@ class PhoenixSocketErrorEvent extends PhoenixSocketEvent {
 
   /// The stacktrace associated with the error.
   final dynamic stacktrace;
+
+  @override
+  List<Object?> get props => [error];
 }
 
 /// Encapsulates constants used in the protocol over [PhoenixChannel].
@@ -109,7 +121,4 @@ class PhoenixChannelEvent extends Equatable {
 
   @override
   List<Object> get props => [value];
-
-  @override
-  bool get stringify => true;
 }
