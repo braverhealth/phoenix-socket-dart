@@ -1,9 +1,8 @@
 import 'dart:async';
 
 import 'package:pedantic/pedantic.dart';
-import 'package:test/test.dart';
-
 import 'package:phoenix_socket/phoenix_socket.dart';
+import 'package:test/test.dart';
 
 void main() {
   const addr = 'ws://localhost:4001/socket/websocket';
@@ -15,6 +14,14 @@ void main() {
       await socket.connect().then((_) {
         expect(socket.isConnected, isTrue);
       });
+    });
+
+    test('throws an error if to a running Phoenix server', () async {
+      final socket = PhoenixSocket('https://example.com/random-addr');
+
+      unawaited(socket.connect());
+
+      expect(await socket.errorStream.first, isA<PhoenixSocketErrorEvent>());
     });
 
     test('can connect to a running Phoenix server with params', () async {
