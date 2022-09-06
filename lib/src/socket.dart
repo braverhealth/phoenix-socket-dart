@@ -200,6 +200,7 @@ class PhoenixSocket {
       _onSocketError(error, stacktrace);
     }
 
+    _reconnectAttempts++;
     _socketState = SocketState.connecting;
 
     try {
@@ -214,22 +215,11 @@ class PhoenixSocket {
       }
     } on PhoenixException catch (err, stackTrace) {
       _logger.severe('Raised PhoenixException', err, stackTrace);
-      final durationIdx = _reconnectAttempts++;
+
       _ws = null;
       _socketState = SocketState.closed;
 
-      Duration duration;
-      if (durationIdx >= _reconnects.length) {
-        duration = _reconnects.last;
-      } else {
-        duration = _reconnects[durationIdx];
-      }
-
-      // Some random number to prevent many clients from retrying to
-      // connect at exactly the same time.
-      duration += Duration(milliseconds: _random.nextInt(1000));
-
-      completer.complete(_delayedReconnect(duration));
+      completer.complete(_delayedReconnect());
     }
 
     return completer.future;
@@ -556,11 +546,11 @@ class PhoenixSocket {
     _pendingMessages.clear();
   }
 
-  Future<PhoenixSocket?> _delayedReconnect([Duration? delay]) async {
+  Future<PhoenixSocket?> _delayedReconnect() async {
     if (_reconnecting) return null;
 
     _reconnecting = true;
-    await Future.delayed(delay ?? _options.reconnectDelays.first);
+    await Future.delayed(_reconnectDelay());
 
     if (!_disposed) {
       _reconnecting = false;
@@ -568,5 +558,19 @@ class PhoenixSocket {
     }
 
     return null;
+  }
+
+  Duration _reconnectDelay() {
+    final durationIdx = _reconnectAttempts;
+    Duration duration;
+    if (durationIdx >= _reconnects.length) {
+      duration = _reconnects.last;
+    } else {
+      duration = _reconnects[durationIdx];
+    }
+
+    // Some random number to prevent many clients from retrying to
+    // connect at exactly the same time.
+    return duration + Duration(milliseconds: _random.nextInt(1000));
   }
 }
