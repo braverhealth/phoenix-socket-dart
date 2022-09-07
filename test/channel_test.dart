@@ -144,9 +144,11 @@ void main() {
       );
 
       channel1.push('ping', {'from': 'socket1'});
-      channel2
-        ..push('ping', {'from': 'socket2'})
-        ..push('ping', {'from': 'socket2'});
+      await Future.delayed(Duration(milliseconds: 50));
+      channel2.push('ping', {'from': 'socket2'});
+      await Future.delayed(Duration(milliseconds: 50));
+      channel2.push('ping', {'from': 'socket2'});
+
     });
 
     test('closes successfully', () async {
