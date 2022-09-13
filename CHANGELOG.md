@@ -1,4 +1,4 @@
-## [0.5.4.]
+## [0.6.0.]
 
 - Fix race condition where heartbeats were added in a closed sink
 
