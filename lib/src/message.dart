@@ -52,7 +52,7 @@ class Message extends Equatable {
     this.topic,
     required this.event,
     this.payload,
-  }) : assert(event is PhoenixChannelEvent);
+  });
 
   /// Reference of the channel on which the message is received.
   ///

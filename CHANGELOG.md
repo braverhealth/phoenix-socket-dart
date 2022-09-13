@@ -1,3 +1,7 @@
+## [0.6.0.]
+
+- Fix race condition where heartbeats were added in a closed sink
+
 ## [0.5.3.]
 
 - Minor optimizations

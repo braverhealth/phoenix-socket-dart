@@ -72,7 +72,9 @@ class PhoenixSocketOptions {
   /// Get connection params.
   Future<Map<String, String>> getParams() async {
     final res = dynamicParams != null ? await dynamicParams!() : params ?? {};
-    res['vsn'] = '2.0.0';
-    return res;
+    return {
+      ...res,
+      'vsn': '2.0.0',
+    };
   }
 }

@@ -4,7 +4,6 @@ import 'dart:math';
 
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:logging/logging.dart';
-import 'package:pedantic/pedantic.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:web_socket_channel/status.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -245,7 +244,7 @@ class PhoenixSocket {
     if (isConnected) {
       // _ws != null and state is connected
       _socketState = SocketState.closing;
-      _ws!.sink.close(code, reason);
+      _closeSink(code, reason);
     } else if (!_shouldReconnect) {
       dispose();
     }
@@ -326,8 +325,22 @@ class PhoenixSocket {
         'does not contain a ref',
       );
     }
-    _ws!.sink.add(_options.serializer.encode(message));
+    _addToSink(_options.serializer.encode(message));
     return (_pendingMessages[message.ref!] = Completer<Message>()).future;
+  }
+
+  void _addToSink(String data) {
+    if (_disposed) {
+      return;
+    }
+    _ws!.sink.add(data);
+  }
+
+  void _closeSink([int? code, String? reason]) {
+    if (_disposed || _ws == null) {
+      return;
+    }
+    _ws!.sink.close(code, reason);
   }
 
   /// [topic] is the name of the channel you wish to join
@@ -416,7 +429,7 @@ class PhoenixSocket {
     if (_nextHeartbeatRef != null && !ignorePreviousHeartbeat) {
       _nextHeartbeatRef = null;
       if (_ws != null) {
-        unawaited(_ws!.sink.close(normalClosure, 'heartbeat timeout'));
+        _closeSink(normalClosure, 'heartbeat timeout');
       }
       return false;
     }
@@ -482,8 +495,7 @@ class PhoenixSocket {
 
   void _onSocketData(message) {
     if (message is String) {
-      if (_receiveStreamController is StreamController &&
-          !_receiveStreamController.isClosed) {
+      if (!_receiveStreamController.isClosed) {
         _receiveStreamController.add(message);
       }
     } else {
@@ -501,8 +513,7 @@ class PhoenixSocket {
       stacktrace: stacktrace,
     );
 
-    if (_stateStreamController is StreamController &&
-        !_stateStreamController.isClosed) {
+    if (!_stateStreamController.isClosed) {
       _stateStreamController.add(socketError);
     }
 

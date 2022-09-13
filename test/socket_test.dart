@@ -28,7 +28,7 @@ void main() {
       final socket = PhoenixSocket(
         addr,
         socketOptions: PhoenixSocketOptions(
-          params: {'user_id': 'this_is_a_userid'},
+          params: const {'user_id': 'this_is_a_userid'},
         ),
       );
 
@@ -54,7 +54,7 @@ void main() {
       final socket = PhoenixSocket(
         addr,
         socketOptions: PhoenixSocketOptions(
-          params: {'user_id': 'this_is_a_userid'},
+          params: const {'user_id': 'this_is_a_userid'},
         ),
       );
 
@@ -74,7 +74,7 @@ void main() {
       final socket = PhoenixSocket(
         addr,
         socketOptions: PhoenixSocketOptions(
-          params: {'user_id': 'this_is_a_userid'},
+          params: const {'user_id': 'this_is_a_userid'},
         ),
       );
 
