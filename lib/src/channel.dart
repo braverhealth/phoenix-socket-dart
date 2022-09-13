@@ -200,10 +200,11 @@ class PhoenixChannel {
     if (!socket.isConnected || prevState != PhoenixChannelState.joined) {
       leavePush.trigger(PushResponse(status: 'ok'));
     } else {
-      final onClose = (PushResponse reply) {
+      void onClose(PushResponse reply) {
         _onClose(reply);
         close();
-      };
+      }
+
       leavePush
         ..onReply('ok', onClose)
         ..onReply('timeout', onClose)

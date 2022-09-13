@@ -9,7 +9,7 @@ void main() {
   group('PhoenixChannel', () {
     test('can join a channel through a socket', () async {
       final socket = PhoenixSocket(addr);
-      final completer = Completer<Null>();
+      final completer = Completer<void>();
 
       await socket.connect();
       socket.addChannel(topic: 'channel1').join().onReply('ok', (reply) {
@@ -34,7 +34,7 @@ void main() {
     test('can handle channel join failures', () async {
       final socket = PhoenixSocket(addr);
 
-      final completer = Completer<Null>();
+      final completer = Completer<void>();
 
       await socket.connect();
 
@@ -51,7 +51,7 @@ void main() {
 
     test('can handle channel crash on join', () async {
       final socket = PhoenixSocket(addr);
-      final completer = Completer<Null>();
+      final completer = Completer<void>();
 
       await socket.connect();
 
