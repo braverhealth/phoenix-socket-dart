@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:logging/logging.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/status.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -97,7 +98,7 @@ class PhoenixSocket {
 
   SocketState _socketState;
 
-  WebSocketChannel? _ws;
+  IOWebSocketChannel? _ws;
 
   _StreamRouter<Message>? _router;
 
@@ -170,7 +171,7 @@ class PhoenixSocket {
   ///
   /// If the attempt fails, retries will be triggered at intervals specified
   /// by retryAfterIntervalMS
-  Future<PhoenixSocket?> connect() async {
+  Future<PhoenixSocket?> connect({Map<String, dynamic>? headers}) async {
     if (_ws != null) {
       _logger.warning(
           'Calling connect() on already connected or connecting socket.');
@@ -189,7 +190,7 @@ class PhoenixSocket {
     final completer = Completer<PhoenixSocket?>();
 
     try {
-      _ws = WebSocketChannel.connect(_mountPoint);
+      _ws = IOWebSocketChannel.connect(_mountPoint, headers: headers);
       _ws!.stream
           .where(_shouldPipeMessage)
           .listen(_onSocketData, cancelOnError: true)
