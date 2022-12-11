@@ -148,7 +148,6 @@ void main() {
       channel2.push('ping', {'from': 'socket2'});
       await Future.delayed(Duration(milliseconds: 50));
       channel2.push('ping', {'from': 'socket2'});
-
     });
 
     test('closes successfully', () async {
@@ -233,7 +232,7 @@ void main() {
       await channel.leave().future;
 
       expect(
-            () => channel.push('EventName', {}),
+        () => channel.push('EventName', {}),
         throwsA(isA<ChannelClosedError>()),
       );
     });
