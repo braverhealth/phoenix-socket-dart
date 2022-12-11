@@ -273,6 +273,10 @@ class PhoenixChannel {
     if (canPush) {
       pushEvent.send();
     } else {
+      if (_state == PhoenixChannelState.closed) {
+        throw ChannelClosedError('Can\'t push event on a closed channel');
+      }
+      
       pushBuffer.add(pushEvent);
     }
 

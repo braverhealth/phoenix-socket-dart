@@ -223,5 +223,19 @@ void main() {
         ),
       );
     });
+
+    test('Pushing message on a closed channel throws exception', () async {
+      final socket = PhoenixSocket(addr);
+      await socket.connect();
+      final channel = socket.addChannel(topic: 'channel3');
+      await channel.join().future;
+
+      await channel.leave().future;
+
+      expect(
+            () => channel.push('EventName', {}),
+        throwsA(isA<ChannelClosedError>()),
+      );
+    });
   });
 }
