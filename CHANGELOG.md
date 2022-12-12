@@ -1,3 +1,12 @@
+## [0.6.2.]
+
+- Throw exception when sending messages when channel is closed
+
+## [0.6.1.]
+
+- Fix bug when reconnecting
+- Prevent adding events to stream controllers when closed
+
 ## [0.6.0.]
 
 - Fix race condition where heartbeats were added in a closed sink
