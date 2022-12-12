@@ -50,3 +50,7 @@ class ChannelTimeoutException implements Exception {
   /// The PushReponse containing the timeout event.
   PushResponse response;
 }
+
+class ChannelClosedError extends StateError {
+  ChannelClosedError(super.message);
+}
