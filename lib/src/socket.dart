@@ -340,12 +340,7 @@ class PhoenixSocket {
     Map<String, dynamic>? parameters,
     Duration? timeout,
   }) {
-    PhoenixChannel? channel;
-    if (channels.isNotEmpty) {
-      final foundChannels =
-          channels.entries.where((element) => element.value.topic == topic);
-      channel = foundChannels.isNotEmpty ? foundChannels.first.value : null;
-    }
+    PhoenixChannel? channel = channels[topic];
 
     if (channel == null) {
       channel = PhoenixChannel.fromSocket(
