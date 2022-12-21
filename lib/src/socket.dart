@@ -355,7 +355,7 @@ class PhoenixSocket {
         timeout: timeout ?? defaultTimeout,
       );
 
-      channels[channel.reference] = channel;
+      channels[channel.topic] = channel;
       _logger.finer(() => 'Adding channel ${channel!.topic}');
     } else {
       _logger.finer(() => 'Reusing existing channel ${channel!.topic}');
@@ -370,7 +370,7 @@ class PhoenixSocket {
   /// leaving the channel.
   void removeChannel(PhoenixChannel channel) {
     _logger.finer(() => 'Removing channel ${channel.topic}');
-    if (channels.remove(channel.reference) is PhoenixChannel) {
+    if (channels.remove(channel.topic) is PhoenixChannel) {
       _topicStreams.remove(channel.topic);
     }
   }
