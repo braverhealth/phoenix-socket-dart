@@ -83,7 +83,7 @@ class PhoenixSocket {
 
   final BehaviorSubject<PhoenixSocketEvent> _stateStreamController =
       BehaviorSubject();
-  final StreamController<String> _receiveStreamController =
+  final StreamController<dynamic> _receiveStreamController =
       StreamController.broadcast();
   final String _endpoint;
   final StreamController<Message> _topicMessages = StreamController();
@@ -479,12 +479,12 @@ class PhoenixSocket {
   }
 
   void _onSocketData(message) {
-    if (message is String) {
+    if (message is String || message is List<int>) {
       if (!_receiveStreamController.isClosed) {
         _receiveStreamController.add(message);
       }
     } else {
-      throw ArgumentError('Received a non-string');
+      throw ArgumentError('Received a non-string or a list of integers');
     }
   }
 
