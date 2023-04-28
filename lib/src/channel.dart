@@ -315,7 +315,7 @@ class PhoenixChannel {
     push
       ..clearWaiters()
       ..onReply('ok', (response) {
-        _logger.info("Join message was ok for $topic");
+        _logger.warning("Join message was ok for $topic");
         _state = PhoenixChannelState.joined;
         _rejoinTimer?.cancel();
         for (final push in pushBuffer) {
