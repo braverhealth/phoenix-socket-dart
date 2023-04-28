@@ -356,9 +356,9 @@ class PhoenixSocket {
       );
 
       channels[channel.reference] = channel;
-      _logger.finer(() => 'Adding channel ${channel!.topic}');
+      _logger.info(() => 'Adding channel ${channel!.topic}');
     } else {
-      _logger.finer(() => 'Reusing existing channel ${channel!.topic}');
+      _logger.info(() => 'Reusing existing channel ${channel!.topic}');
     }
     return channel;
   }
@@ -369,7 +369,7 @@ class PhoenixSocket {
   /// Used internally by PhoenixChannel to remove itself after
   /// leaving the channel.
   void removeChannel(PhoenixChannel channel) {
-    _logger.finer(() => 'Removing channel ${channel.topic}');
+    _logger.info(() => 'Removing channel ${channel.topic}');
     if (channels.remove(channel.reference) is PhoenixChannel) {
       _topicStreams.remove(channel.topic);
     }
