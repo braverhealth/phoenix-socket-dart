@@ -225,7 +225,7 @@ class Push {
   void trigger(PushResponse response) {
     _received = response;
 
-    if (_responseCompleter!.isCompleted) {
+    if (_responseCompleter.isCompleted) {
       _logger
         ..warning('Push being completed more than once')
         ..warning(
