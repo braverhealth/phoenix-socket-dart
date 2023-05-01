@@ -99,21 +99,27 @@ void main() {
     });
 
     test('reconnection delay', () async {
-      final socket = PhoenixSocket(
-        'ws://example.com/random-addr',
-        socketOptions: PhoenixSocketOptions(
-          reconnectDelays: const [Duration.zero, Duration.zero, Duration.zero, Duration(seconds: 10),],
-        )
-      );
+      final socket = PhoenixSocket('ws://example.com/random-addr',
+          socketOptions: PhoenixSocketOptions(
+            reconnectDelays: const [
+              Duration.zero,
+              Duration.zero,
+              Duration.zero,
+              Duration(seconds: 10),
+            ],
+          ));
 
       int errCount = 0;
       socket.errorStream.listen((event) {
         errCount++;
       });
 
-      await socket.connect();
+      runZonedGuarded(() {
+        socket.connect().ignore();
+      }, (error, stack) {});
+
       await Future.delayed(Duration(seconds: 3));
-      
+
       expect(errCount, 3);
     });
   });
