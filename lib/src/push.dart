@@ -225,24 +225,22 @@ class Push {
   void trigger(PushResponse response) {
     _received = response;
 
-    if (_responseCompleter != null) {
-      if (_responseCompleter!.isCompleted) {
-        _logger
-          ..warning('Push being completed more than once')
-          ..warning(
-            () => '  event: $replyEvent, status: ${response.status}',
-          )
-          ..finer(
-            () => '  response: ${response.response}',
-          );
-
-        return;
-      } else {
-        _logger.finer(
-          () => 'Completing for $replyEvent with response ${response.response}',
+    if (_responseCompleter!.isCompleted) {
+      _logger
+        ..warning('Push being completed more than once')
+        ..warning(
+          () => '  event: $replyEvent, status: ${response.status}',
+        )
+        ..finer(
+          () => '  response: ${response.response}',
         );
-        _responseCompleter!.complete(response);
-      }
+
+      return;
+    } else {
+      _logger.finer(
+        () => 'Completing for $replyEvent with response ${response.response}',
+      );
+      _responseCompleter.complete(response);
     }
 
     _logger.finer(() {
@@ -253,15 +251,21 @@ class Push {
     });
 
     final receivers = _receivers[response.status].toList();
-    clearWaiters();
+    clearReceivers();
     for (final cb in receivers) {
       cb(response);
     }
   }
 
-  /// Dispose the set of waiters and future associated with this push.
-  void clearWaiters() {
+  /// Dispose the set of waiters associated with this push.
+  void clearReceivers() {
     _receivers.clear();
+  }
+
+  // Remove existing waiters and reset completer
+  void cleanUp() {
+    clearReceivers();
+    _responseCompleter = Completer();
   }
 
   void _receiveResponse(dynamic response) {
@@ -271,9 +275,9 @@ class Push {
         trigger(PushResponse.fromMessage(response));
       }
     } else if (response is PhoenixException) {
-      if (_responseCompleter is Completer && !_responseCompleter!.isCompleted) {
-        _responseCompleter!.completeError(response);
-        clearWaiters();
+      if (!_responseCompleter.isCompleted) {
+        _responseCompleter.completeError(response);
+        clearReceivers();
       }
     }
   }
