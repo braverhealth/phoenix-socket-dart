@@ -77,7 +77,8 @@ class Push {
     this.payload,
     this.timeout,
   })  : _channel = channel,
-        _logger = Logger('phoenix_socket.push.${channel.loggerName}');
+        _logger = Logger('phoenix_socket.push.${channel.loggerName}'),
+        _responseCompleter = Completer<PushResponse>();
 
   final Logger _logger;
   final ListMultimap<String, void Function(PushResponse)> _receivers =
@@ -103,12 +104,11 @@ class Push {
   String? _ref;
   PhoenixChannelEvent? _replyEvent;
 
-  Completer<PushResponse>? _responseCompleter;
+  Completer<PushResponse> _responseCompleter;
 
   /// A future that will yield the response to the original message.
   Future<PushResponse> get future async {
-    _responseCompleter ??= Completer<PushResponse>();
-    final response = await _responseCompleter!.future;
+    final response = await _responseCompleter.future;
     if (response.isTimeout) {
       throw ChannelTimeoutException(response);
     }
@@ -215,7 +215,6 @@ class Push {
     _received = null;
     _resetRef();
     _sent = false;
-    _responseCompleter = null;
   }
 
   /// Trigger the appropriate waiters and future associated for this push,
@@ -263,7 +262,6 @@ class Push {
   /// Dispose the set of waiters and future associated with this push.
   void clearWaiters() {
     _receivers.clear();
-    _responseCompleter = null;
   }
 
   void _receiveResponse(dynamic response) {
