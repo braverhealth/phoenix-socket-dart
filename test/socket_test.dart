@@ -114,7 +114,10 @@ void main() {
         errCount++;
       });
 
-      socket.connect().ignore();
+      runZonedGuarded(() {
+        socket.connect().ignore();
+      }, (error, stack) {});
+
       await Future.delayed(Duration(seconds: 3));
 
       expect(errCount, 3);
