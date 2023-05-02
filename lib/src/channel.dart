@@ -76,6 +76,7 @@ class PhoenixChannel {
   bool _joinedOnce = false;
   String? _reference;
   late Push _joinPush;
+  Push? _leavePush;
   late Logger _logger;
 
   /// A list of push to be sent out once the channel is joined.
@@ -86,6 +87,8 @@ class PhoenixChannel {
 
   /// Unique identifier of the 'join' push message.
   String get joinRef => _joinPush.ref;
+
+  Push? get leavePush => _leavePush;
 
   /// State of the channel.
   PhoenixChannelState get state => _state;
@@ -190,7 +193,7 @@ class PhoenixChannel {
     final prevState = _state;
     _state = PhoenixChannelState.leaving;
 
-    final leavePush = Push(
+    final currentLeavePush = _leavePush ??= Push(
       this,
       event: PhoenixChannelEvent.leave,
       payload: () => {},
@@ -198,20 +201,20 @@ class PhoenixChannel {
     );
 
     if (!socket.isConnected || prevState != PhoenixChannelState.joined) {
-      leavePush.trigger(PushResponse(status: 'ok'));
+      currentLeavePush.trigger(PushResponse(status: 'ok'));
     } else {
       void onClose(PushResponse reply) {
         _onClose(reply);
         close();
       }
 
-      leavePush
+      currentLeavePush
         ..onReply('ok', onClose)
         ..onReply('timeout', onClose)
         ..send();
     }
 
-    return leavePush;
+    return currentLeavePush;
   }
 
   /// Join this channel using the associated [PhoenixSocket].
