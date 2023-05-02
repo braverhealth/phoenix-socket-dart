@@ -240,7 +240,6 @@ class PhoenixChannel {
     ///
     /// This needs to be a JSON encodable object.
     Map<String, dynamic> payload, [
-
     /// Manually set timeout value for this push.
     ///
     /// If not provided, the default timeout will be used.
@@ -313,7 +312,7 @@ class PhoenixChannel {
 
   void _bindJoinPush(Push push) {
     push
-      ..clearWaiters()
+      ..cleanUp()
       ..onReply('ok', (response) {
         _logger.info("Join message was ok for $topic");
         _state = PhoenixChannelState.joined;

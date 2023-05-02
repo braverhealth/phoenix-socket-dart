@@ -19,12 +19,12 @@ jobs:
           - 4001:4001
 
     steps:
-      - name: Set up Dart
-        uses: cedx/setup-dart@v2
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
         with:
           architecture: x64
-          release-channel: stable
-          version: "2.17.7"
+          sdk: "2.17.7"
 
       - name: Fetch sources
         uses: actions/checkout@v2

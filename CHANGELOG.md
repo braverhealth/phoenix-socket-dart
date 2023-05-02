@@ -1,3 +1,7 @@
+## [0.6.3.]
+
+- Fix Push.future not completing in certain conditions
+
 ## [0.6.2.]
 
 - Throw exception when sending messages when channel is closed
