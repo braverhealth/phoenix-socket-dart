@@ -143,7 +143,7 @@ void main() {
         ]),
       );
 
-      channel1.push('ping', {'from': 'socket1'});
+      var push = channel1.push('ping', {'from': 'socket1'});
       await Future.delayed(Duration(milliseconds: 50));
       channel2.push('ping', {'from': 'socket2'});
       await Future.delayed(Duration(milliseconds: 50));
@@ -234,6 +234,20 @@ void main() {
       expect(
         () => channel.push('EventName', {}),
         throwsA(isA<ChannelClosedError>()),
+      );
+    });
+
+    test('timeout on send message will throw', () async {
+      final socket = PhoenixSocket(addr);
+      await socket.connect();
+      final channel = socket.addChannel(topic: 'channel1');
+      await channel.join().future;
+
+      final push = channel.push('hello!', {'foo': 'bar'}, Duration.zero);
+
+      expect(
+        push.future,
+        throwsA(isA<ChannelTimeoutException>()),
       );
     });
   });
