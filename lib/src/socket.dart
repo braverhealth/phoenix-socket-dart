@@ -262,6 +262,7 @@ class PhoenixSocket {
     channels.clear();
 
     for (final channel in disposedChannels) {
+      channel.leavePush?.trigger(PushResponse(status: 'ok'));
       channel.close();
     }
 
