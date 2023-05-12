@@ -22,5 +22,6 @@ export 'src/exceptions.dart';
 export 'src/message.dart';
 export 'src/presence.dart';
 export 'src/push.dart';
+export 'src/raw_socket.dart';
 export 'src/socket.dart';
 export 'src/socket_options.dart';
