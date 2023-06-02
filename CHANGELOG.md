@@ -1,3 +1,7 @@
+## [0.6.4.]
+
+- Republish of 0.6.3 with actual fix
+
 ## [0.6.3.]
 
 - Fix Push.future not completing in certain conditions
