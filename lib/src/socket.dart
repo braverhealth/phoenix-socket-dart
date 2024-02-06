@@ -376,6 +376,19 @@ class PhoenixSocket {
     }
   }
 
+  /// Processing incoming data from the socket
+  ///
+  /// Used to define a custom message type for proper data decoding
+  onSocketDataCallback(message) {
+    if (message is String) {
+      if (!_receiveStreamController.isClosed) {
+        _receiveStreamController.add(message);
+      }
+    } else {
+      throw ArgumentError('Received a non-string');
+    }
+  }
+
   bool _shouldPipeMessage(dynamic event) {
     if (event is WebSocketChannelException) {
       return true;
@@ -484,15 +497,7 @@ class PhoenixSocket {
     }
   }
 
-  void _onSocketData(message) {
-    if (message is String) {
-      if (!_receiveStreamController.isClosed) {
-        _receiveStreamController.add(message);
-      }
-    } else {
-      throw ArgumentError('Received a non-string');
-    }
-  }
+  void _onSocketData(message) => onSocketDataCallback(message);
 
   void _onSocketError(dynamic error, dynamic stacktrace) {
     if (_socketState == SocketState.closing ||
