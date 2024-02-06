@@ -341,12 +341,7 @@ class PhoenixSocket {
     Map<String, dynamic>? parameters,
     Duration? timeout,
   }) {
-    PhoenixChannel? channel;
-    if (channels.isNotEmpty) {
-      final foundChannels =
-          channels.entries.where((element) => element.value.topic == topic);
-      channel = foundChannels.isNotEmpty ? foundChannels.first.value : null;
-    }
+    PhoenixChannel? channel = channels[topic];
 
     if (channel == null) {
       channel = PhoenixChannel.fromSocket(
@@ -356,7 +351,7 @@ class PhoenixSocket {
         timeout: timeout ?? defaultTimeout,
       );
 
-      channels[channel.reference] = channel;
+      channels[channel.topic] = channel;
       _logger.finer(() => 'Adding channel ${channel!.topic}');
     } else {
       _logger.finer(() => 'Reusing existing channel ${channel!.topic}');
@@ -371,7 +366,7 @@ class PhoenixSocket {
   /// leaving the channel.
   void removeChannel(PhoenixChannel channel) {
     _logger.finer(() => 'Removing channel ${channel.topic}');
-    if (channels.remove(channel.reference) is PhoenixChannel) {
+    if (channels.remove(channel.topic) is PhoenixChannel) {
       _topicStreams.remove(channel.topic);
     }
   }
