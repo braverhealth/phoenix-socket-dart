@@ -236,5 +236,19 @@ void main() {
         throwsA(isA<ChannelClosedError>()),
       );
     });
+
+    test('timeout on send message will throw', () async {
+      final socket = PhoenixSocket(addr);
+      await socket.connect();
+      final channel = socket.addChannel(topic: 'channel1');
+      await channel.join().future;
+
+      final push = channel.push('hello!', {'foo': 'bar'}, Duration.zero);
+
+      expect(
+        push.future,
+        throwsA(isA<ChannelTimeoutException>()),
+      );
+    });
   });
 }
