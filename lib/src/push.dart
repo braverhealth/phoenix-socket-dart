@@ -274,7 +274,7 @@ class Push {
       if (response.event == replyEvent) {
         trigger(PushResponse.fromMessage(response));
       }
-    } else if (response is PhoenixException) {
+    } else {
       if (!_responseCompleter.isCompleted) {
         _responseCompleter.completeError(response);
         clearReceivers();
