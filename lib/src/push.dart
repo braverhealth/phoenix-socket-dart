@@ -158,7 +158,7 @@ class Push {
       // ignore: avoid_catches_without_on_clauses
     } catch (err, stacktrace) {
       _logger.warning(
-        'Catched error for push $ref',
+        'Caught error for push $ref',
         err,
         stacktrace,
       );

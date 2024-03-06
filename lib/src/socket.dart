@@ -49,12 +49,15 @@ class PhoenixSocket {
   PhoenixSocket(
     /// The URL of the Phoenix server.
     String endpoint, {
-
     /// The options used when initiating and maintaining the
     /// websocket connection.
     PhoenixSocketOptions? socketOptions,
+
+    /// The factory to use to create the WebSocketChannel.
+    WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
   })  : _endpoint = endpoint,
-        _socketState = SocketState.unknown {
+        _socketState = SocketState.unknown,
+        _webSocketChannelFactory = webSocketChannelFactory {
     _options = socketOptions ?? PhoenixSocketOptions();
 
     _reconnects = _options.reconnectDelays;
@@ -87,6 +90,7 @@ class PhoenixSocket {
       StreamController.broadcast();
   final String _endpoint;
   final StreamController<Message> _topicMessages = StreamController();
+  final WebSocketChannel Function(Uri uri)? _webSocketChannelFactory;
 
   late Uri _mountPoint;
 
@@ -189,7 +193,9 @@ class PhoenixSocket {
     final completer = Completer<PhoenixSocket?>();
 
     try {
-      _ws = WebSocketChannel.connect(_mountPoint);
+      _ws = _webSocketChannelFactory != null
+          ? _webSocketChannelFactory!(_mountPoint)
+          : WebSocketChannel.connect(_mountPoint);
       _ws!.stream
           .where(_shouldPipeMessage)
           .listen(_onSocketData, cancelOnError: true)
@@ -212,8 +218,8 @@ class PhoenixSocket {
       } else {
         throw PhoenixException();
       }
-    } on PhoenixException catch (err, stackTrace) {
-      _logger.severe('Raised PhoenixException', err, stackTrace);
+    } catch (err, stackTrace) {
+      _logger.severe('Raised Exception', err, stackTrace);
 
       _ws = null;
       _socketState = SocketState.closed;
@@ -443,8 +449,11 @@ class PhoenixSocket {
         err,
         stacktrace,
       );
-      return false;
-    } on WebSocketChannelException catch (err, stacktrace) {
+
+      // Rethrow instead of returning false to ensure the original
+      // PhoenixException is propagated to the call site.
+      rethrow;
+    } catch (err, stacktrace) {
       _logger.severe(
         '[phoenix_socket] Heartbeat message failed with error',
         err,
@@ -456,7 +465,10 @@ class PhoenixSocket {
           stacktrace: stacktrace,
         ),
       ));
-      return false;
+
+      // Rethrow instead of returning false to ensure underlying exception is
+      // propagated to the call site.
+      rethrow;
     }
   }
 

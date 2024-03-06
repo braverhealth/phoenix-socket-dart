@@ -3,16 +3,19 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i7;
+import 'dart:async' as _i9;
 
+import 'package:async/async.dart' as _i12;
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:mockito/src/dummies.dart' as _i6;
+import 'package:mockito/src/dummies.dart' as _i8;
 import 'package:phoenix_socket/src/channel.dart' as _i5;
-import 'package:phoenix_socket/src/events.dart' as _i8;
-import 'package:phoenix_socket/src/exceptions.dart' as _i9;
+import 'package:phoenix_socket/src/events.dart' as _i10;
+import 'package:phoenix_socket/src/exceptions.dart' as _i11;
 import 'package:phoenix_socket/src/message.dart' as _i3;
 import 'package:phoenix_socket/src/push.dart' as _i4;
 import 'package:phoenix_socket/src/socket.dart' as _i2;
+import 'package:stream_channel/stream_channel.dart' as _i7;
+import 'package:web_socket_channel/web_socket_channel.dart' as _i6;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -88,6 +91,27 @@ class _FakePhoenixChannel_5 extends _i1.SmartFake
         );
 }
 
+class _FakeWebSocketSink_6 extends _i1.SmartFake implements _i6.WebSocketSink {
+  _FakeWebSocketSink_6(
+    Object parent,
+    Invocation parentInvocation,
+  ) : super(
+          parent,
+          parentInvocation,
+        );
+}
+
+class _FakeStreamChannel_7<T> extends _i1.SmartFake
+    implements _i7.StreamChannel<T> {
+  _FakeStreamChannel_7(
+    Object parent,
+    Invocation parentInvocation,
+  ) : super(
+          parent,
+          parentInvocation,
+        );
+}
+
 /// A class which mocks [PhoenixChannel].
 ///
 /// See the documentation for Mockito's code generation for more information.
@@ -115,11 +139,11 @@ class MockPhoenixChannel extends _i1.Mock implements _i5.PhoenixChannel {
   @override
   String get topic => (super.noSuchMethod(
         Invocation.getter(#topic),
-        returnValue: _i6.dummyValue<String>(
+        returnValue: _i8.dummyValue<String>(
           this,
           Invocation.getter(#topic),
         ),
-        returnValueForMissingStub: _i6.dummyValue<String>(
+        returnValueForMissingStub: _i8.dummyValue<String>(
           this,
           Invocation.getter(#topic),
         ),
@@ -133,20 +157,20 @@ class MockPhoenixChannel extends _i1.Mock implements _i5.PhoenixChannel {
       ) as List<_i4.Push>);
 
   @override
-  _i7.Stream<_i3.Message> get messages => (super.noSuchMethod(
+  _i9.Stream<_i3.Message> get messages => (super.noSuchMethod(
         Invocation.getter(#messages),
-        returnValue: _i7.Stream<_i3.Message>.empty(),
-        returnValueForMissingStub: _i7.Stream<_i3.Message>.empty(),
-      ) as _i7.Stream<_i3.Message>);
+        returnValue: _i9.Stream<_i3.Message>.empty(),
+        returnValueForMissingStub: _i9.Stream<_i3.Message>.empty(),
+      ) as _i9.Stream<_i3.Message>);
 
   @override
   String get joinRef => (super.noSuchMethod(
         Invocation.getter(#joinRef),
-        returnValue: _i6.dummyValue<String>(
+        returnValue: _i8.dummyValue<String>(
           this,
           Invocation.getter(#joinRef),
         ),
-        returnValueForMissingStub: _i6.dummyValue<String>(
+        returnValueForMissingStub: _i8.dummyValue<String>(
           this,
           Invocation.getter(#joinRef),
         ),
@@ -169,11 +193,11 @@ class MockPhoenixChannel extends _i1.Mock implements _i5.PhoenixChannel {
   @override
   String get loggerName => (super.noSuchMethod(
         Invocation.getter(#loggerName),
-        returnValue: _i6.dummyValue<String>(
+        returnValue: _i8.dummyValue<String>(
           this,
           Invocation.getter(#loggerName),
         ),
-        returnValueForMissingStub: _i6.dummyValue<String>(
+        returnValueForMissingStub: _i8.dummyValue<String>(
           this,
           Invocation.getter(#loggerName),
         ),
@@ -182,38 +206,38 @@ class MockPhoenixChannel extends _i1.Mock implements _i5.PhoenixChannel {
   @override
   String get reference => (super.noSuchMethod(
         Invocation.getter(#reference),
-        returnValue: _i6.dummyValue<String>(
+        returnValue: _i8.dummyValue<String>(
           this,
           Invocation.getter(#reference),
         ),
-        returnValueForMissingStub: _i6.dummyValue<String>(
+        returnValueForMissingStub: _i8.dummyValue<String>(
           this,
           Invocation.getter(#reference),
         ),
       ) as String);
 
   @override
-  _i7.Future<_i3.Message> onPushReply(_i8.PhoenixChannelEvent? replyEvent) =>
+  _i9.Future<_i3.Message> onPushReply(_i10.PhoenixChannelEvent? replyEvent) =>
       (super.noSuchMethod(
         Invocation.method(
           #onPushReply,
           [replyEvent],
         ),
-        returnValue: _i7.Future<_i3.Message>.value(_FakeMessage_1(
+        returnValue: _i9.Future<_i3.Message>.value(_FakeMessage_1(
           this,
           Invocation.method(
             #onPushReply,
             [replyEvent],
           ),
         )),
-        returnValueForMissingStub: _i7.Future<_i3.Message>.value(_FakeMessage_1(
+        returnValueForMissingStub: _i9.Future<_i3.Message>.value(_FakeMessage_1(
           this,
           Invocation.method(
             #onPushReply,
             [replyEvent],
           ),
         )),
-      ) as _i7.Future<_i3.Message>);
+      ) as _i9.Future<_i3.Message>);
 
   @override
   void close() => super.noSuchMethod(
@@ -234,7 +258,7 @@ class MockPhoenixChannel extends _i1.Mock implements _i5.PhoenixChannel {
       );
 
   @override
-  void triggerError(_i9.PhoenixException? error) => super.noSuchMethod(
+  void triggerError(_i11.PhoenixException? error) => super.noSuchMethod(
         Invocation.method(
           #triggerError,
           [error],
@@ -330,7 +354,7 @@ class MockPhoenixChannel extends _i1.Mock implements _i5.PhoenixChannel {
 
   @override
   _i4.Push pushEvent(
-    _i8.PhoenixChannelEvent? event,
+    _i10.PhoenixChannelEvent? event,
     Map<String, dynamic>? payload, [
     Duration? newTimeout,
   ]) =>
@@ -390,46 +414,46 @@ class MockPhoenixSocket extends _i1.Mock implements _i2.PhoenixSocket {
       );
 
   @override
-  _i7.Stream<_i8.PhoenixSocketOpenEvent> get openStream => (super.noSuchMethod(
+  _i9.Stream<_i10.PhoenixSocketOpenEvent> get openStream => (super.noSuchMethod(
         Invocation.getter(#openStream),
-        returnValue: _i7.Stream<_i8.PhoenixSocketOpenEvent>.empty(),
+        returnValue: _i9.Stream<_i10.PhoenixSocketOpenEvent>.empty(),
         returnValueForMissingStub:
-            _i7.Stream<_i8.PhoenixSocketOpenEvent>.empty(),
-      ) as _i7.Stream<_i8.PhoenixSocketOpenEvent>);
+            _i9.Stream<_i10.PhoenixSocketOpenEvent>.empty(),
+      ) as _i9.Stream<_i10.PhoenixSocketOpenEvent>);
 
   @override
-  _i7.Stream<_i8.PhoenixSocketCloseEvent> get closeStream =>
+  _i9.Stream<_i10.PhoenixSocketCloseEvent> get closeStream =>
       (super.noSuchMethod(
         Invocation.getter(#closeStream),
-        returnValue: _i7.Stream<_i8.PhoenixSocketCloseEvent>.empty(),
+        returnValue: _i9.Stream<_i10.PhoenixSocketCloseEvent>.empty(),
         returnValueForMissingStub:
-            _i7.Stream<_i8.PhoenixSocketCloseEvent>.empty(),
-      ) as _i7.Stream<_i8.PhoenixSocketCloseEvent>);
+            _i9.Stream<_i10.PhoenixSocketCloseEvent>.empty(),
+      ) as _i9.Stream<_i10.PhoenixSocketCloseEvent>);
 
   @override
-  _i7.Stream<_i8.PhoenixSocketErrorEvent> get errorStream =>
+  _i9.Stream<_i10.PhoenixSocketErrorEvent> get errorStream =>
       (super.noSuchMethod(
         Invocation.getter(#errorStream),
-        returnValue: _i7.Stream<_i8.PhoenixSocketErrorEvent>.empty(),
+        returnValue: _i9.Stream<_i10.PhoenixSocketErrorEvent>.empty(),
         returnValueForMissingStub:
-            _i7.Stream<_i8.PhoenixSocketErrorEvent>.empty(),
-      ) as _i7.Stream<_i8.PhoenixSocketErrorEvent>);
+            _i9.Stream<_i10.PhoenixSocketErrorEvent>.empty(),
+      ) as _i9.Stream<_i10.PhoenixSocketErrorEvent>);
 
   @override
-  _i7.Stream<_i3.Message> get messageStream => (super.noSuchMethod(
+  _i9.Stream<_i3.Message> get messageStream => (super.noSuchMethod(
         Invocation.getter(#messageStream),
-        returnValue: _i7.Stream<_i3.Message>.empty(),
-        returnValueForMissingStub: _i7.Stream<_i3.Message>.empty(),
-      ) as _i7.Stream<_i3.Message>);
+        returnValue: _i9.Stream<_i3.Message>.empty(),
+        returnValueForMissingStub: _i9.Stream<_i3.Message>.empty(),
+      ) as _i9.Stream<_i3.Message>);
 
   @override
   String get nextRef => (super.noSuchMethod(
         Invocation.getter(#nextRef),
-        returnValue: _i6.dummyValue<String>(
+        returnValue: _i8.dummyValue<String>(
           this,
           Invocation.getter(#nextRef),
         ),
-        returnValueForMissingStub: _i6.dummyValue<String>(
+        returnValueForMissingStub: _i8.dummyValue<String>(
           this,
           Invocation.getter(#nextRef),
         ),
@@ -451,11 +475,11 @@ class MockPhoenixSocket extends _i1.Mock implements _i2.PhoenixSocket {
   @override
   String get endpoint => (super.noSuchMethod(
         Invocation.getter(#endpoint),
-        returnValue: _i6.dummyValue<String>(
+        returnValue: _i8.dummyValue<String>(
           this,
           Invocation.getter(#endpoint),
         ),
-        returnValueForMissingStub: _i6.dummyValue<String>(
+        returnValueForMissingStub: _i8.dummyValue<String>(
           this,
           Invocation.getter(#endpoint),
         ),
@@ -482,24 +506,24 @@ class MockPhoenixSocket extends _i1.Mock implements _i2.PhoenixSocket {
       ) as bool);
 
   @override
-  _i7.Stream<_i3.Message> streamForTopic(String? topic) => (super.noSuchMethod(
+  _i9.Stream<_i3.Message> streamForTopic(String? topic) => (super.noSuchMethod(
         Invocation.method(
           #streamForTopic,
           [topic],
         ),
-        returnValue: _i7.Stream<_i3.Message>.empty(),
-        returnValueForMissingStub: _i7.Stream<_i3.Message>.empty(),
-      ) as _i7.Stream<_i3.Message>);
+        returnValue: _i9.Stream<_i3.Message>.empty(),
+        returnValueForMissingStub: _i9.Stream<_i3.Message>.empty(),
+      ) as _i9.Stream<_i3.Message>);
 
   @override
-  _i7.Future<_i2.PhoenixSocket?> connect() => (super.noSuchMethod(
+  _i9.Future<_i2.PhoenixSocket?> connect() => (super.noSuchMethod(
         Invocation.method(
           #connect,
           [],
         ),
-        returnValue: _i7.Future<_i2.PhoenixSocket?>.value(),
-        returnValueForMissingStub: _i7.Future<_i2.PhoenixSocket?>.value(),
-      ) as _i7.Future<_i2.PhoenixSocket?>);
+        returnValue: _i9.Future<_i2.PhoenixSocket?>.value(),
+        returnValueForMissingStub: _i9.Future<_i2.PhoenixSocket?>.value(),
+      ) as _i9.Future<_i2.PhoenixSocket?>);
 
   @override
   void close([
@@ -529,50 +553,50 @@ class MockPhoenixSocket extends _i1.Mock implements _i2.PhoenixSocket {
       );
 
   @override
-  _i7.Future<_i3.Message> waitForMessage(_i3.Message? message) =>
+  _i9.Future<_i3.Message> waitForMessage(_i3.Message? message) =>
       (super.noSuchMethod(
         Invocation.method(
           #waitForMessage,
           [message],
         ),
-        returnValue: _i7.Future<_i3.Message>.value(_FakeMessage_1(
+        returnValue: _i9.Future<_i3.Message>.value(_FakeMessage_1(
           this,
           Invocation.method(
             #waitForMessage,
             [message],
           ),
         )),
-        returnValueForMissingStub: _i7.Future<_i3.Message>.value(_FakeMessage_1(
+        returnValueForMissingStub: _i9.Future<_i3.Message>.value(_FakeMessage_1(
           this,
           Invocation.method(
             #waitForMessage,
             [message],
           ),
         )),
-      ) as _i7.Future<_i3.Message>);
+      ) as _i9.Future<_i3.Message>);
 
   @override
-  _i7.Future<_i3.Message> sendMessage(_i3.Message? message) =>
+  _i9.Future<_i3.Message> sendMessage(_i3.Message? message) =>
       (super.noSuchMethod(
         Invocation.method(
           #sendMessage,
           [message],
         ),
-        returnValue: _i7.Future<_i3.Message>.value(_FakeMessage_1(
+        returnValue: _i9.Future<_i3.Message>.value(_FakeMessage_1(
           this,
           Invocation.method(
             #sendMessage,
             [message],
           ),
         )),
-        returnValueForMissingStub: _i7.Future<_i3.Message>.value(_FakeMessage_1(
+        returnValueForMissingStub: _i9.Future<_i3.Message>.value(_FakeMessage_1(
           this,
           Invocation.method(
             #sendMessage,
             [message],
           ),
         )),
-      ) as _i7.Future<_i3.Message>);
+      ) as _i9.Future<_i3.Message>);
 
   @override
   _i5.PhoenixChannel addChannel({
@@ -624,4 +648,252 @@ class MockPhoenixSocket extends _i1.Mock implements _i2.PhoenixSocket {
         ),
         returnValueForMissingStub: null,
       );
+}
+
+/// A class which mocks [WebSocketChannel].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockWebSocketChannel extends _i1.Mock implements _i6.WebSocketChannel {
+  @override
+  _i9.Future<void> get ready => (super.noSuchMethod(
+        Invocation.getter(#ready),
+        returnValue: _i9.Future<void>.value(),
+        returnValueForMissingStub: _i9.Future<void>.value(),
+      ) as _i9.Future<void>);
+
+  @override
+  _i9.Stream<dynamic> get stream => (super.noSuchMethod(
+        Invocation.getter(#stream),
+        returnValue: _i9.Stream<dynamic>.empty(),
+        returnValueForMissingStub: _i9.Stream<dynamic>.empty(),
+      ) as _i9.Stream<dynamic>);
+
+  @override
+  _i6.WebSocketSink get sink => (super.noSuchMethod(
+        Invocation.getter(#sink),
+        returnValue: _FakeWebSocketSink_6(
+          this,
+          Invocation.getter(#sink),
+        ),
+        returnValueForMissingStub: _FakeWebSocketSink_6(
+          this,
+          Invocation.getter(#sink),
+        ),
+      ) as _i6.WebSocketSink);
+
+  @override
+  void pipe(_i7.StreamChannel<dynamic>? other) => super.noSuchMethod(
+        Invocation.method(
+          #pipe,
+          [other],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  _i7.StreamChannel<S> transform<S>(
+          _i7.StreamChannelTransformer<S, dynamic>? transformer) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #transform,
+          [transformer],
+        ),
+        returnValue: _FakeStreamChannel_7<S>(
+          this,
+          Invocation.method(
+            #transform,
+            [transformer],
+          ),
+        ),
+        returnValueForMissingStub: _FakeStreamChannel_7<S>(
+          this,
+          Invocation.method(
+            #transform,
+            [transformer],
+          ),
+        ),
+      ) as _i7.StreamChannel<S>);
+
+  @override
+  _i7.StreamChannel<dynamic> transformStream(
+          _i9.StreamTransformer<dynamic, dynamic>? transformer) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #transformStream,
+          [transformer],
+        ),
+        returnValue: _FakeStreamChannel_7<dynamic>(
+          this,
+          Invocation.method(
+            #transformStream,
+            [transformer],
+          ),
+        ),
+        returnValueForMissingStub: _FakeStreamChannel_7<dynamic>(
+          this,
+          Invocation.method(
+            #transformStream,
+            [transformer],
+          ),
+        ),
+      ) as _i7.StreamChannel<dynamic>);
+
+  @override
+  _i7.StreamChannel<dynamic> transformSink(
+          _i12.StreamSinkTransformer<dynamic, dynamic>? transformer) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #transformSink,
+          [transformer],
+        ),
+        returnValue: _FakeStreamChannel_7<dynamic>(
+          this,
+          Invocation.method(
+            #transformSink,
+            [transformer],
+          ),
+        ),
+        returnValueForMissingStub: _FakeStreamChannel_7<dynamic>(
+          this,
+          Invocation.method(
+            #transformSink,
+            [transformer],
+          ),
+        ),
+      ) as _i7.StreamChannel<dynamic>);
+
+  @override
+  _i7.StreamChannel<dynamic> changeStream(
+          _i9.Stream<dynamic> Function(_i9.Stream<dynamic>)? change) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #changeStream,
+          [change],
+        ),
+        returnValue: _FakeStreamChannel_7<dynamic>(
+          this,
+          Invocation.method(
+            #changeStream,
+            [change],
+          ),
+        ),
+        returnValueForMissingStub: _FakeStreamChannel_7<dynamic>(
+          this,
+          Invocation.method(
+            #changeStream,
+            [change],
+          ),
+        ),
+      ) as _i7.StreamChannel<dynamic>);
+
+  @override
+  _i7.StreamChannel<dynamic> changeSink(
+          _i9.StreamSink<dynamic> Function(_i9.StreamSink<dynamic>)? change) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #changeSink,
+          [change],
+        ),
+        returnValue: _FakeStreamChannel_7<dynamic>(
+          this,
+          Invocation.method(
+            #changeSink,
+            [change],
+          ),
+        ),
+        returnValueForMissingStub: _FakeStreamChannel_7<dynamic>(
+          this,
+          Invocation.method(
+            #changeSink,
+            [change],
+          ),
+        ),
+      ) as _i7.StreamChannel<dynamic>);
+
+  @override
+  _i7.StreamChannel<S> cast<S>() => (super.noSuchMethod(
+        Invocation.method(
+          #cast,
+          [],
+        ),
+        returnValue: _FakeStreamChannel_7<S>(
+          this,
+          Invocation.method(
+            #cast,
+            [],
+          ),
+        ),
+        returnValueForMissingStub: _FakeStreamChannel_7<S>(
+          this,
+          Invocation.method(
+            #cast,
+            [],
+          ),
+        ),
+      ) as _i7.StreamChannel<S>);
+}
+
+/// A class which mocks [WebSocketSink].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockWebSocketSink extends _i1.Mock implements _i6.WebSocketSink {
+  @override
+  _i9.Future<dynamic> get done => (super.noSuchMethod(
+        Invocation.getter(#done),
+        returnValue: _i9.Future<dynamic>.value(),
+        returnValueForMissingStub: _i9.Future<dynamic>.value(),
+      ) as _i9.Future<dynamic>);
+
+  @override
+  _i9.Future<dynamic> close([
+    int? closeCode,
+    String? closeReason,
+  ]) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #close,
+          [
+            closeCode,
+            closeReason,
+          ],
+        ),
+        returnValue: _i9.Future<dynamic>.value(),
+        returnValueForMissingStub: _i9.Future<dynamic>.value(),
+      ) as _i9.Future<dynamic>);
+
+  @override
+  void add(dynamic data) => super.noSuchMethod(
+        Invocation.method(
+          #add,
+          [data],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void addError(
+    Object? error, [
+    StackTrace? stackTrace,
+  ]) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #addError,
+          [
+            error,
+            stackTrace,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  _i9.Future<dynamic> addStream(_i9.Stream<dynamic>? stream) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #addStream,
+          [stream],
+        ),
+        returnValue: _i9.Future<dynamic>.value(),
+        returnValueForMissingStub: _i9.Future<dynamic>.value(),
+      ) as _i9.Future<dynamic>);
 }
