@@ -443,19 +443,9 @@ class PhoenixSocket {
       await sendMessage(_heartbeatMessage());
       _logger.fine('[phoenix_socket] Heartbeat completed');
       return true;
-    } on PhoenixException catch (err, stacktrace) {
+    } on WebSocketChannelException catch (err, stacktrace) {
       _logger.severe(
-        '[phoenix_socket] Heartbeat message failed with error',
-        err,
-        stacktrace,
-      );
-
-      // Rethrow instead of returning false to ensure the original
-      // PhoenixException is propagated to the call site.
-      rethrow;
-    } catch (err, stacktrace) {
-      _logger.severe(
-        '[phoenix_socket] Heartbeat message failed with error',
+        '[phoenix_socket] Heartbeat message failed: WebSocketChannelException',
         err,
         stacktrace,
       );
@@ -466,8 +456,18 @@ class PhoenixSocket {
         ),
       ));
 
-      // Rethrow instead of returning false to ensure underlying exception is
-      // propagated to the call site.
+      // Rethrow instead of returning false to ensure WebSocketChannelException
+      // is propagated to the call site.
+      rethrow;
+    } catch (err, stacktrace) {
+      _logger.severe(
+        '[phoenix_socket] Heartbeat message failed',
+        err,
+        stacktrace,
+      );
+
+      // Rethrow instead of returning false to ensure the underlying
+      // exception is propagated to the call site.
       rethrow;
     }
   }
