@@ -456,9 +456,7 @@ class PhoenixSocket {
         ),
       ));
 
-      // Rethrow instead of returning false to ensure WebSocketChannelException
-      // is propagated to the call site.
-      rethrow;
+      return false;
     } catch (err, stacktrace) {
       _logger.severe(
         '[phoenix_socket] Heartbeat message failed',
@@ -466,9 +464,7 @@ class PhoenixSocket {
         stacktrace,
       );
 
-      // Rethrow instead of returning false to ensure the underlying
-      // exception is propagated to the call site.
-      rethrow;
+      return false;
     }
   }
 
