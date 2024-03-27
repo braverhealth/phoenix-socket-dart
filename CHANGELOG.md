@@ -1,3 +1,11 @@
+## [0.7.1.]
+
+- Ensure all exceptions are retried
+- Add unit tests for socket
+- Only propagate errors to the channels on channel exception
+- Don't rethrow. Stops the periodic timer.
+- Catch all exceptions when Push.send fails
+
 ## [0.7.0.]
 
 - Fix correct usage of channels map
