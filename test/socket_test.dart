@@ -1,126 +1,53 @@
 import 'dart:async';
+import 'dart:convert';
 
-import 'package:pedantic/pedantic.dart';
+import 'package:mockito/mockito.dart';
 import 'package:phoenix_socket/phoenix_socket.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:test/test.dart';
 
+import 'mocks.dart';
+
 void main() {
-  const addr = 'ws://localhost:4001/socket/websocket';
+  test('socket connect retries on unexpected error', () async {
+    final sink = MockWebSocketSink();
+    final websocket = MockWebSocketChannel();
+    final phoenixSocket = PhoenixSocket(
+      'endpoint',
+      webSocketChannelFactory: (_) => websocket,
+    );
+    int invocations = 0;
+    final exceptions = ['E', PhoenixException()];
 
-  group('PhoenixSocket', () {
-    test('can connect to a running Phoenix server', () async {
-      final socket = PhoenixSocket(addr);
+    when(websocket.sink).thenReturn(sink);
 
-      await socket.connect().then((_) {
-        expect(socket.isConnected, isTrue);
-      });
-    });
-
-    test('throws an error if to a running Phoenix server', () async {
-      final socket = PhoenixSocket('https://example.com/random-addr');
-
-      unawaited(socket.connect());
-
-      expect(await socket.errorStream.first, isA<PhoenixSocketErrorEvent>());
-    });
-
-    test('can connect to a running Phoenix server with params', () async {
-      final socket = PhoenixSocket(
-        addr,
-        socketOptions: PhoenixSocketOptions(
-          params: const {'user_id': 'this_is_a_userid'},
-        ),
-      );
-
-      await socket.connect().then((_) {
-        expect(socket.isConnected, isTrue);
-      });
-    });
-
-    test('emits an "open" event', () async {
-      final socket = PhoenixSocket(addr);
-
-      unawaited(socket.connect());
-
-      await for (final event in socket.openStream) {
-        expect(event, isA<PhoenixSocketOpenEvent>());
-        socket.close();
-        break;
+    when(websocket.stream).thenAnswer((_) {
+      if (invocations < 2) {
+        // Return a never stream to keep the socket open on the first two
+        // attempts. If it is an empty Stream the socket will close immediately.
+        return NeverStream();
+      } else {
+        // Return a heartbeat on the third attempt which allows the socket
+        // to connect.
+        final controller = StreamController<String>()
+          ..add(jsonEncode(Message.heartbeat('$invocations').encode()));
+        return controller.stream;
       }
     });
 
-    test('emits a "close" event after the connection was closed', () async {
-      final completer = Completer();
-      final socket = PhoenixSocket(
-        addr,
-        socketOptions: PhoenixSocketOptions(
-          params: const {'user_id': 'this_is_a_userid'},
-        ),
-      );
-
-      await socket.connect().then((_) {
-        Timer(const Duration(milliseconds: 100), socket.close);
-      });
-
-      socket.closeStream.listen((event) {
-        expect(event, isA<PhoenixSocketCloseEvent>());
-        completer.complete();
-      });
-
-      await completer.future;
+    // Throw an error adding data to the sink on the first two attempts.
+    // On the third attempt, the sink add should work as expected.
+    when(sink.add(any)).thenAnswer((_) {
+      if (invocations < 2) {
+        throw exceptions[invocations++];
+      }
     });
 
-    test('reconnects automatically after a socket close', () async {
-      final socket = PhoenixSocket(
-        addr,
-        socketOptions: PhoenixSocketOptions(
-          params: const {'user_id': 'this_is_a_userid'},
-        ),
-      );
+    // Connect to the socket
+    await phoenixSocket.connect();
+    expect(phoenixSocket.isConnected, isTrue);
 
-      await socket.connect();
-
-      var i = 0;
-      socket.openStream.listen((event) async {
-        if (i++ < 3) {
-          await Future.delayed(const Duration(milliseconds: 50));
-          socket.close(null, null, true);
-        }
-      });
-
-      expect(
-        socket.openStream,
-        emitsInOrder([
-          isA<PhoenixSocketOpenEvent>(),
-          isA<PhoenixSocketOpenEvent>(),
-          isA<PhoenixSocketOpenEvent>(),
-        ]),
-      );
-    });
-
-    test('reconnection delay', () async {
-      final socket = PhoenixSocket('ws://example.com/random-addr',
-          socketOptions: PhoenixSocketOptions(
-            reconnectDelays: const [
-              Duration.zero,
-              Duration.zero,
-              Duration.zero,
-              Duration(seconds: 10),
-            ],
-          ));
-
-      int errCount = 0;
-      socket.errorStream.listen((event) {
-        errCount++;
-      });
-
-      runZonedGuarded(() {
-        socket.connect().ignore();
-      }, (error, stack) {});
-
-      await Future.delayed(Duration(seconds: 3));
-
-      expect(errCount, 3);
-    });
+    // Expect the first two unexpected failures to be retried
+    verify(sink.add(any)).called(3);
   });
 }

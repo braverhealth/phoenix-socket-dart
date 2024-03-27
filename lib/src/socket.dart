@@ -49,12 +49,15 @@ class PhoenixSocket {
   PhoenixSocket(
     /// The URL of the Phoenix server.
     String endpoint, {
-
     /// The options used when initiating and maintaining the
     /// websocket connection.
     PhoenixSocketOptions? socketOptions,
+
+    /// The factory to use to create the WebSocketChannel.
+    WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
   })  : _endpoint = endpoint,
-        _socketState = SocketState.unknown {
+        _socketState = SocketState.unknown,
+        _webSocketChannelFactory = webSocketChannelFactory {
     _options = socketOptions ?? PhoenixSocketOptions();
 
     _reconnects = _options.reconnectDelays;
@@ -87,6 +90,7 @@ class PhoenixSocket {
       StreamController.broadcast();
   final String _endpoint;
   final StreamController<Message> _topicMessages = StreamController();
+  final WebSocketChannel Function(Uri uri)? _webSocketChannelFactory;
 
   late Uri _mountPoint;
 
@@ -189,7 +193,9 @@ class PhoenixSocket {
     final completer = Completer<PhoenixSocket?>();
 
     try {
-      _ws = WebSocketChannel.connect(_mountPoint);
+      _ws = _webSocketChannelFactory != null
+          ? _webSocketChannelFactory!(_mountPoint)
+          : WebSocketChannel.connect(_mountPoint);
       _ws!.stream
           .where(_shouldPipeMessage)
           .listen(_onSocketData, cancelOnError: true)
@@ -212,8 +218,8 @@ class PhoenixSocket {
       } else {
         throw PhoenixException();
       }
-    } on PhoenixException catch (err, stackTrace) {
-      _logger.severe('Raised PhoenixException', err, stackTrace);
+    } catch (err, stackTrace) {
+      _logger.severe('Raised Exception', err, stackTrace);
 
       _ws = null;
       _socketState = SocketState.closed;
@@ -437,16 +443,9 @@ class PhoenixSocket {
       await sendMessage(_heartbeatMessage());
       _logger.fine('[phoenix_socket] Heartbeat completed');
       return true;
-    } on PhoenixException catch (err, stacktrace) {
-      _logger.severe(
-        '[phoenix_socket] Heartbeat message failed with error',
-        err,
-        stacktrace,
-      );
-      return false;
     } on WebSocketChannelException catch (err, stacktrace) {
       _logger.severe(
-        '[phoenix_socket] Heartbeat message failed with error',
+        '[phoenix_socket] Heartbeat message failed: WebSocketChannelException',
         err,
         stacktrace,
       );
@@ -456,6 +455,15 @@ class PhoenixSocket {
           stacktrace: stacktrace,
         ),
       ));
+
+      return false;
+    } catch (err, stacktrace) {
+      _logger.severe(
+        '[phoenix_socket] Heartbeat message failed',
+        err,
+        stacktrace,
+      );
+
       return false;
     }
   }
