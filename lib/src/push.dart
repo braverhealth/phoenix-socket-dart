@@ -188,7 +188,9 @@ class Push {
     String status,
     void Function(PushResponse) callback,
   ) {
-    _receivers[status]?.add(callback);
+    final receiver = _receivers[status] ??= [];
+    receiver.add(callback);
+    _receivers[status] = receiver;
   }
 
   /// Schedule a timeout to be triggered if no reply occurs
