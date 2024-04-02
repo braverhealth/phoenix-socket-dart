@@ -13,7 +13,6 @@ environment:
 dependencies:
   collection: ^1.15.0
   logging: ^1.0.0
-  meta: ^1.2.4
   quiver: ^3.0.0
   rxdart: ">=0.26.0 <0.28.0"
   web_socket_channel: ^2.0.0

@@ -7,24 +7,15 @@ typedef EncoderCallback = String Function(Object? data);
 
 /// Default class to serialize [Message] instances to JSON.
 class MessageSerializer {
-  late DecoderCallback _decoder;
-  late EncoderCallback _encoder;
-
-  MessageSerializer._();
+  final DecoderCallback _decoder;
+  final EncoderCallback _encoder;
 
   /// Default constructor returning the singleton instance of this class.
-  factory MessageSerializer({
-    DecoderCallback? decoder,
-    EncoderCallback? encoder,
-  }) {
-    MessageSerializer instance = _instance ??= MessageSerializer._();
-    instance._decoder = decoder ?? jsonDecode;
-    instance._encoder = encoder ?? jsonEncode;
-
-    return instance;
-  }
-
-  static MessageSerializer? _instance;
+  const MessageSerializer({
+    DecoderCallback decoder = jsonDecode,
+    EncoderCallback encoder = jsonEncode,
+  })  : _decoder = decoder,
+        _encoder = encoder;
 
   /// Yield a [Message] from some raw string arriving from a websocket.
   Message decode(dynamic rawData) {
