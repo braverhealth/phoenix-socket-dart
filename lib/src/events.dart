@@ -2,15 +2,19 @@ import 'channel.dart';
 import 'socket.dart';
 
 /// Base socket event
-abstract class PhoenixSocketEvent {}
+abstract class PhoenixSocketEvent {
+  const PhoenixSocketEvent();
+}
 
 /// Open event for a [PhoenixSocket].
-class PhoenixSocketOpenEvent extends PhoenixSocketEvent {}
+class PhoenixSocketOpenEvent extends PhoenixSocketEvent {
+  const PhoenixSocketOpenEvent();
+}
 
 /// Close event for a [PhoenixSocket].
 class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
   /// Default constructor for this close event.
-  PhoenixSocketCloseEvent({
+  const PhoenixSocketCloseEvent({
     this.reason,
     this.code,
   });
@@ -40,7 +44,7 @@ class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
 /// Error event for a [PhoenixSocket].
 class PhoenixSocketErrorEvent extends PhoenixSocketEvent {
   /// Default constructor for the error event.
-  PhoenixSocketErrorEvent({
+  const PhoenixSocketErrorEvent({
     this.error,
     this.stacktrace,
   });
@@ -67,7 +71,7 @@ class PhoenixSocketErrorEvent extends PhoenixSocketEvent {
 
 /// Encapsulates constants used in the protocol over [PhoenixChannel].
 class PhoenixChannelEvent {
-  PhoenixChannelEvent._(this.value);
+  const PhoenixChannelEvent._(this.value);
 
   /// A reply event name for a given push ref value.
   factory PhoenixChannelEvent.replyFor(String ref) =>
@@ -77,7 +81,7 @@ class PhoenixChannelEvent {
   ///
   /// This is the event name used when a user of the library sends a message
   /// on a channel.
-  factory PhoenixChannelEvent.custom(name) => PhoenixChannelEvent._(name);
+  const PhoenixChannelEvent.custom(String name) : value = name;
 
   /// Instantiates a PhoenixChannelEvent from
   /// one of the values used in the wire protocol.
@@ -97,6 +101,7 @@ class PhoenixChannelEvent {
         throw ArgumentError.value(value);
     }
   }
+
   static const String __closeEventName = 'phx_close';
   static const String __errorEventName = 'phx_error';
   static const String __joinEventName = 'phx_join';
