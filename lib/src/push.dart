@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:logging/logging.dart';
-import 'package:quiver/collection.dart';
 
 import 'channel.dart';
 import 'events.dart';
@@ -11,7 +10,7 @@ import 'message.dart';
 /// Encapsulates the response to a [Push].
 class PushResponse {
   /// Builds a PushResponse from a status and response.
-  PushResponse({
+  const PushResponse({
     this.status,
     this.response,
   });
@@ -30,10 +29,10 @@ class PushResponse {
   /// }
   /// ```
   factory PushResponse.fromMessage(Message message) {
-    final data = message.payload!;
+    final data = message.payload;
     return PushResponse(
-      status: data['status'] as String?,
-      response: data['response'],
+      status: data?['status'] as String?,
+      response: data?['response'],
     );
   }
 
@@ -89,8 +88,7 @@ class Push {
         _responseCompleter = Completer<PushResponse>();
 
   final Logger _logger;
-  final ListMultimap<String, void Function(PushResponse)> _receivers =
-      ListMultimap();
+  final Map<String, List<void Function(PushResponse)>> _receivers = {};
 
   /// The event name associated with the pushed message
   final PhoenixChannelEvent? event;
@@ -190,7 +188,7 @@ class Push {
     String status,
     void Function(PushResponse) callback,
   ) {
-    _receivers[status].add(callback);
+    _receivers[status]?.add(callback);
   }
 
   /// Schedule a timeout to be triggered if no reply occurs
@@ -252,13 +250,14 @@ class Push {
     }
 
     _logger.finer(() {
-      if (_receivers[response.status].isNotEmpty) {
-        return 'Triggering ${_receivers[response.status].length} callbacks';
+      if (_receivers[response.status] case final receiver?
+          when receiver.isNotEmpty) {
+        return 'Triggering ${receiver.length} callbacks';
       }
       return 'Not triggering any callbacks';
     });
 
-    final receivers = _receivers[response.status].toList();
+    final receivers = _receivers[response.status]?.toList() ?? const [];
     clearReceivers();
     for (final cb in receivers) {
       cb(response);
