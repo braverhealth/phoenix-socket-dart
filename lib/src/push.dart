@@ -7,6 +7,8 @@ import 'events.dart';
 import 'exceptions.dart';
 import 'message.dart';
 
+typedef ReceiverCallback = void Function(PushResponse response);
+
 /// Encapsulates the response to a [Push].
 class PushResponse {
   /// Builds a PushResponse from a status and response.
@@ -88,7 +90,7 @@ class Push {
         _responseCompleter = Completer<PushResponse>();
 
   final Logger _logger;
-  final Map<String, List<void Function(PushResponse)>> _receivers = {};
+  final Map<String, List<ReceiverCallback>> _receivers = {};
 
   /// The event name associated with the pushed message
   final PhoenixChannelEvent? event;
@@ -188,8 +190,10 @@ class Push {
     String status,
     void Function(PushResponse) callback,
   ) {
-    final receiver = (_receivers[status] ??= [])..add(callback);
-    _receivers[status] = receiver;
+    _receivers[status] = [
+      ..._receivers[status] ?? [],
+      callback,
+    ];
   }
 
   /// Schedule a timeout to be triggered if no reply occurs
