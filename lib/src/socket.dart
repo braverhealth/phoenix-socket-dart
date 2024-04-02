@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:core';
 import 'dart:math';
 
-import 'package:collection/collection.dart' show IterableExtension;
 import 'package:logging/logging.dart';
+import 'package:phoenix_socket/src/utils/iterable_extensions.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:web_socket_channel/status.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
