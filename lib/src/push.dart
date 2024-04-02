@@ -188,8 +188,7 @@ class Push {
     String status,
     void Function(PushResponse) callback,
   ) {
-    final receiver = _receivers[status] ??= [];
-    receiver.add(callback);
+    final receiver = (_receivers[status] ??= [])..add(callback);
     _receivers[status] = receiver;
   }
 
