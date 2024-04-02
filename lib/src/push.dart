@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:equatable/equatable.dart';
 import 'package:logging/logging.dart';
 import 'package:quiver/collection.dart';
 
@@ -10,7 +9,7 @@ import 'exceptions.dart';
 import 'message.dart';
 
 /// Encapsulates the response to a [Push].
-class PushResponse extends Equatable {
+class PushResponse {
   /// Builds a PushResponse from a status and response.
   PushResponse({
     this.status,
@@ -56,10 +55,19 @@ class PushResponse extends Equatable {
   bool get isTimeout => status == 'timeout';
 
   @override
-  List<Object?> get props => [status, response];
+  bool operator ==(Object other) {
+    return other is PushResponse &&
+        other.status == status &&
+        other.response == response;
+  }
 
   @override
-  bool get stringify => true;
+  int get hashCode => Object.hash(status, response);
+
+  @override
+  String toString() {
+    return 'PushResponse(status: $status, response: $response)';
+  }
 }
 
 /// Type of function that should return a push payload

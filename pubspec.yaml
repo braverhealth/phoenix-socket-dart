@@ -12,7 +12,6 @@ environment:
 
 dependencies:
   collection: ^1.15.0
-  equatable: ^2.0.3
   logging: ^1.0.0
   meta: ^1.2.4
   quiver: ^3.0.0

@@ -1,19 +1,11 @@
-import 'package:equatable/equatable.dart';
-
 import 'channel.dart';
 import 'socket.dart';
 
 /// Base socket event
-abstract class PhoenixSocketEvent extends Equatable {
-  @override
-  bool get stringify => true;
-}
+abstract class PhoenixSocketEvent {}
 
 /// Open event for a [PhoenixSocket].
-class PhoenixSocketOpenEvent extends PhoenixSocketEvent {
-  @override
-  List<Object?> get props => [];
-}
+class PhoenixSocketOpenEvent extends PhoenixSocketEvent {}
 
 /// Close event for a [PhoenixSocket].
 class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
@@ -30,7 +22,19 @@ class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
   final int? code;
 
   @override
-  List<Object?> get props => [code, reason];
+  bool operator ==(Object other) {
+    return other is PhoenixSocketCloseEvent &&
+        other.reason == reason &&
+        other.code == code;
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, reason, code);
+
+  @override
+  String toString() {
+    return 'PhoenixSocketCloseEvent(reason: $reason, code: $code)';
+  }
 }
 
 /// Error event for a [PhoenixSocket].
@@ -42,17 +46,27 @@ class PhoenixSocketErrorEvent extends PhoenixSocketEvent {
   });
 
   /// The error that happened on the socket
-  final dynamic error;
+  final Object? error;
 
   /// The stacktrace associated with the error.
   final dynamic stacktrace;
 
   @override
-  List<Object?> get props => [error];
+  bool operator ==(Object other) {
+    return other is PhoenixSocketErrorEvent && other.error == error;
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, error);
+
+  @override
+  String toString() {
+    return 'PhoenixSocketErrorEvent(error: $error)';
+  }
 }
 
 /// Encapsulates constants used in the protocol over [PhoenixChannel].
-class PhoenixChannelEvent extends Equatable {
+class PhoenixChannelEvent {
   PhoenixChannelEvent._(this.value);
 
   /// A reply event name for a given push ref value.
@@ -120,5 +134,10 @@ class PhoenixChannelEvent extends Equatable {
       value.startsWith(__replyEventName);
 
   @override
-  List<Object> get props => [value];
+  bool operator ==(Object other) {
+    return other is PhoenixChannelEvent && other.value == value;
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, value);
 }
