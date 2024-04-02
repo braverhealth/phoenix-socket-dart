@@ -266,9 +266,7 @@ class Push {
   }
 
   /// Dispose the set of waiters associated with this push.
-  void clearReceivers() {
-    _receivers.clear();
-  }
+  void clearReceivers() => _receivers.clear();
 
   // Remove existing waiters and reset completer
   void cleanUp() {
