@@ -186,10 +186,7 @@ class Push {
 
   /// Associate a callback to be called if and when a reply with the given
   /// status is received.
-  void onReply(
-    String status,
-    void Function(PushResponse) callback,
-  ) {
+  void onReply(String status, ReceiverCallback callback) {
     _receivers[status] = [
       ..._receivers[status] ?? [],
       callback,
