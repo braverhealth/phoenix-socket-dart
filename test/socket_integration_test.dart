@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:pedantic/pedantic.dart';
 import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:test/test.dart';
 
