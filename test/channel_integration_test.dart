@@ -93,6 +93,21 @@ void main() {
       expect(reply.response, equals({'name': 'bar'}));
     });
 
+    test('only emits reply messages that are channel replies', () async {
+      final socket = PhoenixSocket(addr);
+
+      socket.connect();
+
+      final channel1 = socket.addChannel(topic: 'channel1');
+      final channelMessages = [];
+      channel1.messages.forEach((element) => channelMessages.add(element));
+
+      await channel1.join().future;
+      await channel1.push('hello!', {'foo': 'bar'}).future;
+
+      expect(channelMessages, hasLength(2));
+    });
+
     test('can receive messages from channels', () async {
       final socket = PhoenixSocket(addr);
 
