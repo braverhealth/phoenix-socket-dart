@@ -119,6 +119,10 @@ class PhoenixChannelEvent extends Equatable {
       value.startsWith(__chanReplyEventName) ||
       value.startsWith(__replyEventName);
 
+  /// Whether the event name is a 'channel reply' event
+  bool get isChannelReply =>
+      value.startsWith(__chanReplyEventName);
+
   @override
   List<Object> get props => [value];
 }

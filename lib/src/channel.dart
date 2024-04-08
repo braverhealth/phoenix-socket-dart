@@ -53,7 +53,7 @@ class PhoenixChannel {
     _joinPush = _prepareJoin();
     _logger = Logger('phoenix_socket.channel.$loggerName');
     _subscriptions
-      ..add(messages.listen(_onMessage))
+      ..add(_controller.stream.listen(_onMessage))
       ..addAll(_subscribeToSocketStreams(socket));
   }
 
@@ -83,7 +83,9 @@ class PhoenixChannel {
   final List<Push> pushBuffer = [];
 
   /// Stream of all messages coming through this channel from the backend.
-  Stream<Message> get messages => _controller.stream;
+  Stream<Message> get messages => _controller.stream.where(
+        (message) => !message.event.isReply || message.event.isChannelReply,
+      );
 
   /// Unique identifier of the 'join' push message.
   String get joinRef => _joinPush.ref;
@@ -226,7 +228,11 @@ class PhoenixChannel {
     }
 
     _joinedOnce = true;
-    _attemptJoin();
+    if (socket.isConnected) {
+      _attemptJoin();
+    } else {
+      _state = PhoenixChannelState.errored;
+    }
 
     return _joinPush;
   }

@@ -20,6 +20,19 @@ void main() {
       await completer.future;
     });
 
+    test('can join a channel through an unawaited socket', () async {
+      final socket = PhoenixSocket(addr);
+      final completer = Completer<void>();
+
+      socket.connect();
+      socket.addChannel(topic: 'channel1').join().onReply('ok', (reply) {
+        expect(reply.status, equals('ok'));
+        completer.complete();
+      });
+
+      await completer.future;
+    });
+
     test('can join a channel requiring parameters', () async {
       final socket = PhoenixSocket(addr);
 
@@ -78,6 +91,21 @@ void main() {
       final reply = await channel1.push('hello!', {'foo': 'bar'}).future;
       expect(reply.status, equals('ok'));
       expect(reply.response, equals({'name': 'bar'}));
+    });
+
+    test('only emits reply messages that are channel replies', () async {
+      final socket = PhoenixSocket(addr);
+
+      socket.connect();
+
+      final channel1 = socket.addChannel(topic: 'channel1');
+      final channelMessages = [];
+      channel1.messages.forEach((element) => channelMessages.add(element));
+
+      await channel1.join().future;
+      await channel1.push('hello!', {'foo': 'bar'}).future;
+
+      expect(channelMessages, hasLength(2));
     });
 
     test('can receive messages from channels', () async {
