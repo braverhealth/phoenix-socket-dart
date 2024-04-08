@@ -226,7 +226,11 @@ class PhoenixChannel {
     }
 
     _joinedOnce = true;
-    _attemptJoin();
+    if (socket.isConnected) {
+      _attemptJoin();
+    } else {
+      _state = PhoenixChannelState.errored;
+    }
 
     return _joinPush;
   }

@@ -20,6 +20,19 @@ void main() {
       await completer.future;
     });
 
+    test('can join a channel through an unawaited socket', () async {
+      final socket = PhoenixSocket(addr);
+      final completer = Completer<void>();
+
+      socket.connect();
+      socket.addChannel(topic: 'channel1').join().onReply('ok', (reply) {
+        expect(reply.status, equals('ok'));
+        completer.complete();
+      });
+
+      await completer.future;
+    });
+
     test('can join a channel requiring parameters', () async {
       final socket = PhoenixSocket(addr);
 

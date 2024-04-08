@@ -172,7 +172,9 @@ class Push {
   /// after a reconnection.
   Future<void> resend(Duration? newTimeout) async {
     timeout = newTimeout ?? timeout;
-    reset();
+    if (_sent) {
+      reset();
+    }
     await send();
   }
 
@@ -264,8 +266,10 @@ class Push {
 
   // Remove existing waiters and reset completer
   void cleanUp() {
-    clearReceivers();
-    _responseCompleter = Completer();
+    if (_sent) {
+      clearReceivers();
+      _responseCompleter = Completer();
+    }
   }
 
   void _receiveResponse(dynamic response) {
