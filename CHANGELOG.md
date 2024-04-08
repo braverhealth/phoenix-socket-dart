@@ -1,3 +1,8 @@
+## [0.7.2.]
+
+- Delay channel join until socket is open
+- Only emit channel replies from channel.messages
+
 ## [0.7.1.]
 
 - Ensure all exceptions are retried
