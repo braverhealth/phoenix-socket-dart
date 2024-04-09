@@ -6,17 +6,11 @@ defmodule Backend.Application do
   use Application
 
   def start(_type, _args) do
-    # List all child processes to be supervised
     children = [
-      # Start the endpoint when the application starts
-      BackendWeb.Endpoint,
-      BackendWeb.Presence
-      # Starts a worker by calling: Backend.Worker.start_link(arg)
-      # {Backend.Worker, arg},
+      BackendWeb.Supervisor,
+      BackendWeb.ControlEndpoint
     ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Backend.Supervisor]
     Supervisor.start_link(children, opts)
   end

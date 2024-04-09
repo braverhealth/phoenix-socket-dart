@@ -170,15 +170,11 @@ class PhoenixSocket {
   /// Whether the underlying socket is connected of not.
   bool get isConnected => _ws != null && _socketState == SocketState.connected;
 
-  /// Attempts to make a WebSocket connection to the Phoenix backend.
-  ///
-  /// If the attempt fails, retries will be triggered at intervals specified
-  /// by retryAfterIntervalMS
-  Future<PhoenixSocket?> connect() async {
+  void _connect(Completer<PhoenixSocket?> completer) async {
     if (_ws != null) {
       _logger.warning(
           'Calling connect() on already connected or connecting socket.');
-      return this;
+      completer.complete(this);
     }
 
     _shouldReconnect = true;
@@ -189,8 +185,6 @@ class PhoenixSocket {
 
     _mountPoint = await _buildMountPoint(_endpoint, _options);
     _logger.finest(() => 'Attempting to connect to $_mountPoint');
-
-    final completer = Completer<PhoenixSocket?>();
 
     try {
       _ws = _webSocketChannelFactory != null
@@ -226,7 +220,18 @@ class PhoenixSocket {
 
       completer.complete(_delayedReconnect());
     }
+  }
 
+  /// Attempts to make a WebSocket connection to the Phoenix backend.
+  ///
+  /// If the attempt fails, retries will be triggered at intervals specified
+  /// by retryAfterIntervalMS
+  Future<PhoenixSocket?> connect() async {
+    final completer = Completer<PhoenixSocket?>();
+    runZonedGuarded(
+      () => _connect(completer),
+      (error, stack) {},
+    );
     return completer.future;
   }
 

@@ -13,6 +13,13 @@ config :backend, BackendWeb.Endpoint,
   check_origin: false,
   watchers: []
 
+config :backend, BackendWeb.ControlEndpoint,
+  http: [port: 4002],
+  debug_errors: true,
+  code_reloader: true,
+  check_origin: false,
+  watchers: []
+
 # ## SSL Support
 #
 # In order to use HTTPS in development, a self-signed

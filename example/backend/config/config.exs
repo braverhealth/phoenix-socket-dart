@@ -12,7 +12,12 @@ config :backend, BackendWeb.Endpoint,
   url: [host: "localhost"],
   secret_key_base: "LkOAHmBjZB9uu1CTg3Z28ZnvysCl8LhqRGBxwq32eIR7P10XuMSmLIft/QgG1b8D",
   render_errors: [view: BackendWeb.ErrorView, accepts: ~w(html json)],
-  pubsub: [name: Backend.PubSub, adapter: Phoenix.PubSub.PG2]
+  pubsub_server: Backend.PubSub
+
+config :backend, BackendWeb.ControlEndpoint,
+  url: [host: "localhost"],
+  secret_key_base: "LkOAHmBjZB9uu1CTg3Z28ZnvysCl8LhqRGBxwq32eIR7P10XuMSmLIft/QgG1b8D",
+  render_errors: [view: BackendWeb.ErrorView, accepts: ~w(html json)]
 
 # Configures Elixir's Logger
 config :logger, :console,

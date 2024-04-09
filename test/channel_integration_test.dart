@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:test/test.dart';
 
+import 'control.dart';
+
 void main() {
   const addr = 'ws://localhost:4001/socket/websocket';
 
@@ -13,6 +15,43 @@ void main() {
 
       await socket.connect();
       socket.addChannel(topic: 'channel1').join().onReply('ok', (reply) {
+        expect(reply.status, equals('ok'));
+        completer.complete();
+      });
+
+      await completer.future;
+    });
+
+    test('can join a channel through a socket that starts closed then connects',
+        () async {
+      final socket = PhoenixSocket(addr);
+      final completer = Completer<void>();
+
+      await stopThenRestartBackend();
+      await socket.connect();
+
+      socket.addChannel(topic: 'channel1').join().onReply('ok', (reply) {
+        expect(reply.status, equals('ok'));
+        completer.complete();
+      });
+
+      await completer.future;
+    });
+
+    test(
+        'can join a channel through a socket that disconnects before join but reconnects',
+        () async {
+      final socket = PhoenixSocket(addr);
+      final completer = Completer<void>();
+
+      await socket.connect();
+
+      await stopBackend();
+      final joinFuture = socket.addChannel(topic: 'channel1').join();
+      Future.delayed(const Duration(milliseconds: 300))
+          .then((value) => restartBackend());
+
+      joinFuture.onReply('ok', (reply) {
         expect(reply.status, equals('ok'));
         completer.complete();
       });
@@ -87,6 +126,23 @@ void main() {
 
       final channel1 = socket.addChannel(topic: 'channel1');
       await channel1.join().future;
+
+      final reply = await channel1.push('hello!', {'foo': 'bar'}).future;
+      expect(reply.status, equals('ok'));
+      expect(reply.response, equals({'name': 'bar'}));
+    });
+
+    test(
+        'can send messages to channels that got transiently disconnected and receive a reply',
+        () async {
+      final socket = PhoenixSocket(addr);
+
+      await socket.connect();
+
+      final channel1 = socket.addChannel(topic: 'channel1');
+      await channel1.join().future;
+
+      await stopThenRestartBackend();
 
       final reply = await channel1.push('hello!', {'foo': 'bar'}).future;
       expect(reply.status, equals('ok'));
