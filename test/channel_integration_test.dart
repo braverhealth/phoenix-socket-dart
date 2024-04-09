@@ -9,6 +9,10 @@ void main() {
   const addr = 'ws://localhost:4001/socket/websocket';
 
   group('PhoenixChannel', () {
+    setUp(() async {
+      await restartBackend();
+    });
+
     test('can join a channel through a socket', () async {
       final socket = PhoenixSocket(addr);
       final completer = Completer<void>();
