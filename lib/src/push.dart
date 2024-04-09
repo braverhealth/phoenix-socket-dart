@@ -56,19 +56,16 @@ class PushResponse {
   bool get isTimeout => status == 'timeout';
 
   @override
-  bool operator ==(Object other) {
-    return other is PushResponse &&
-        other.status == status &&
-        other.response == response;
-  }
+  bool operator ==(Object other) =>
+      other is PushResponse &&
+      other.status == status &&
+      other.response == response;
 
   @override
   int get hashCode => Object.hash(status, response);
 
   @override
-  String toString() {
-    return 'PushResponse(status: $status, response: $response)';
-  }
+  String toString() => 'PushResponse(status: $status, response: $response)';
 }
 
 /// Type of function that should return a push payload

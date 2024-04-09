@@ -90,24 +90,21 @@ class Message {
   }
 
   @override
-  bool operator ==(Object other) {
-    return other is Message &&
-        other.joinRef == joinRef &&
-        other.ref == ref &&
-        other.topic == topic &&
-        other.event == event &&
-        other.payload == payload;
-  }
+  bool operator ==(Object other) =>
+      other is Message &&
+      other.joinRef == joinRef &&
+      other.ref == ref &&
+      other.topic == topic &&
+      other.event == event &&
+      other.payload == payload;
 
   @override
-  int get hashCode {
-    return Object.hash(runtimeType, joinRef, ref, topic, event, payload);
-  }
+  int get hashCode =>
+      Object.hash(runtimeType, joinRef, ref, topic, event, payload);
 
   @override
-  String toString() {
-    return 'Message(joinRef: $joinRef, ref: $ref, topic: $topic, event: $event, payload: $payload)';
-  }
+  String toString() =>
+      'Message(joinRef: $joinRef, ref: $ref, topic: $topic, event: $event, payload: $payload)';
 
   /// Whether the message is a reply message.
   bool get isReply => event.isReply;

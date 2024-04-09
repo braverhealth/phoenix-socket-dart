@@ -26,19 +26,16 @@ class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
   final int? code;
 
   @override
-  bool operator ==(Object other) {
-    return other is PhoenixSocketCloseEvent &&
-        other.reason == reason &&
-        other.code == code;
-  }
+  bool operator ==(Object other) =>
+      other is PhoenixSocketCloseEvent &&
+      other.reason == reason &&
+      other.code == code;
 
   @override
   int get hashCode => Object.hash(runtimeType, reason, code);
 
   @override
-  String toString() {
-    return 'PhoenixSocketCloseEvent(reason: $reason, code: $code)';
-  }
+  String toString() => 'PhoenixSocketCloseEvent(reason: $reason, code: $code)';
 }
 
 /// Error event for a [PhoenixSocket].
@@ -56,17 +53,14 @@ class PhoenixSocketErrorEvent extends PhoenixSocketEvent {
   final dynamic stacktrace;
 
   @override
-  bool operator ==(Object other) {
-    return other is PhoenixSocketErrorEvent && other.error == error;
-  }
+  bool operator ==(Object other) =>
+      other is PhoenixSocketErrorEvent && other.error == error;
 
   @override
   int get hashCode => Object.hash(runtimeType, error);
 
   @override
-  String toString() {
-    return 'PhoenixSocketErrorEvent(error: $error)';
-  }
+  String toString() => 'PhoenixSocketErrorEvent(error: $error)';
 }
 
 /// Encapsulates constants used in the protocol over [PhoenixChannel].
@@ -139,9 +133,8 @@ class PhoenixChannelEvent {
       value.startsWith(__replyEventName);
 
   @override
-  bool operator ==(Object other) {
-    return other is PhoenixChannelEvent && other.value == value;
-  }
+  bool operator ==(Object other) =>
+      other is PhoenixChannelEvent && other.value == value;
 
   @override
   int get hashCode => Object.hash(runtimeType, value);
