@@ -5,7 +5,7 @@ on:
     paths:
       - "lib/**"
       - "test/**"
-      - ".github/workflows/**"
+      - ".github/workflows/test.yaml"
 
 jobs:
   test:
@@ -17,6 +17,7 @@ jobs:
         image: braverhq/phoenix-dart-server
         ports:
           - 4001:4001
+          - 4002:4002
 
     steps:
 

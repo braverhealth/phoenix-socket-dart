@@ -2,9 +2,13 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "example/backend"
 		}
 	],
 	"settings": {
 		"editor.formatOnSave": true,
+		"elixirLS.fetchDeps": true
 	}
 }

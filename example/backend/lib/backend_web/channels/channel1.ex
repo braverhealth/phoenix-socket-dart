@@ -10,7 +10,7 @@ defmodule BackendWeb.Channel1 do
     {:ok, socket}
   end
 
-  def join("channel1:" <> _name, %{"password" => _}, socket) do
+  def join("channel1:" <> _name, %{"password" => _}, _socket) do
     {:error, "wrong password"}
   end
 
