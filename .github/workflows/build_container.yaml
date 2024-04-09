@@ -33,6 +33,6 @@ jobs:
           context: ./example/backend/
           file: ./example/backend/Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: latest
           labels: ${{ steps.meta.outputs.labels }}
 
