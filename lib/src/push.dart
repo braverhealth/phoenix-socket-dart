@@ -184,10 +184,7 @@ class Push {
   /// Associate a callback to be called if and when a reply with the given
   /// status is received.
   void onReply(String status, ReceiverCallback callback) {
-    _receivers[status] = [
-      ..._receivers[status] ?? [],
-      callback,
-    ];
+    (_receivers[status] ??= []).add(callback);
   }
 
   /// Schedule a timeout to be triggered if no reply occurs
