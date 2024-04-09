@@ -1,18 +1,18 @@
 import 'dart:async';
 
-import 'package:equatable/equatable.dart';
 import 'package:logging/logging.dart';
-import 'package:quiver/collection.dart';
 
 import 'channel.dart';
 import 'events.dart';
 import 'exceptions.dart';
 import 'message.dart';
 
+typedef ReceiverCallback = void Function(PushResponse response);
+
 /// Encapsulates the response to a [Push].
-class PushResponse extends Equatable {
+class PushResponse {
   /// Builds a PushResponse from a status and response.
-  PushResponse({
+  const PushResponse({
     this.status,
     this.response,
   });
@@ -31,10 +31,10 @@ class PushResponse extends Equatable {
   /// }
   /// ```
   factory PushResponse.fromMessage(Message message) {
-    final data = message.payload!;
+    final data = message.payload;
     return PushResponse(
-      status: data['status'] as String?,
-      response: data['response'],
+      status: data?['status'] as String?,
+      response: data?['response'],
     );
   }
 
@@ -56,10 +56,16 @@ class PushResponse extends Equatable {
   bool get isTimeout => status == 'timeout';
 
   @override
-  List<Object?> get props => [status, response];
+  bool operator ==(Object other) =>
+      other is PushResponse &&
+      other.status == status &&
+      other.response == response;
 
   @override
-  bool get stringify => true;
+  int get hashCode => Object.hash(status, response);
+
+  @override
+  String toString() => 'PushResponse(status: $status, response: $response)';
 }
 
 /// Type of function that should return a push payload
@@ -81,8 +87,7 @@ class Push {
         _responseCompleter = Completer<PushResponse>();
 
   final Logger _logger;
-  final ListMultimap<String, void Function(PushResponse)> _receivers =
-      ListMultimap();
+  final Map<String, List<ReceiverCallback>> _receivers = {};
 
   /// The event name associated with the pushed message
   final PhoenixChannelEvent? event;
@@ -180,11 +185,8 @@ class Push {
 
   /// Associate a callback to be called if and when a reply with the given
   /// status is received.
-  void onReply(
-    String status,
-    void Function(PushResponse) callback,
-  ) {
-    _receivers[status].add(callback);
+  void onReply(String status, ReceiverCallback callback) {
+    (_receivers[status] ??= []).add(callback);
   }
 
   /// Schedule a timeout to be triggered if no reply occurs
@@ -246,13 +248,14 @@ class Push {
     }
 
     _logger.finer(() {
-      if (_receivers[response.status].isNotEmpty) {
-        return 'Triggering ${_receivers[response.status].length} callbacks';
+      if (_receivers[response.status] case final receiver?
+          when receiver.isNotEmpty) {
+        return 'Triggering ${receiver.length} callbacks';
       }
       return 'Not triggering any callbacks';
     });
 
-    final receivers = _receivers[response.status].toList();
+    final receivers = _receivers[response.status]?.toList() ?? const [];
     clearReceivers();
     for (final cb in receivers) {
       cb(response);
@@ -260,9 +263,7 @@ class Push {
   }
 
   /// Dispose the set of waiters associated with this push.
-  void clearReceivers() {
-    _receivers.clear();
-  }
+  void clearReceivers() => _receivers.clear();
 
   // Remove existing waiters and reset completer
   void cleanUp() {

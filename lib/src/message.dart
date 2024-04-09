@@ -1,4 +1,3 @@
-import 'package:equatable/equatable.dart';
 import 'package:logging/logging.dart';
 
 import 'channel.dart';
@@ -9,7 +8,7 @@ final Logger _logger = Logger('phoenix_socket.message');
 
 /// Class that encapsulate a message being sent or received on a
 /// [PhoenixSocket].
-class Message extends Equatable {
+class Message {
   /// Given a parsed JSON coming from the backend, yield
   /// a [Message] instance.
   factory Message.fromJson(List<dynamic> parts) {
@@ -91,10 +90,21 @@ class Message extends Equatable {
   }
 
   @override
-  List<Object?> get props => [joinRef, ref, topic, event, payload];
+  bool operator ==(Object other) =>
+      other is Message &&
+      other.joinRef == joinRef &&
+      other.ref == ref &&
+      other.topic == topic &&
+      other.event == event &&
+      other.payload == payload;
 
   @override
-  bool get stringify => true;
+  int get hashCode =>
+      Object.hash(runtimeType, joinRef, ref, topic, event, payload);
+
+  @override
+  String toString() =>
+      'Message(joinRef: $joinRef, ref: $ref, topic: $topic, event: $event, payload: $payload)';
 
   /// Whether the message is a reply message.
   bool get isReply => event.isReply;

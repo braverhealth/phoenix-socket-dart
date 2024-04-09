@@ -1,24 +1,20 @@
-import 'package:equatable/equatable.dart';
-
 import 'channel.dart';
 import 'socket.dart';
 
 /// Base socket event
-abstract class PhoenixSocketEvent extends Equatable {
-  @override
-  bool get stringify => true;
+abstract class PhoenixSocketEvent {
+  const PhoenixSocketEvent();
 }
 
 /// Open event for a [PhoenixSocket].
 class PhoenixSocketOpenEvent extends PhoenixSocketEvent {
-  @override
-  List<Object?> get props => [];
+  const PhoenixSocketOpenEvent();
 }
 
 /// Close event for a [PhoenixSocket].
 class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
   /// Default constructor for this close event.
-  PhoenixSocketCloseEvent({
+  const PhoenixSocketCloseEvent({
     this.reason,
     this.code,
   });
@@ -30,30 +26,46 @@ class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
   final int? code;
 
   @override
-  List<Object?> get props => [code, reason];
+  bool operator ==(Object other) =>
+      other is PhoenixSocketCloseEvent &&
+      other.reason == reason &&
+      other.code == code;
+
+  @override
+  int get hashCode => Object.hash(runtimeType, reason, code);
+
+  @override
+  String toString() => 'PhoenixSocketCloseEvent(reason: $reason, code: $code)';
 }
 
 /// Error event for a [PhoenixSocket].
 class PhoenixSocketErrorEvent extends PhoenixSocketEvent {
   /// Default constructor for the error event.
-  PhoenixSocketErrorEvent({
+  const PhoenixSocketErrorEvent({
     this.error,
     this.stacktrace,
   });
 
   /// The error that happened on the socket
-  final dynamic error;
+  final Object? error;
 
   /// The stacktrace associated with the error.
   final dynamic stacktrace;
 
   @override
-  List<Object?> get props => [error];
+  bool operator ==(Object other) =>
+      other is PhoenixSocketErrorEvent && other.error == error;
+
+  @override
+  int get hashCode => Object.hash(runtimeType, error);
+
+  @override
+  String toString() => 'PhoenixSocketErrorEvent(error: $error)';
 }
 
 /// Encapsulates constants used in the protocol over [PhoenixChannel].
-class PhoenixChannelEvent extends Equatable {
-  PhoenixChannelEvent._(this.value);
+class PhoenixChannelEvent {
+  const PhoenixChannelEvent._(this.value);
 
   /// A reply event name for a given push ref value.
   factory PhoenixChannelEvent.replyFor(String ref) =>
@@ -63,7 +75,7 @@ class PhoenixChannelEvent extends Equatable {
   ///
   /// This is the event name used when a user of the library sends a message
   /// on a channel.
-  factory PhoenixChannelEvent.custom(name) => PhoenixChannelEvent._(name);
+  const PhoenixChannelEvent.custom(String name) : value = name;
 
   /// Instantiates a PhoenixChannelEvent from
   /// one of the values used in the wire protocol.
@@ -83,6 +95,7 @@ class PhoenixChannelEvent extends Equatable {
         throw ArgumentError.value(value);
     }
   }
+
   static const String __closeEventName = 'phx_close';
   static const String __errorEventName = 'phx_error';
   static const String __joinEventName = 'phx_join';
@@ -124,5 +137,9 @@ class PhoenixChannelEvent extends Equatable {
       value.startsWith(__chanReplyEventName);
 
   @override
-  List<Object> get props => [value];
+  bool operator ==(Object other) =>
+      other is PhoenixChannelEvent && other.value == value;
+
+  @override
+  int get hashCode => Object.hash(runtimeType, value);
 }
