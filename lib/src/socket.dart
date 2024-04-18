@@ -190,6 +190,12 @@ class PhoenixSocket {
       _ws = _webSocketChannelFactory != null
           ? _webSocketChannelFactory!(_mountPoint)
           : WebSocketChannel.connect(_mountPoint);
+
+      // Wait for the WebSocket to be ready before continuing. In case of a
+      // failure to connect, the future will complete with an error and will be
+      // caught.
+      await _ws!.ready;
+
       _ws!.stream
           .where(_shouldPipeMessage)
           .listen(_onSocketData, cancelOnError: true)
