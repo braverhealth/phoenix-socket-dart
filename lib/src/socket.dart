@@ -171,7 +171,9 @@ class PhoenixSocket {
   bool get isConnected => _ws != null && _socketState == SocketState.connected;
 
   void _connect(Completer<PhoenixSocket?> completer) async {
-    if (_ws != null) {
+    if (_ws != null &&
+        (_socketState != SocketState.connected ||
+            _socketState != SocketState.connecting)) {
       _logger.warning(
           'Calling connect() on already connected or connecting socket.');
       completer.complete(this);
@@ -514,10 +516,6 @@ class PhoenixSocket {
   void _onSocketData(message) => onSocketDataCallback(message);
 
   void _onSocketError(dynamic error, dynamic stacktrace) {
-    if (_socketState == SocketState.closing ||
-        _socketState == SocketState.closed) {
-      return;
-    }
     final socketError = PhoenixSocketErrorEvent(
       error: error,
       stacktrace: stacktrace,
