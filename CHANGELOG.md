@@ -1,3 +1,8 @@
+## [0.7.3.]
+
+- Reduce reliance of the package on 3rd party dependencies
+- Await for a successful connection to the websocket before listening to messages
+
 ## [0.7.2.]
 
 - Delay channel join until socket is open
