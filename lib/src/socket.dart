@@ -194,6 +194,13 @@ class PhoenixSocket {
           ? _webSocketChannelFactory!(_mountPoint)
           : WebSocketChannel.connect(_mountPoint);
 
+      _socketState = SocketState.connecting;
+
+      // Wait for the WebSocket to be ready before continuing. In case of a
+      // failure to connect, the future will complete with an error and will be
+      // caught.
+      await _ws!.ready;
+
       _ws!.stream
           .where(_shouldPipeMessage)
           .listen(_onSocketData, cancelOnError: true)
@@ -204,14 +211,8 @@ class PhoenixSocket {
     }
 
     _reconnectAttempts++;
-    _socketState = SocketState.connecting;
 
     try {
-      // Wait for the WebSocket to be ready before continuing. In case of a
-      // failure to connect, the future will complete with an error and will be
-      // caught.
-      await _ws!.ready;
-
       _socketState = SocketState.connected;
 
       _logger.finest('Waiting for initial heartbeat roundtrip');
