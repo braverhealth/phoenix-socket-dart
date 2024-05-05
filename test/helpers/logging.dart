@@ -3,7 +3,7 @@ import 'package:logging/logging.dart';
 import 'env/base.dart' if (dart.library.io) 'env/_io.dart';
 
 void maybeActivateAllLogLevels() {
-  if (shouldPrintAllLogs()) {
+  if (!shouldPrintAllLogs()) {
     return;
   }
 
