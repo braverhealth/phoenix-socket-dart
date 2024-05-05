@@ -3,14 +3,25 @@ import 'dart:async';
 import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:test/test.dart';
 
-import 'control.dart';
+import 'helpers/logging.dart';
+import 'helpers/proxy.dart';
+
+Set<int> usedPorts = {};
 
 void main() {
-  const addr = 'ws://localhost:4001/socket/websocket';
-
   group('PhoenixChannel', () {
+    const addr = 'ws://localhost:4004/socket/websocket';
+
+    setUpAll(() {
+      maybeActivateAllLogLevels();
+    });
+
     setUp(() async {
-      await restartBackend();
+      await prepareProxy();
+    });
+
+    tearDown(() async {
+      await destroyProxy();
     });
 
     test('can join a channel through a socket', () async {
@@ -28,10 +39,11 @@ void main() {
 
     test('can join a channel through a socket that starts closed then connects',
         () async {
+      await haltThenResumeProxy();
+
       final socket = PhoenixSocket(addr);
       final completer = Completer<void>();
 
-      await stopThenRestartBackend();
       await socket.connect();
 
       socket.addChannel(topic: 'channel1').join().onReply('ok', (reply) {
@@ -50,15 +62,41 @@ void main() {
 
       await socket.connect();
 
-      await stopBackend();
+      await haltProxy();
       final joinFuture = socket.addChannel(topic: 'channel1').join();
       Future.delayed(const Duration(milliseconds: 300))
-          .then((value) => restartBackend());
+          .then((value) => resumeProxy());
 
       joinFuture.onReply('ok', (reply) {
         expect(reply.status, equals('ok'));
         completer.complete();
       });
+
+      await completer.future;
+    });
+
+    test(
+        'can join a channel through a socket that gets a "peer reset" before join but reconnects',
+        () async {
+      final socket = PhoenixSocket(addr);
+      final completer = Completer<void>();
+
+      await socket.connect();
+      addTearDown(() {
+        socket.close();
+      });
+      await resetPeer();
+
+      runZonedGuarded(() {
+        final joinFuture = socket.addChannel(topic: 'channel1').join();
+        joinFuture.onReply('ok', (reply) {
+          expect(reply.status, equals('ok'));
+          completer.complete();
+        });
+      }, (error, stack) {});
+
+      Future.delayed(const Duration(milliseconds: 1000))
+          .then((value) => resetPeer(enable: false));
 
       await completer.future;
     });
@@ -137,8 +175,8 @@ void main() {
     });
 
     test(
-        'can send messages to channels that got transiently disconnected and receive a reply',
-        () async {
+        'can send messages to channels that got transiently '
+        'disconnected and receive a reply', () async {
       final socket = PhoenixSocket(addr);
 
       await socket.connect();
@@ -146,12 +184,90 @@ void main() {
       final channel1 = socket.addChannel(topic: 'channel1');
       await channel1.join().future;
 
-      await stopThenRestartBackend();
+      await haltThenResumeProxy();
+      await socket.openStream.first;
 
       final reply = await channel1.push('hello!', {'foo': 'bar'}).future;
       expect(reply.status, equals('ok'));
       expect(reply.response, equals({'name': 'bar'}));
     });
+
+    test(
+        'can send messages to channels that got "peer reset" '
+        'and receive a reply', () async {
+      final socket = PhoenixSocket(addr);
+
+      await socket.connect();
+
+      final channel1 = socket.addChannel(topic: 'channel1');
+      await channel1.join().future;
+
+      await resetPeerThenResumeProxy();
+
+      final push = channel1.push('hello!', {'foo': 'bar'});
+      final reply = await push.future;
+
+      expect(reply.status, equals('ok'));
+      expect(reply.response, equals({'name': 'bar'}));
+    });
+
+    test(
+        'throws when sending messages to channels that got "peer reset" '
+        'and that have not recovered yet', () async {
+      final socket = PhoenixSocket(addr);
+
+      await socket.connect();
+
+      final channel1 = socket.addChannel(topic: 'channel1');
+      await channel1.join().future;
+
+      await resetPeer();
+
+      final Completer<Object> errorCompleter = Completer();
+
+      runZonedGuarded(() async {
+        final push = channel1.push('hello!', {'foo': 'bar'});
+        try {
+          await push.future;
+        } catch (err) {
+          errorCompleter.complete(err);
+        }
+      }, (error, stack) {});
+
+      final Object exception;
+      expect(exception = await errorCompleter.future, isA<PhoenixException>());
+      expect((exception as PhoenixException).socketClosed, isNotNull);
+    });
+
+    test(
+      'throws when sending messages to channels that got disconnected '
+      'and that have not recovered yet',
+      () async {
+        final socket = PhoenixSocket(addr);
+
+        await socket.connect();
+
+        final channel1 = socket.addChannel(topic: 'channel1');
+        await channel1.join().future;
+
+        await haltProxy();
+
+        final Completer<Object> errorCompleter = Completer();
+        runZonedGuarded(() async {
+          try {
+            final push = channel1.push('hello!', {'foo': 'bar'});
+            await push.future;
+          } catch (err) {
+            errorCompleter.complete(err);
+          }
+        }, (error, stack) {});
+
+        expect(await errorCompleter.future, isA<ChannelClosedError>());
+      },
+      timeout: Timeout(
+        Duration(seconds: 5),
+      ),
+    );
 
     test('only emits reply messages that are channel replies', () async {
       final socket = PhoenixSocket(addr);
@@ -194,6 +310,11 @@ void main() {
       await socket2.connect();
       final channel2 = socket2.addChannel(topic: 'channel3');
       await channel2.join().future;
+
+      addTearDown(() {
+        socket1.close();
+        socket2.close();
+      });
 
       expect(
         channel1.messages,
@@ -249,6 +370,11 @@ void main() {
       final channel2 = socket2.addChannel(topic: 'channel3');
       await channel2.join().future;
 
+      addTearDown(() {
+        socket1.close();
+        socket2.close();
+      });
+
       channel1.push('ping', {'from': 'socket1'});
 
       expect(
@@ -277,6 +403,11 @@ void main() {
       await socket2.connect();
       final channel2 = socket2.addChannel(topic: 'channel3');
       await channel2.join().future;
+
+      addTearDown(() {
+        socket1.close();
+        socket2.close();
+      });
 
       channel1.push('ping', {'from': 'socket1'});
 
@@ -315,8 +446,8 @@ void main() {
       final socket = PhoenixSocket(addr);
       await socket.connect();
       final channel = socket.addChannel(topic: 'channel3');
-      await channel.join().future;
 
+      await channel.join().future;
       await channel.leave().future;
 
       expect(
