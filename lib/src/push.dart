@@ -202,7 +202,7 @@ class Push {
 
     _timeoutTimer ??= Timer(timeout!, () {
       _timeoutTimer = null;
-      _logger.warning('Push $ref timed out');
+      _logger.warning(() => 'Push $ref timed out');
       _channel.trigger(Message.timeoutFor(ref));
     });
   }
@@ -268,6 +268,7 @@ class Push {
   // Remove existing waiters and reset completer
   void cleanUp() {
     if (_sent) {
+      _logger.fine('Cleaning up completer');
       clearReceivers();
       _responseCompleter = Completer();
     }
@@ -279,7 +280,9 @@ class Push {
       if (response.event == replyEvent) {
         trigger(PushResponse.fromMessage(response));
       }
-    } else {
+    } else if (event != PhoenixChannelEvent.join) {
+      _logger.finest(
+          () => "Completing with error: ${_responseCompleter.hashCode}");
       if (!_responseCompleter.isCompleted) {
         _responseCompleter.completeError(response);
         clearReceivers();
