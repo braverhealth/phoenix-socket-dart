@@ -9,7 +9,7 @@ environment:
 
 dependencies:
   phoenix_socket:
-    path: ../../
+    path: ../
 
   uuid: ^3.0.1
 
