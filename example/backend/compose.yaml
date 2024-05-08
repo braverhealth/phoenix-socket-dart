@@ -1,0 +1,14 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 4001:4001
+      - 4002:4002
+
+  proxy:
+    image: ghcr.io/shopify/toxiproxy
+    ports:
+      - 8474:8474
+      - 4004:4004

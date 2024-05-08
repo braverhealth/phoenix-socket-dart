@@ -133,8 +133,7 @@ class PhoenixChannelEvent {
       value.startsWith(__replyEventName);
 
   /// Whether the event name is a 'channel reply' event
-  bool get isChannelReply =>
-      value.startsWith(__chanReplyEventName);
+  bool get isChannelReply => value.startsWith(__chanReplyEventName);
 
   @override
   bool operator ==(Object other) =>
@@ -142,4 +141,7 @@ class PhoenixChannelEvent {
 
   @override
   int get hashCode => Object.hash(runtimeType, value);
+
+  @override
+  String toString() => 'PhoenixChannelEvent($value)';
 }

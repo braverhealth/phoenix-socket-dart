@@ -13,11 +13,17 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      phoenix:
+      backend:
         image: braverhq/phoenix-dart-server
         ports:
           - 4001:4001
           - 4002:4002
+        
+      proxy:
+        image: ghcr.io/shopify/toxiproxy
+        ports:
+          - 8474:8474
+          - 4004:4004
 
     steps:
 
