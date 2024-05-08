@@ -1,9 +1,13 @@
 ### Phoenix Socket examples
 
 - [Simple Dart-only example][1]
-- [Simple Flutter example][2]
-- [Backend Phoenix service backing both of them][3]
+- [Flutter example][2]
+- [Flutter Presence example][3]
+- [Reactive example][4]
+- [Backend Phoenix service backing both of them][5]
 
 [1]: https://github.com/matehat/phoenix-socket-dart/tree/master/example/simple
-[2]: https://github.com/matehat/phoenix-socket-dart/tree/master/example/flutter_app
-[3]: https://github.com/matehat/phoenix-socket-dart/tree/master/example/backend
+[2]: https://github.com/matehat/phoenix-socket-dart/tree/master/example/more_examples/flutter_app
+[3]: https://github.com/matehat/phoenix-socket-dart/tree/master/example/more_examples/flutter_presence_app
+[4]: https://github.com/matehat/phoenix-socket-dart/tree/master/example/more_examples/reactive
+[5]: https://github.com/matehat/phoenix-socket-dart/tree/master/example/backend
