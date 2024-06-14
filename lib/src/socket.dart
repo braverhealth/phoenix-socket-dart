@@ -239,6 +239,7 @@ class PhoenixSocket {
     else {
       // without a bearer token we don't do anything and start the retry loop
       _logger.severe('Invalid bearer token: "$token"');
+      _stateStreamController.add(PhoenixSocketErrorEvent(error: "Invalid bearer token", stacktrace: null));
       _ws = null;
       _socketState = SocketState.closed;
       _reconnectAttempts++;
