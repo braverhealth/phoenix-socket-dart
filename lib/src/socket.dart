@@ -47,15 +47,15 @@ class PhoenixSocket {
   /// endpoint is the full url to which you wish to connect
   /// e.g. `ws://localhost:4000/websocket/socket`
   PhoenixSocket(
-    /// The URL of the Phoenix server.
-    String endpoint, {
-    /// The options used when initiating and maintaining the
-    /// websocket connection.
-    PhoenixSocketOptions? socketOptions,
+      /// The URL of the Phoenix server.
+      String endpoint, {
+        /// The options used when initiating and maintaining the
+        /// websocket connection.
+        PhoenixSocketOptions? socketOptions,
 
-    /// The factory to use to create the WebSocketChannel.
-    WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
-  })  : _endpoint = endpoint,
+        /// The factory to use to create the WebSocketChannel.
+        WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
+      })  : _endpoint = endpoint,
         _socketState = SocketState.unknown,
         _webSocketChannelFactory = webSocketChannelFactory {
     _options = socketOptions ?? PhoenixSocketOptions();
@@ -85,9 +85,9 @@ class PhoenixSocket {
   final Map<String, Stream<Message>> _topicStreams = {};
 
   final BehaviorSubject<PhoenixSocketEvent> _stateStreamController =
-      BehaviorSubject();
+  BehaviorSubject();
   final StreamController<String> _receiveStreamController =
-      StreamController.broadcast();
+  StreamController.broadcast();
   final String _endpoint;
   final StreamController<Message> _topicMessages = StreamController();
   final WebSocketChannel Function(Uri uri)? _webSocketChannelFactory;
@@ -187,49 +187,63 @@ class PhoenixSocket {
     }
 
     _mountPoint = await _buildMountPoint(_endpoint, _options);
-    _logger.finest(() => 'Attempting to connect to $_mountPoint');
 
-    try {
-      _ws = _webSocketChannelFactory != null
-          ? _webSocketChannelFactory!(_mountPoint)
-          : WebSocketChannel.connect(_mountPoint);
+    // workaround to check the existing bearer token
+    final token = _mountPoint.queryParameters["token"];
 
-      _ws!.stream
-          .where(_shouldPipeMessage)
-          .listen(_onSocketData, cancelOnError: true)
-        ..onError(_onSocketError)
-        ..onDone(_onSocketClosed);
-    } catch (error, stacktrace) {
-      _onSocketError(error, stacktrace);
-    }
+    if(token != null && token.length > 1) {
+      _logger.finest(() => 'Attempting to connect to $_mountPoint');
 
-    _reconnectAttempts++;
-    _socketState = SocketState.connecting;
+      try {
+        _ws = _webSocketChannelFactory != null
+            ? _webSocketChannelFactory!(_mountPoint)
+            : WebSocketChannel.connect(_mountPoint);
 
-    try {
-      // Wait for the WebSocket to be ready before continuing. In case of a
-      // failure to connect, the future will complete with an error and will be
-      // caught.
-      await _ws!.ready;
-
-      _socketState = SocketState.connected;
-
-      _logger.finest('Waiting for initial heartbeat roundtrip');
-      if (await _sendHeartbeat(ignorePreviousHeartbeat: true)) {
-        _stateStreamController.add(PhoenixSocketOpenEvent());
-        _logger.info('Socket open');
-        completer.complete(this);
-      } else {
-        throw PhoenixException();
+        _ws!.stream
+            .where(_shouldPipeMessage)
+            .listen(_onSocketData, cancelOnError: true)
+          ..onError(_onSocketError)
+          ..onDone(_onSocketClosed);
+      } catch (error, stacktrace) {
+        _onSocketError(error, stacktrace);
       }
-    } catch (err, stackTrace) {
-      _logger.severe('Raised Exception', err, stackTrace);
 
+      _reconnectAttempts++;
+      _socketState = SocketState.connecting;
+
+      try {
+        // Wait for the WebSocket to be ready before continuing. In case of a
+        // failure to connect, the future will complete with an error and will be
+        // caught.
+        await _ws!.ready;
+
+        _socketState = SocketState.connected;
+
+        _logger.finest('Waiting for initial heartbeat roundtrip');
+        if (await _sendHeartbeat(ignorePreviousHeartbeat: true)) {
+          _stateStreamController.add(PhoenixSocketOpenEvent());
+          _logger.info('Socket open');
+          completer.complete(this);
+        } else {
+          throw PhoenixException();
+        } // else
+      } catch (err, stackTrace) {
+        _logger.severe('Raised Exception', err, stackTrace);
+
+        _ws = null;
+        _socketState = SocketState.closed;
+
+        completer.complete(_delayedReconnect());
+      } // catch
+    } // if
+    else {
+      // without a bearer token we don't do anything and start the retry loop
+      _logger.severe('Invalid bearer token: "$token"');
       _ws = null;
       _socketState = SocketState.closed;
-
+      _reconnectAttempts++;
       completer.complete(_delayedReconnect());
-    }
+    } // else
   }
 
   /// Attempts to make a WebSocket connection to the Phoenix backend.
@@ -565,7 +579,7 @@ class PhoenixSocket {
       return;
     } else {
       _logger.info(
-        () => 'Socket closed with reason ${ev.reason} and code ${ev.code}',
+            () => 'Socket closed with reason ${ev.reason} and code ${ev.code}',
       );
       _triggerChannelExceptions(exc);
     }
@@ -600,6 +614,7 @@ class PhoenixSocket {
       duration = _reconnects[durationIdx];
     }
 
+    print("Reconnection: ${duration}");
     // Some random number to prevent many clients from retrying to
     // connect at exactly the same time.
     return duration + Duration(milliseconds: _random.nextInt(1000));
