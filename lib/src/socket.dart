@@ -614,7 +614,6 @@ class PhoenixSocket {
       duration = _reconnects[durationIdx];
     }
 
-    print("Reconnection: ${duration}");
     // Some random number to prevent many clients from retrying to
     // connect at exactly the same time.
     return duration + Duration(milliseconds: _random.nextInt(1000));
