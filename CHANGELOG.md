@@ -1,3 +1,7 @@
+## [0.7.4.]
+
+- Fix some race conditions when handling connectivity issues
+
 ## [0.7.3.]
 
 - Reduce reliance of the package on 3rd party dependencies

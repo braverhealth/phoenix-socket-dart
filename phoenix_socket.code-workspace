@@ -1,14 +1,29 @@
 {
-	"folders": [
-		{
-			"path": "."
-		},
-		{
-			"path": "example/backend"
-		}
-	],
-	"settings": {
-		"editor.formatOnSave": true,
-		"elixirLS.fetchDeps": true
-	}
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "example/backend"
+    }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "elixirLS.fetchDeps": true,
+    "[dart]": {
+      "editor.tabSize": 2,
+      "editor.insertSpaces": true,
+      "editor.detectIndentation": false,
+      "editor.suggest.insertMode": "replace",
+      "editor.formatOnSave": true,
+      "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit",
+        "source.fixAll": "explicit"
+      }
+    },
+    "dart.env": {
+      "LOG_ALL_LEVELS": "y"
+    },
+    "dart.testAdditionalArgs": ["--chain-stack-traces"]
+  }
 }
