@@ -281,13 +281,9 @@ class PhoenixChannel {
       _logger.finest(() => 'Sending out push ${pushEvent.ref}');
       pushEvent.send();
     } else {
-      if (_state == PhoenixChannelState.closed ||
-          _state == PhoenixChannelState.errored) {
-        throw ChannelClosedError('Can\'t push event on a $_state channel');
-      }
-
       _logger.finest(
           () => 'Buffering push ${pushEvent.ref} for later send ($_state)');
+      pushEvent.startTimeout();
       pushBuffer.add(pushEvent);
     }
 
