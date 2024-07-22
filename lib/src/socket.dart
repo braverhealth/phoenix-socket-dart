@@ -170,10 +170,19 @@ class PhoenixSocket {
   /// Whether the underlying socket is connected of not.
   bool get isConnected => _ws != null && _socketState == SocketState.connected;
 
+  bool get _isConnectingOrConnected =>
+      _ws != null &&
+      (_socketState == SocketState.connected ||
+          _socketState == SocketState.connecting);
+
+  void _checkNotDisposed() {
+    if (_disposed) {
+      throw StateError('PhoenixSocket cannot connect after being disposed.');
+    }
+  }
+
   void _connect(Completer<PhoenixSocket?> completer) async {
-    if (_ws != null &&
-        (_socketState == SocketState.connected ||
-            _socketState == SocketState.connecting)) {
+    if (_isConnectingOrConnected) {
       _logger.warning(
           'Calling connect() on already connected or connecting socket.');
       completer.complete(this);
@@ -182,11 +191,19 @@ class PhoenixSocket {
 
     _shouldReconnect = true;
 
-    if (_disposed) {
-      throw StateError('PhoenixSocket cannot connect after being disposed.');
-    }
+    _checkNotDisposed();
 
     _mountPoint = await _buildMountPoint(_endpoint, _options);
+
+    // Double-check in case something changed during the async call above.
+    if (_isConnectingOrConnected) {
+      _logger.warning(
+          'Calling connect() on already connected or connecting socket.');
+      completer.complete(this);
+      return;
+    }
+
+    _checkNotDisposed();
 
     // workaround to check the existing bearer token
     final token = _mountPoint.queryParameters["token"];
