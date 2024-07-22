@@ -11,6 +11,7 @@ export 'mocks.mocks.dart';
     MockSpec<PhoenixSocket>(),
     MockSpec<WebSocketChannel>(),
     MockSpec<WebSocketSink>(),
+    MockSpec<PhoenixSocketOptions>(),
   ],
 )
 class MockTest extends Mock {
