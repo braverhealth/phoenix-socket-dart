@@ -13,6 +13,10 @@ class PhoenixSocketOptions {
     /// The interval between heartbeat roundtrips
     Duration? heartbeat,
 
+    /// The duration after which a heartbeat request
+    /// is considered timed out
+    Duration? heartbeatTimeout,
+
     /// The list of delays between reconnection attempts.
     ///
     /// The last duration will be repeated until it works.
@@ -40,6 +44,7 @@ class PhoenixSocketOptions {
   })  : _timeout = timeout ?? const Duration(seconds: 10),
         serializer = serializer ?? const MessageSerializer(),
         _heartbeat = heartbeat ?? const Duration(seconds: 30),
+        _heartbeatTimeout = heartbeatTimeout ?? const Duration(seconds: 10),
         assert(!(params != null && dynamicParams != null),
             "Can't set both params and dynamicParams");
 
@@ -49,12 +54,18 @@ class PhoenixSocketOptions {
 
   final Duration _timeout;
   final Duration _heartbeat;
+  final Duration _heartbeatTimeout;
 
   /// Duration after which a request is assumed to have timed out.
   Duration get timeout => _timeout;
 
   /// Duration between heartbeats
   Duration get heartbeat => _heartbeat;
+
+  /// Duration after which a heartbeat request is considered timed out.
+  /// If the server does not respond to a heartbeat request within this
+  /// duration, the connection is considered lost.
+  Duration get heartbeatTimeout => _heartbeatTimeout;
 
   /// Optional list of Duration between reconnect attempts
   final List<Duration> reconnectDelays;

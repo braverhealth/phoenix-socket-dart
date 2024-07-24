@@ -210,7 +210,7 @@ class PhoenixSocket {
       // Wait for the WebSocket to be ready before continuing. In case of a
       // failure to connect, the future will complete with an error and will be
       // caught.
-      await _ws!.ready;
+      await _ws!.ready.timeout(_options.timeout);
 
       _socketState = SocketState.connected;
 
@@ -455,9 +455,19 @@ class PhoenixSocket {
     }
 
     try {
-      await sendMessage(_heartbeatMessage());
+      await sendMessage(_heartbeatMessage()).timeout(_options.heartbeatTimeout);
       _logger.fine('[phoenix_socket] Heartbeat completed');
       return true;
+    } on TimeoutException catch (err, stacktrace) {
+      _logger.severe(
+        '[phoenix_socket] Heartbeat message timed out',
+        err,
+        stacktrace,
+      );
+      if (_ws != null) {
+        _closeSink(normalClosure, 'heartbeat timeout');
+      }
+      return false;
     } on WebSocketChannelException catch (err, stacktrace) {
       _logger.severe(
         '[phoenix_socket] Heartbeat message failed: WebSocketChannelException',
