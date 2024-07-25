@@ -282,6 +282,7 @@ class PhoenixSocket {
 
     _disposed = true;
     _ws?.sink.close();
+    _cancelHeartbeat();
 
     for (final sub in _subscriptions) {
       sub.cancel();
