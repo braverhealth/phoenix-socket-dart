@@ -15,6 +15,7 @@ void main() {
     final websocket = MockWebSocketChannel();
     final phoenixSocket = PhoenixSocket(
       'endpoint',
+      socketOptions: PhoenixSocketOptions(params: {'token': 'token'}),
       webSocketChannelFactory: (_) => websocket,
     );
     int invocations = 0;

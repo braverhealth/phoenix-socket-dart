@@ -47,15 +47,15 @@ class PhoenixSocket {
   /// endpoint is the full url to which you wish to connect
   /// e.g. `ws://localhost:4000/websocket/socket`
   PhoenixSocket(
-      /// The URL of the Phoenix server.
-      String endpoint, {
-        /// The options used when initiating and maintaining the
-        /// websocket connection.
-        PhoenixSocketOptions? socketOptions,
+    /// The URL of the Phoenix server.
+    String endpoint, {
+    /// The options used when initiating and maintaining the
+    /// websocket connection.
+    PhoenixSocketOptions? socketOptions,
 
-        /// The factory to use to create the WebSocketChannel.
-        WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
-      })  : _endpoint = endpoint,
+    /// The factory to use to create the WebSocketChannel.
+    WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
+  })  : _endpoint = endpoint,
         _socketState = SocketState.unknown,
         _webSocketChannelFactory = webSocketChannelFactory {
     _options = socketOptions ?? PhoenixSocketOptions();
@@ -85,9 +85,9 @@ class PhoenixSocket {
   final Map<String, Stream<Message>> _topicStreams = {};
 
   final BehaviorSubject<PhoenixSocketEvent> _stateStreamController =
-  BehaviorSubject();
+      BehaviorSubject();
   final StreamController<String> _receiveStreamController =
-  StreamController.broadcast();
+      StreamController.broadcast();
   final String _endpoint;
   final StreamController<Message> _topicMessages = StreamController();
   final WebSocketChannel Function(Uri uri)? _webSocketChannelFactory;
@@ -164,57 +164,49 @@ class PhoenixSocket {
   String get endpoint => _endpoint;
 
   /// The [Uri] containing all the parameters and options for the
-  /// remote connection to occue.
+  /// remote connection to occur.
   Uri get mountPoint => _mountPoint;
 
   /// Whether the underlying socket is connected of not.
   bool get isConnected => _ws != null && _socketState == SocketState.connected;
 
   bool get _isConnectingOrConnected =>
-      _ws != null &&
-      (_socketState == SocketState.connected ||
-          _socketState == SocketState.connecting);
+      _socketState == SocketState.connecting || isConnected;
 
-  void _checkNotDisposed() {
-    if (_disposed) {
-      throw StateError('PhoenixSocket cannot connect after being disposed.');
-    }
-  }
-
-  void _connect(Completer<PhoenixSocket?> completer) async {
+  Future<void> connect() async {
     if (_isConnectingOrConnected) {
       _logger.warning(
-          'Calling connect() on already connected or connecting socket.');
-      completer.complete(this);
+        'Calling connect() on already connected or connecting socket.',
+      );
       return;
     }
 
     _shouldReconnect = true;
 
-    _checkNotDisposed();
-
-    _mountPoint = await _buildMountPoint(_endpoint, _options);
-
-    // Double-check in case something changed during the async call above.
-    if (_isConnectingOrConnected) {
-      _logger.warning(
-          'Calling connect() on already connected or connecting socket.');
-      completer.complete(this);
-      return;
+    if (_disposed) {
+      throw StateError('PhoenixSocket cannot connect after being disposed.');
     }
 
-    _checkNotDisposed();
+    _socketState = SocketState.connecting;
+    _mountPoint = await _buildMountPoint(_endpoint, _options);
 
     // workaround to check the existing bearer token
     final token = _mountPoint.queryParameters["token"];
 
-    if(token != null && token.length > 1) {
+    if (token != null && token.length > 1) {
       _logger.finest(() => 'Attempting to connect to $_mountPoint');
 
       try {
         _ws = _webSocketChannelFactory != null
             ? _webSocketChannelFactory!(_mountPoint)
             : WebSocketChannel.connect(_mountPoint);
+
+        // Wait for the WebSocket to be ready before continuing. In case of a
+        // failure to connect, the future will complete with an error and will be
+        // caught.
+        await _ws!.ready;
+
+        _socketState = SocketState.connected;
 
         _ws!.stream
             .where(_shouldPipeMessage)
@@ -226,55 +218,37 @@ class PhoenixSocket {
       }
 
       _reconnectAttempts++;
-      _socketState = SocketState.connecting;
 
       try {
-        // Wait for the WebSocket to be ready before continuing. In case of a
-        // failure to connect, the future will complete with an error and will be
-        // caught.
-        await _ws!.ready;
-
-        _socketState = SocketState.connected;
-
-        _logger.finest('Waiting for initial heartbeat roundtrip');
+        _logger.finest('Waiting for initial heartbeat round trip');
         if (await _sendHeartbeat(ignorePreviousHeartbeat: true)) {
           _stateStreamController.add(PhoenixSocketOpenEvent());
           _logger.info('Socket open');
-          completer.complete(this);
+          return;
         } else {
           throw PhoenixException();
         } // else
       } catch (err, stackTrace) {
         _logger.severe('Raised Exception', err, stackTrace);
-
         _ws = null;
         _socketState = SocketState.closed;
-
-        completer.complete(_delayedReconnect());
+        return _delayedReconnect();
       } // catch
     } // if
     else {
       // without a bearer token we don't do anything and start the retry loop
       _logger.severe('Invalid bearer token: "$token"');
-      _stateStreamController.add(PhoenixSocketErrorEvent(error: "Invalid bearer token", stacktrace: null));
+      _stateStreamController.add(
+        PhoenixSocketErrorEvent(
+          error: "Invalid bearer token",
+          stacktrace: null,
+        ),
+      );
       _ws = null;
       _socketState = SocketState.closed;
       _reconnectAttempts++;
-      completer.complete(_delayedReconnect());
+      return _delayedReconnect();
     } // else
-  }
-
-  /// Attempts to make a WebSocket connection to the Phoenix backend.
-  ///
-  /// If the attempt fails, retries will be triggered at intervals specified
-  /// by retryAfterIntervalMS
-  Future<PhoenixSocket?> connect() async {
-    final completer = Completer<PhoenixSocket?>();
-    runZonedGuarded(
-      () => _connect(completer),
-      (error, stack) {},
-    );
-    return completer.future;
   }
 
   /// Close the underlying connection supporting the socket.
@@ -353,7 +327,7 @@ class PhoenixSocket {
 
   /// Send a channel on the socket.
   ///
-  /// Used internall to send prepared message. If you need to send
+  /// Used internal to send prepared message. If you need to send
   /// a message on a channel, you would usually use [PhoenixChannel.push]
   /// instead.
   Future<Message> sendMessage(Message message) {
@@ -597,7 +571,7 @@ class PhoenixSocket {
       return;
     } else {
       _logger.info(
-            () => 'Socket closed with reason ${ev.reason} and code ${ev.code}',
+        () => 'Socket closed with reason ${ev.reason} and code ${ev.code}',
       );
       _triggerChannelExceptions(exc);
     }
@@ -609,8 +583,8 @@ class PhoenixSocket {
     _pendingMessages.clear();
   }
 
-  Future<PhoenixSocket?> _delayedReconnect() async {
-    if (_reconnecting) return null;
+  Future<void> _delayedReconnect() async {
+    if (_reconnecting) return;
 
     _reconnecting = true;
     await Future.delayed(_reconnectDelay());
@@ -619,8 +593,6 @@ class PhoenixSocket {
       _reconnecting = false;
       return connect();
     }
-
-    return null;
   }
 
   Duration _reconnectDelay() {
