@@ -164,7 +164,7 @@ class PhoenixSocket {
   String get endpoint => _endpoint;
 
   /// The [Uri] containing all the parameters and options for the
-  /// remote connection to occue.
+  /// remote connection to occur.
   Uri get mountPoint => _mountPoint;
 
   /// Whether the underlying socket is connected of not.
@@ -222,6 +222,17 @@ class PhoenixSocket {
       } else {
         throw PhoenixException();
       }
+    } on TimeoutException catch (err, stackTrace) {
+      _logger.severe(
+          'Timed out waiting for WebSocket to be ready', err, stackTrace);
+      _closeSink();
+      _ws = null;
+      _socketState = SocketState.closed;
+      // Calling this method will trigger a reconnect
+      // making _shouldReconnect = false as we are manually calling _delayedReconnect()
+      _shouldReconnect = false;
+      _onSocketError(err, stackTrace);
+      completer.complete(_delayedReconnect());
     } catch (err, stackTrace) {
       _logger.severe('Raised Exception', err, stackTrace);
 
