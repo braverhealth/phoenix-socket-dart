@@ -235,7 +235,7 @@ class PhoenixSocket {
       completer.complete(_delayedReconnect());
     } catch (err, stackTrace) {
       _logger.severe('Raised Exception', err, stackTrace);
-
+      _closeSink();
       _ws = null;
       _socketState = SocketState.closed;
 
@@ -573,6 +573,7 @@ class PhoenixSocket {
       code: _ws?.closeCode,
     );
     final exc = PhoenixException(socketClosed: ev);
+    _closeSink();
     _ws = null;
 
     if (!_stateStreamController.isClosed) {
