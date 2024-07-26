@@ -327,7 +327,7 @@ class PhoenixSocket {
 
   /// Send a channel on the socket.
   ///
-  /// Used internal to send prepared message. If you need to send
+  /// Used internally to send prepared message. If you need to send
   /// a message on a channel, you would usually use [PhoenixChannel.push]
   /// instead.
   Future<Message> sendMessage(Message message) {
