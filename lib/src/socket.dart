@@ -188,67 +188,61 @@ class PhoenixSocket {
     }
 
     _socketState = SocketState.connecting;
-    _mountPoint = await _buildMountPoint(_endpoint, _options);
-
-    // workaround to check the existing bearer token
-    final token = _mountPoint.queryParameters["token"];
-
-    if (token != null && token.length > 1) {
-      _logger.finest(() => 'Attempting to connect to $_mountPoint');
-
-      try {
-        _ws = _webSocketChannelFactory != null
-            ? _webSocketChannelFactory!(_mountPoint)
-            : WebSocketChannel.connect(_mountPoint);
-
-        // Wait for the WebSocket to be ready before continuing. In case of a
-        // failure to connect, the future will complete with an error and will be
-        // caught.
-        await _ws!.ready;
-
-        _socketState = SocketState.connected;
-
-        _ws!.stream
-            .where(_shouldPipeMessage)
-            .listen(_onSocketData, cancelOnError: true)
-          ..onError(_onSocketError)
-          ..onDone(_onSocketClosed);
-      } catch (error, stacktrace) {
-        _onSocketError(error, stacktrace);
-      }
-
-      _reconnectAttempts++;
-
-      try {
-        _logger.finest('Waiting for initial heartbeat round trip');
-        if (await _sendHeartbeat(ignorePreviousHeartbeat: true)) {
-          _stateStreamController.add(PhoenixSocketOpenEvent());
-          _logger.info('Socket open');
-          return;
-        } else {
-          throw PhoenixException();
-        } // else
-      } catch (err, stackTrace) {
-        _logger.severe('Raised Exception', err, stackTrace);
-        _ws = null;
-        _socketState = SocketState.closed;
-        return _delayedReconnect();
-      } // catch
-    } // if
-    else {
-      // without a bearer token we don't do anything and start the retry loop
-      _logger.severe('Invalid bearer token: "$token"');
+    try {
+      _mountPoint = await _buildMountPoint(_endpoint, _options);
+    } catch (error, stacktrace) {
       _stateStreamController.add(
         PhoenixSocketErrorEvent(
-          error: "Invalid bearer token",
-          stacktrace: null,
+          error: error,
+          stacktrace: stacktrace,
         ),
       );
       _ws = null;
       _socketState = SocketState.closed;
       _reconnectAttempts++;
       return _delayedReconnect();
-    } // else
+    }
+
+    _logger.finest(() => 'Attempting to connect to $_mountPoint');
+
+    try {
+      _ws = _webSocketChannelFactory != null
+          ? _webSocketChannelFactory!(_mountPoint)
+          : WebSocketChannel.connect(_mountPoint);
+
+      // Wait for the WebSocket to be ready before continuing. In case of a
+      // failure to connect, the future will complete with an error and will be
+      // caught.
+      await _ws!.ready;
+
+      _socketState = SocketState.connected;
+
+      _ws!.stream
+          .where(_shouldPipeMessage)
+          .listen(_onSocketData, cancelOnError: true)
+        ..onError(_onSocketError)
+        ..onDone(_onSocketClosed);
+    } catch (error, stacktrace) {
+      _onSocketError(error, stacktrace);
+    }
+
+    _reconnectAttempts++;
+
+    try {
+      _logger.finest('Waiting for initial heartbeat round trip');
+      if (await _sendHeartbeat(ignorePreviousHeartbeat: true)) {
+        _stateStreamController.add(PhoenixSocketOpenEvent());
+        _logger.info('Socket open');
+        return;
+      } else {
+        throw PhoenixException();
+      }
+    } catch (err, stackTrace) {
+      _logger.severe('Raised Exception', err, stackTrace);
+      _ws = null;
+      _socketState = SocketState.closed;
+      return _delayedReconnect();
+    }
   }
 
   /// Close the underlying connection supporting the socket.

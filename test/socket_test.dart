@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:mockito/mockito.dart';
 import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:rxdart/rxdart.dart';
@@ -112,4 +113,52 @@ void main() {
 
     expect(factoryCalls, 1);
   });
+
+  test(
+    'socket connect keeps retrying if an exception is thrown while building the mount point',
+    () {
+      final mockPhoenixSocketOptions = MockPhoenixSocketOptions();
+      when(mockPhoenixSocketOptions.reconnectDelays).thenReturn(const [
+        Duration.zero,
+        Duration(seconds: 10),
+        Duration(seconds: 20),
+        Duration(seconds: 30),
+      ]);
+      when(mockPhoenixSocketOptions.getParams()).thenThrow(Exception());
+
+      final phoenixSocket = PhoenixSocket(
+        'ws://endpoint',
+        socketOptions: mockPhoenixSocketOptions,
+      );
+
+      fakeAsync(
+        (async) {
+          phoenixSocket.connect();
+
+          verify(mockPhoenixSocketOptions.getParams()).called(1);
+          expect(phoenixSocket.isConnected, isFalse);
+
+          // first retry after ~10 seconds
+          async.elapse(const Duration(seconds: 11));
+          verify(mockPhoenixSocketOptions.getParams()).called(1);
+          expect(phoenixSocket.isConnected, isFalse);
+
+          // second retry after ~20 seconds
+          async.elapse(const Duration(seconds: 21));
+          verify(mockPhoenixSocketOptions.getParams()).called(1);
+          expect(phoenixSocket.isConnected, isFalse);
+
+          // third retry after ~30 seconds
+          async.elapse(const Duration(seconds: 31));
+          verify(mockPhoenixSocketOptions.getParams()).called(1);
+          expect(phoenixSocket.isConnected, isFalse);
+
+          // fourth retry after ~30 seconds (the last reconnect delay is repeated from now on)
+          async.elapse(const Duration(seconds: 31));
+          verify(mockPhoenixSocketOptions.getParams()).called(1);
+          expect(phoenixSocket.isConnected, isFalse);
+        },
+      );
+    },
+  );
 }
