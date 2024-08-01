@@ -548,7 +548,7 @@ class PhoenixSocket {
     }
 
     final ev = PhoenixSocketCloseEvent(
-      reason: _ws?.closeReason ?? 'WebSocket could not establish a connection',
+      reason: _ws?.closeReason ?? 'WebSocket closed without providing a reason',
       code: _ws?.closeCode,
     );
     final exc = PhoenixException(socketClosed: ev);
