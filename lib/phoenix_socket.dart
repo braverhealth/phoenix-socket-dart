@@ -23,6 +23,5 @@ export 'src/message.dart';
 export 'src/message_serializer.dart';
 export 'src/presence.dart';
 export 'src/push.dart';
-export 'src/raw_socket.dart';
 export 'src/socket.dart';
 export 'src/socket_options.dart';
