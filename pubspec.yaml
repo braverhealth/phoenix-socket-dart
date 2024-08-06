@@ -13,6 +13,7 @@ environment:
 dependencies:
   logging: ^1.0.0
   rxdart: ">=0.26.0 <0.28.0"
+  stack_trace: ^1.11.1
   web_socket_channel: ^2.0.0
 
 dev_dependencies:
