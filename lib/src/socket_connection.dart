@@ -143,9 +143,10 @@ class SocketConnectionManager {
       connectionCompleter = completer;
     }
 
-    await Future.delayed(delayDuration);
-
-    _attemptConnectionWithCompleter(connectionCompleter);
+    Future.delayed(
+      delayDuration,
+      () => _attemptConnectionWithCompleter(connectionCompleter),
+    );
 
     return connectionCompleter.future;
   }
@@ -154,9 +155,10 @@ class SocketConnectionManager {
     Completer<_WsConnection> connectionCompleter,
   ) {
     if (_disposed) {
-      throw StateError(
+      connectionCompleter.completeError(StateError(
         'WebSocket connection manager disposed during connection delay',
-      );
+      ));
+      return;
     }
 
     if (_pendingConnection != connectionCompleter.future) {
