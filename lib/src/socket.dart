@@ -125,6 +125,8 @@ class PhoenixSocket {
 
   Timer? _heartbeatTimeout;
 
+  String? _latestHeartbeatRef;
+
   /// [Map] of topic names to [PhoenixChannel] instances being
   /// maintained and tracked by the socket.
   Map<String, PhoenixChannel> channels = {};
@@ -289,6 +291,10 @@ class PhoenixSocket {
       );
     }
     _addToSink(_options.serializer.encode(message));
+    if (message.event != PhoenixChannelEvent.heartbeat) {
+      _cancelHeartbeat();
+      _scheduleHeartbeat();
+    }
     return (_pendingMessages[message.ref!] = Completer<Message>()).future;
   }
 
@@ -391,18 +397,11 @@ class PhoenixSocket {
       final heartbeatMessage = Message.heartbeat(nextRef);
       await sendMessage(heartbeatMessage);
       _logger.fine('Heartbeat ${heartbeatMessage.ref} sent');
+      _latestHeartbeatRef = heartbeatMessage.ref;
 
-      _heartbeatTimeout = Timer(_options.heartbeat, () {
-        final completer = _pendingMessages.remove(heartbeatMessage.ref);
-        if (completer == null || completer.isCompleted) {
-          scheduleMicrotask(_sendHeartbeat);
-        } else {
-          completer.completeError(HeartbeatFailedException());
-          _onHeartbeatFailure();
-        }
-      });
+      _heartbeatTimeout = _scheduleHeartbeat();
 
-      await _pendingMessages[heartbeatMessage.ref]!.future;
+      await _pendingMessages[_latestHeartbeatRef]!.future;
       return true;
     } on WebSocketChannelException catch (error, stacktrace) {
       _logger.severe(
@@ -425,6 +424,21 @@ class PhoenixSocket {
     }
   }
 
+  Timer _scheduleHeartbeat() {
+    return Timer(_options.heartbeat, () {
+      if (_latestHeartbeatRef != null) {
+        final completer = _pendingMessages.remove(_latestHeartbeatRef);
+        if (completer != null && !completer.isCompleted) {
+          completer.completeError(HeartbeatFailedException());
+          _onHeartbeatFailure();
+          return;
+        }
+      }
+
+      _sendHeartbeat();
+    });
+  }
+
   void _onHeartbeatFailure() {
     _reconnect(4001, 'Heartbeat timeout');
   }
@@ -432,6 +446,10 @@ class PhoenixSocket {
   void _cancelHeartbeat() {
     _heartbeatTimeout?.cancel();
     _heartbeatTimeout = null;
+    if (_latestHeartbeatRef != null) {
+      _pendingMessages.remove(_latestHeartbeatRef);
+      _latestHeartbeatRef = null;
+    }
   }
 
   bool _shouldPipeMessage(String message) {
@@ -465,6 +483,9 @@ class PhoenixSocket {
       if (completer != null) {
         completer.complete(message);
       }
+      // The connection is alive, prevent hearbeat timeout from closing
+      // connection.
+      _latestHeartbeatRef = null;
     }
 
     if (message.topic != null && message.topic!.isNotEmpty) {
