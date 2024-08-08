@@ -29,7 +29,7 @@ class PhoenixSocket {
 
     /// The factory to use to create the WebSocketChannel.
     WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
-  }) : _endpoint = endpoint {
+  }) {
     _options = socketOptions ?? PhoenixSocketOptions();
 
     _messageStream =
@@ -42,9 +42,8 @@ class PhoenixSocket {
         _stateEventStreamController.stream.whereType<PhoenixSocketErrorEvent>();
 
     _connectionManager = SocketConnectionManager(
-      endpoint: endpoint,
       factory: () async {
-        final mountPoint = await _buildMountPoint(_endpoint, _options);
+        final mountPoint = await _buildMountPoint(endpoint, _options);
         return (webSocketChannelFactory ?? WebSocketChannel.connect)
             .call(mountPoint);
       },
@@ -85,7 +84,6 @@ class PhoenixSocket {
       BehaviorSubject();
   final StreamController<String> _receiveStreamController =
       StreamController.broadcast();
-  final String _endpoint;
   final StreamController<Message> _topicMessages = StreamController();
   final BehaviorSubject<WebSocketConnectionState> _socketStateStream =
       BehaviorSubject();
@@ -371,12 +369,12 @@ class PhoenixSocket {
       final heartbeatMessage = Message.heartbeat(nextRef);
       sendMessage(heartbeatMessage);
       _logger.fine('Heartbeat ${heartbeatMessage.ref} sent');
-      _latestHeartbeatRef = heartbeatMessage.ref;
+      final heartbeatRef = _latestHeartbeatRef = heartbeatMessage.ref!;
 
-      _heartbeatTimeout = _scheduleHeartbeat(_latestHeartbeatRef!);
+      _heartbeatTimeout = _scheduleHeartbeat(heartbeatRef);
 
-      await _pendingMessages[_latestHeartbeatRef]!.future;
-      _logger.fine('Heartbeat $_latestHeartbeatRef completed');
+      await _pendingMessages[heartbeatRef]!.future;
+      _logger.fine('Heartbeat $heartbeatRef completed');
       return true;
     } on WebSocketChannelException catch (error, stackTrace) {
       _logger.warning(

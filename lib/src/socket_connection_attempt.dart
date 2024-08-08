@@ -18,8 +18,7 @@ final class SocketConnectionAttempt {
     abort();
   }
 
-  final int id = _random.nextInt(1 << 32);
-  String get idToString => id.toRadixString(16).padLeft(8, '0');
+  final AttemptId id = AttemptId();
 
   final Completer<void> _delayCompleter = Completer();
   Future<void> get completionFuture => _delayCompleter.future;
@@ -42,9 +41,21 @@ final class SocketConnectionAttempt {
     }
     if (!_delayCompleter.isCompleted) {
       _delayCompleter.completeError(
-        'Connection attempt $idToString aborted.',
+        'Connection attempt ${id.toIdString()} aborted.',
         StackTrace.current,
       );
     }
+  }
+}
+
+extension type AttemptId._(int id) {
+  AttemptId() : this._(_random.nextInt(1 << 32));
+
+  String toIdString() {
+    return id.toRadixString(16).padLeft(8, '0');
+  }
+
+  bool equals(AttemptId other) {
+    return other is int && other.id == id;
   }
 }

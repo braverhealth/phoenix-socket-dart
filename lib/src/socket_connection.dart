@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:logging/logging.dart';
 import 'package:phoenix_socket/phoenix_socket.dart';
@@ -13,39 +12,49 @@ typedef WebSocketChannelFactory = Future<WebSocketChannel> Function();
 
 final _logger = Logger('phoenix_socket.connection');
 
-final _random = Random();
-
+/// Maintains connection to the underlying websocket, reconnecting to it if
+/// necessary.
 class SocketConnectionManager {
   SocketConnectionManager({
-    required this.endpoint,
-    required this.factory,
-    required this.reconnectDelays,
-    required this.onMessage,
-    required this.onStateChange,
-    required this.onError,
-  });
+    required Future<WebSocketChannel> Function() factory,
+    required List<Duration> reconnectDelays,
+    required void Function(String) onMessage,
+    required void Function(WebSocketConnectionState) onStateChange,
+    required void Function(Object, [StackTrace?]) onError,
+  })  : _factory = factory,
+        _reconnectDelays = reconnectDelays,
+        _onError = onError,
+        _onStateChange = onStateChange,
+        _onMessage = onMessage;
 
-  final String endpoint;
-  final WebSocketChannelFactory factory;
-  final List<Duration> reconnectDelays;
-  final void Function(String message) onMessage;
-  final void Function(WebSocketConnectionState state) onStateChange;
-  final void Function(Object error, [StackTrace? stacktrace]) onError;
+  final WebSocketChannelFactory _factory;
+  final List<Duration> _reconnectDelays;
+  final void Function(String message) _onMessage;
+  final void Function(WebSocketConnectionState state) _onStateChange;
+  final void Function(Object error, [StackTrace? stacktrace]) _onError;
 
+  /// Currently attempted or live connection. When null, signifies that no
+  /// new attempts are being made.
   Future<_WsConnection>? _pendingConnection;
 
-  bool _disposed = false;
+  /// Count of consecutive attempts at establishing a connection without
+  /// success.
   int _connectionAttempts = 0;
 
   SocketConnectionAttempt _currentAttempt = SocketConnectionAttempt.aborted();
-
   SocketConnectionAttempt _setNewAttempt(Duration delay) {
     return _currentAttempt = SocketConnectionAttempt(delay: delay);
   }
 
+  bool _disposed = false;
+
   /// Requests to start connecting to the socket.
   ///
   /// Has no effect if the connection is already established.
+  ///
+  /// If [immediately] is set to true, then an attempt to connect is made
+  /// immediately. This might result in dropping the current connection and
+  /// establishing a new one.
   void start({bool immediately = false}) {
     if (_disposed) {
       throw StateError('Cannot start: WebSocket connection manager disposed');
@@ -75,6 +84,8 @@ class SocketConnectionManager {
     return _connect().then((connection) => connection.send(message));
   }
 
+  /// Stops the attempts to connect, and closes the current connection if one is
+  /// established.
   void stop(int code, [String? reason]) {
     _logger.fine('Stopping connecting attempts');
     if (_disposed) {
@@ -83,6 +94,10 @@ class SocketConnectionManager {
     _stopConnecting(code, reason);
   }
 
+  /// Disposes of the connection manager. The current connection (or attempt
+  /// at one) is cancelled, and attempt to establish a new one will fail.
+  ///
+  /// If this manager is already disposed, this is a no-op.
   void dispose(int code, [String? reason]) {
     if (_disposed) {
       _logger.info('WebSocket connection manager already disposed');
@@ -113,8 +128,8 @@ class SocketConnectionManager {
       throw StateError('Cannot connect: WebSocket connection manager disposed');
     }
 
-    final pendingConnection = _pendingConnection ??=
-        _attemptConnection(_reconnectDelay(exact: _connectionAttempts == 0));
+    final pendingConnection =
+        _pendingConnection ??= _attemptConnection(_reconnectDelay());
     final connection = await pendingConnection;
     if (_disposed) {
       throw StateError('Cannot connect: WebSocket connection manager disposed');
@@ -142,7 +157,7 @@ class SocketConnectionManager {
   /// - during any asynchronous operation, the [_pendingConnection] is set to
   ///   null, which is interpreted as a prompt to abort connecting.
   ///
-  /// The [onError] callback can be invoked with an instance of
+  /// The [_onError] callback can be invoked with an instance of
   /// [ConnectionInitializationException] in case the initialization of
   /// connection fails. However, the reconnection will be triggered until it is
   /// established, or interrupted by call to [stop] or [dispose].
@@ -164,7 +179,7 @@ class SocketConnectionManager {
         final durationString = delayDuration == Duration.zero
             ? 'now'
             : 'in ${delayDuration.inMilliseconds} milliseconds';
-        return 'Triggering attempt #$_connectionAttempts (ID=${attempt.idToString}) to connect $durationString';
+        return 'Triggering attempt #$_connectionAttempts (ID=${attempt.id.toIdString()}) to connect $durationString';
       });
     }
 
@@ -175,7 +190,7 @@ class SocketConnectionManager {
         )
         .catchError(
           (error) => _logger.info(
-            'Pending connection attempt ${attempt.idToString} aborted',
+            'Pending connection attempt ${attempt.id.toIdString()} aborted',
           ),
         );
 
@@ -184,7 +199,7 @@ class SocketConnectionManager {
 
   void _attemptConnectionWithCompleter(
     Completer<_WsConnection> connectionCompleter,
-    int attemptId,
+    AttemptId attemptId,
   ) async {
     if (_disposed) {
       connectionCompleter.completeError(StateError(
@@ -193,7 +208,7 @@ class SocketConnectionManager {
       return;
     }
 
-    if (attemptId != _currentAttempt.id) {
+    if (!attemptId.equals(_currentAttempt.id)) {
       // This would be odd, but I've seen enough.
       if (_pendingConnection != null) {
         _logger.warning('Pending connection updated while delaying');
@@ -211,12 +226,13 @@ class SocketConnectionManager {
 
     try {
       final connection = await _WsConnection.connect(
-        factory,
-        onMessage: onMessage,
-        onError: onError,
-        onStateChange: _onStateChange(attemptId),
+        _factory,
+        onMessage: _onMessage,
+        onError: _onError,
+        onStateChange:
+            _ConnectionStateUpdater(attemptId: attemptId, manager: this).call,
       );
-      if (attemptId == _currentAttempt.id) {
+      if (attemptId.equals(_currentAttempt.id)) {
         connectionCompleter.complete(connection);
       } else {
         connection.close(normalClosure, 'Closing unnecessary connection');
@@ -224,10 +240,10 @@ class SocketConnectionManager {
     } catch (error, stackTrace) {
       _logger.warning('Failed to initialize connection', error, stackTrace);
 
-      onError(error, stackTrace);
+      _onError(error, stackTrace);
 
       // Checks just as above.
-      if (attemptId == _currentAttempt.id) {
+      if (attemptId.equals(_currentAttempt.id)) {
         _attemptConnection(_reconnectDelay(), connectionCompleter);
       } else if (_pendingConnection != null) {
         _logger.warning(
@@ -243,46 +259,78 @@ class SocketConnectionManager {
     }
   }
 
-  Duration _reconnectDelay({bool exact = false}) {
-    final duration = reconnectDelays[
-        _connectionAttempts.clamp(0, reconnectDelays.length - 1)];
+  Duration _reconnectDelay() {
+    final delayIndex =
+        _connectionAttempts.clamp(0, _reconnectDelays.length - 1);
+    return _reconnectDelays[delayIndex];
+  }
+}
 
-    if (exact) {
-      return duration;
-    } else {
-      // Some random number to prevent many clients from retrying to
-      // connect at exactly the same time.
-      return duration + Duration(milliseconds: _random.nextInt(1000));
+final class _ConnectionStateUpdater {
+  _ConnectionStateUpdater({
+    required this.attemptId,
+    required this.manager,
+  });
+
+  final AttemptId attemptId;
+  late final attemptIdString = attemptId.toIdString();
+  final SocketConnectionManager manager;
+
+  WebSocketConnectionState lastState = const WebSocketReady._();
+
+  void call(WebSocketConnectionState newState) {
+    if (attemptId != manager._currentAttempt.id) {
+      if (_logger.isLoggable(Level.FINER)) {
+        _logger.finer(
+          'Preventing connection state update for old connection attempt $attemptIdString',
+        );
+      }
+      return;
     }
+
+    if (!_isTransitionAllowed(lastState, newState)) {
+      if (_logger.isLoggable(Level.FINE)) {
+        _logger.fine(
+          'Preventing connection state change for $attemptIdString from $lastState to $newState',
+        );
+      }
+      return;
+    }
+
+    if (_logger.isLoggable(Level.FINE)) {
+      _logger.fine(
+        'Changing connection state for $attemptIdString from $lastState to $newState',
+      );
+    }
+    lastState = newState;
+
+    switch (newState) {
+      case WebSocketClosed():
+        _logger.fine(
+            'Socket closed, ${manager._disposed ? ' not ' : ''}attempting to reconnect');
+        if (!manager._disposed) {
+          manager._attemptConnection(manager._reconnectDelay());
+        }
+      case WebSocketReady():
+        manager._connectionAttempts = 0;
+      case WebSocketClosing():
+      case WebSocketInitializing():
+      // Do nothing.
+    }
+
+    manager._onStateChange(newState);
   }
 
-  void Function(WebSocketConnectionState) _onStateChange(
-      int connectionAttemptId) {
-    final connectionIdString =
-        connectionAttemptId.toRadixString(16).padLeft(8, '0');
-    return (WebSocketConnectionState state) {
-      _logger.info('State changed for connection $connectionIdString: $state');
-
-      if (connectionAttemptId != _currentAttempt.id) {
-        // This is no longer the active connection attempt.
-        return;
-      }
-
-      switch (state) {
-        case WebSocketClosed():
-          _logger.info('Socket closed, ($_disposed), attempting to reconnect');
-          if (!_disposed) {
-            _attemptConnection(_reconnectDelay());
-          }
-        case WebSocketReady():
-          _connectionAttempts = 0;
-        case WebSocketClosing():
-        case WebSocketInitializing():
-        // Do nothing.
-      }
-
-      onStateChange(state);
-    };
+  bool _isTransitionAllowed(lastState, newState) {
+    switch ((lastState, newState)) {
+      case (final a, final b) when a == b:
+      case (_, WebSocketInitializing()):
+      case (WebSocketClosed(), _):
+      case (WebSocketClosing(), final b) when b is! WebSocketClosed:
+        return false;
+      case _:
+        return true;
+    }
   }
 }
 

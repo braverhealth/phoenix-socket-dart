@@ -415,6 +415,19 @@ class MockPhoenixSocket extends _i1.Mock implements _i2.PhoenixSocket {
       );
 
   @override
+  Duration get defaultTimeout => (super.noSuchMethod(
+        Invocation.getter(#defaultTimeout),
+        returnValue: _FakeDuration_3(
+          this,
+          Invocation.getter(#defaultTimeout),
+        ),
+        returnValueForMissingStub: _FakeDuration_3(
+          this,
+          Invocation.getter(#defaultTimeout),
+        ),
+      ) as Duration);
+
+  @override
   _i9.Stream<_i10.PhoenixSocketOpenEvent> get openStream => (super.noSuchMethod(
         Invocation.getter(#openStream),
         returnValue: _i9.Stream<_i10.PhoenixSocketOpenEvent>.empty(),
@@ -461,32 +474,6 @@ class MockPhoenixSocket extends _i1.Mock implements _i2.PhoenixSocket {
       ) as String);
 
   @override
-  Duration get defaultTimeout => (super.noSuchMethod(
-        Invocation.getter(#defaultTimeout),
-        returnValue: _FakeDuration_3(
-          this,
-          Invocation.getter(#defaultTimeout),
-        ),
-        returnValueForMissingStub: _FakeDuration_3(
-          this,
-          Invocation.getter(#defaultTimeout),
-        ),
-      ) as Duration);
-
-  @override
-  String get endpoint => (super.noSuchMethod(
-        Invocation.getter(#endpoint),
-        returnValue: _i8.dummyValue<String>(
-          this,
-          Invocation.getter(#endpoint),
-        ),
-        returnValueForMissingStub: _i8.dummyValue<String>(
-          this,
-          Invocation.getter(#endpoint),
-        ),
-      ) as String);
-
-  @override
   bool get isConnected => (super.noSuchMethod(
         Invocation.getter(#isConnected),
         returnValue: false,
@@ -504,10 +491,11 @@ class MockPhoenixSocket extends _i1.Mock implements _i2.PhoenixSocket {
       ) as _i9.Stream<_i3.Message>);
 
   @override
-  _i9.Future<void> connect() => (super.noSuchMethod(
+  _i9.Future<void> connect({bool? immediately = false}) => (super.noSuchMethod(
         Invocation.method(
           #connect,
           [],
+          {#immediately: immediately},
         ),
         returnValue: _i9.Future<void>.value(),
         returnValueForMissingStub: _i9.Future<void>.value(),
@@ -539,29 +527,6 @@ class MockPhoenixSocket extends _i1.Mock implements _i2.PhoenixSocket {
         ),
         returnValueForMissingStub: null,
       );
-
-  @override
-  _i9.Future<_i3.Message> waitForMessage(_i3.Message? message) =>
-      (super.noSuchMethod(
-        Invocation.method(
-          #waitForMessage,
-          [message],
-        ),
-        returnValue: _i9.Future<_i3.Message>.value(_FakeMessage_1(
-          this,
-          Invocation.method(
-            #waitForMessage,
-            [message],
-          ),
-        )),
-        returnValueForMissingStub: _i9.Future<_i3.Message>.value(_FakeMessage_1(
-          this,
-          Invocation.method(
-            #waitForMessage,
-            [message],
-          ),
-        )),
-      ) as _i9.Future<_i3.Message>);
 
   @override
   _i9.Future<_i3.Message> sendMessage(_i3.Message? message) =>
