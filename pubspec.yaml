@@ -8,11 +8,10 @@ repository: https://www.github.com/matehat/phoenix-socket-dart
 homepage: https://www.github.com/matehat/phoenix-socket-dart
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   logging: ^1.0.0
-  meta: ^1.15.0
   rxdart: ">=0.26.0 <0.28.0"
   web_socket_channel: ^2.0.0
 
