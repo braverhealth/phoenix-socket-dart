@@ -273,7 +273,7 @@ final class _ConnectionCallbacks {
   String get attemptIdString => attempt.idAsString;
   final SocketConnectionManager manager;
 
-  WebSocketConnectionState lastState = const WebSocketReady._();
+  WebSocketConnectionState? lastState;
 
   void onMessage(String message) {
     if (attempt != manager._currentAttempt) {
@@ -347,8 +347,13 @@ final class _ConnectionCallbacks {
     manager._onStateChange(newState);
   }
 
-  bool _isTransitionAllowed(lastState, newState) {
+  bool _isTransitionAllowed(
+    WebSocketConnectionState? lastState,
+    WebSocketConnectionState newState,
+  ) {
     switch ((lastState, newState)) {
+      case (null, _):
+        return true;
       case (final a, final b) when a == b:
       case (_, WebSocketInitializing()):
       case (WebSocketClosed(), _):
