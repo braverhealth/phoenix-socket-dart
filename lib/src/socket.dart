@@ -498,11 +498,8 @@ class PhoenixSocket {
   Message _heartbeatMessage() => Message.heartbeat(_nextHeartbeatRef = nextRef);
 
   void _onMessage(Message message) {
+    _nextHeartbeatRef = null;
     if (message.ref != null) {
-      if (_nextHeartbeatRef == message.ref) {
-        _nextHeartbeatRef = null;
-      }
-
       final completer = _pendingMessages[message.ref!];
       if (completer != null) {
         _pendingMessages.remove(message.ref);
