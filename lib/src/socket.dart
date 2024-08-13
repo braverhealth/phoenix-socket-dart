@@ -158,8 +158,18 @@ class PhoenixSocket {
   Stream<Message> streamForTopic(String topic) => _topicStreams.putIfAbsent(
       topic, () => _streamRouter.route((event) => event.topic == topic));
 
-  /// CONNECTION
+  // CONNECTION
 
+  /// Connects to the underlying WebSocket and prepares this PhoenixSocket for
+  /// connecting to channels.
+  ///
+  /// The returned future will complete as soon as the attempt to connect to a
+  /// WebSocket is scheduled. If a WebSocket is connected or connecting, then
+  /// it returns without any action.
+  ///
+  /// If [immediately] is set to `true`, then if a
+  /// connection is not established, it will attempt to connect to a socket
+  /// without delay.
   Future<void> connect({bool immediately = false}) async {
     if (_disposed) {
       throw StateError('PhoenixSocket cannot connect after being disposed.');
@@ -176,7 +186,10 @@ class PhoenixSocket {
     } else if (!_socketStateStream.hasValue || _isConnectingOrConnected) {
       return _connectionManager.start(immediately: immediately);
     } else {
-      return _reconnect(normalClosure); // Any code is a good code.
+      return _reconnect(
+        normalClosure, // Any code is a good code.
+        immediately: immediately,
+      );
     }
   }
 
