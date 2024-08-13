@@ -61,6 +61,7 @@ void main() {
     when(mockPhoenixSocketOptions.getParams())
         .thenAnswer((_) => optionsCompleter.future);
     when(mockPhoenixSocketOptions.heartbeat).thenReturn(Duration(days: 1));
+    when(mockPhoenixSocketOptions.reconnectDelays).thenReturn([Duration.zero]);
 
     final sentRefs = <String>[];
     when(mockPhoenixSocketOptions.serializer).thenReturn(MessageSerializer(
@@ -79,10 +80,11 @@ void main() {
     WebSocketChannel stubWebSocketChannelFactory(Uri uri) {
       ++factoryCalls;
       final mockWebSocketChannel = MockWebSocketChannel();
+      final mockWebSocketSink = MockWebSocketSink();
       when(mockWebSocketChannel.stream).thenAnswer((_) => NeverStream());
-      when(mockWebSocketChannel.ready)
-          .thenAnswer((_) => Future.sync(() => null));
-      when(mockWebSocketChannel.sink).thenReturn(MockWebSocketSink());
+      when(mockWebSocketChannel.ready).thenAnswer((_) => Future.value());
+      when(mockWebSocketChannel.sink).thenReturn(mockWebSocketSink);
+      when(mockWebSocketSink.done).thenAnswer((_) => Completer<void>().future);
       return mockWebSocketChannel;
     }
 
@@ -103,6 +105,7 @@ void main() {
 
     optionsCompleter.complete({'token': 'fakeUserToken'});
 
+    await Future.delayed(Duration.zero);
     await Future.delayed(Duration.zero);
 
     for (final ref in sentRefs) {
@@ -134,6 +137,8 @@ void main() {
       fakeAsync(
         (async) {
           phoenixSocket.connect();
+
+          async.elapse(Duration.zero);
 
           verify(mockPhoenixSocketOptions.getParams()).called(1);
           expect(phoenixSocket.isConnected, isFalse);
