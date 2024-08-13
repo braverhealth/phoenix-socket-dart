@@ -42,11 +42,10 @@ class SocketConnectionManager {
   int _connectionAttempts = 0;
 
   SocketConnectionAttempt _currentAttempt = SocketConnectionAttempt.aborted();
-  SocketConnectionAttempt _setNewAttempt(Duration delay) {
-    return _currentAttempt = SocketConnectionAttempt(delay: delay);
-  }
 
   bool _disposed = false;
+  bool get _shouldAttemptReconnection =>
+      !_disposed && _pendingConnection != null;
 
   /// Requests to start connecting to the socket.
   ///
@@ -61,15 +60,15 @@ class SocketConnectionManager {
     }
 
     if (immediately) {
-      if (_pendingConnection != null && !_currentAttempt.done) {
-        _currentAttempt.completeNow();
+      if (_pendingConnection != null && !_currentAttempt.delayDone) {
+        _currentAttempt.skipDelay();
         return;
       }
 
       _stopConnecting(4002, 'Immediate connection requested');
       _connectionAttempts = 0;
     }
-    _connect();
+    _maybeConnect();
   }
 
   /// Sends a message to the socket. Will start connecting to the socket if
@@ -81,7 +80,7 @@ class SocketConnectionManager {
   /// If after call to [addMessage] a call to [dispose] or [stop] is made, then
   /// this future will complete with an error instead.
   Future<void> addMessage(String message) {
-    return _connect().then((connection) => connection.send(message));
+    return _maybeConnect().then((connection) => connection.send(message));
   }
 
   /// Stops the attempts to connect, and closes the current connection if one is
@@ -113,7 +112,7 @@ class SocketConnectionManager {
     _pendingConnection = null;
 
     // Make sure that no old attempt will begin emitting messages.
-    if (!_currentAttempt.done) {
+    if (!_currentAttempt.delayDone) {
       _currentAttempt.abort();
     }
     _currentAttempt = SocketConnectionAttempt.aborted();
@@ -123,33 +122,19 @@ class SocketConnectionManager {
     }).ignore();
   }
 
-  Future<_WebSocketConnection> _connect() async {
+  /// Establishes a new connection unless one is already available/in progress.
+  Future<_WebSocketConnection> _maybeConnect() {
     if (_disposed) {
       throw StateError('Cannot connect: WebSocket connection manager disposed');
     }
 
-    final pendingConnection =
-        _pendingConnection ??= _attemptConnection(_reconnectDelay());
-    final connection = await pendingConnection;
-    if (_disposed) {
-      throw StateError('Cannot connect: WebSocket connection manager disposed');
-    } else if (_pendingConnection != pendingConnection) {
-      // Something changed while waiting, try again from the start.
-      _logger.warning('Connection changed while connecting');
-      connection.close(normalClosure, 'New connection is being established');
-      return _connect();
-    } else {
-      return connection;
-    }
+    return _pendingConnection ?? _connect();
   }
 
-  /// Returns a future that completes with a _WsConnection.
+  /// Starts connection attempts.
   ///
-  /// If [completer] is null, then a new connection attempt will replace
-  /// _pendingConnection.
-  ///
-  /// If [completer] is not null, then the returned future will be that
-  /// completer's future.
+  /// Upon completiong, the [_pendingConnection] field will be set to the newly
+  /// established connection Future, and the same Future will be returned.
   ///
   /// Can throw/complete with an exception if:
   /// - during any asynchronous operation, this [SocketConnectionManager] is
@@ -161,66 +146,68 @@ class SocketConnectionManager {
   /// [ConnectionInitializationException] in case the initialization of
   /// connection fails. However, the reconnection will be triggered until it is
   /// established, or interrupted by call to [stop] or [dispose].
-  Future<_WebSocketConnection> _attemptConnection(Duration delayDuration,
-      [Completer<_WebSocketConnection>? completer]) async {
-    _connectionAttempts++;
-
-    final Completer<_WebSocketConnection> connectionCompleter;
-    if (completer == null) {
-      connectionCompleter = Completer<_WebSocketConnection>();
-      _pendingConnection = connectionCompleter.future;
-    } else {
-      connectionCompleter = completer;
+  Future<_WebSocketConnection> _connect() async {
+    if (_disposed) {
+      throw StateError('Cannot connect: WebSocket connection manager disposed');
     }
 
-    final attempt = _setNewAttempt(delayDuration);
-    if (_logger.isLoggable(Level.FINE)) {
-      _logger.fine(() {
-        final durationString = delayDuration == Duration.zero
-            ? 'now'
-            : 'in ${delayDuration.inMilliseconds} milliseconds';
-        return 'Triggering attempt #$_connectionAttempts (id: ${attempt.idAsString}) to connect $durationString';
-      });
-    }
+    final connectionCompleter = Completer<_WebSocketConnection>();
+    final connectionFuture = _pendingConnection = connectionCompleter.future;
 
-    attempt.completionFuture
-        .then(
-          (_) => _attemptConnectionWithCompleter(connectionCompleter, attempt),
-        )
-        .catchError(
-          (error) => _logger.info(
-            'Pending connection attempt ${attempt.idAsString} aborted',
-          ),
-        );
+    while (!connectionCompleter.isCompleted) {
+      final delay = _reconnectDelay();
+      _connectionAttempts++;
+
+      _WebSocketConnection? connection;
+      try {
+        connection = await _runConnectionAttempt(delay);
+      } catch (error, stackTrace) {
+        _logger.warning('Failed to initialize connection', error, stackTrace);
+      } finally {
+        if (_disposed) {
+          // Manager was disposed while running connection attempt.
+          connection?.close(goingAway, 'Client disposed');
+          connectionCompleter.completeError(StateError('Client disposed'));
+        } else if (connectionFuture != _pendingConnection) {
+          connection?.close(normalClosure, 'Closing obsolete connection');
+          if (_pendingConnection == null) {
+            // stop() was called during connection attempt.
+            connectionCompleter
+                .completeError(StateError('Connection attempt aborted'));
+          } else {
+            // _startConnecting() was called during connection attempt, return the
+            // new Future instead.
+            connectionCompleter.complete(_pendingConnection);
+          }
+        } else if (connection != null) {
+          // Correctly established connection.
+          _logger.fine('Established WebSocket connection');
+          _connectionAttempts = 0;
+          connectionCompleter.complete(connection);
+        }
+      }
+    }
 
     return connectionCompleter.future;
   }
 
-  void _attemptConnectionWithCompleter(
-    Completer<_WebSocketConnection> connectionCompleter,
-    SocketConnectionAttempt attempt,
+  Future<_WebSocketConnection> _runConnectionAttempt(
+    Duration delay,
   ) async {
-    if (_disposed) {
-      connectionCompleter.completeError(StateError(
-        'WebSocket connection manager disposed during connection delay',
-      ));
-      return;
+    final attempt = _currentAttempt = SocketConnectionAttempt(delay: delay);
+    if (_logger.isLoggable(Level.FINE)) {
+      _logger.fine(() {
+        final durationString = delay == Duration.zero
+            ? 'now'
+            : 'in ${delay.inMilliseconds} milliseconds';
+        return 'Triggering attempt #$_connectionAttempts (id: ${attempt.idAsString}) to connect $durationString';
+      });
     }
 
+    await attempt.delayFuture;
+
     if (attempt != _currentAttempt) {
-      // This would be odd, but I've seen enough.
-      if (_pendingConnection != null) {
-        _logger.warning('Pending connection updated while delaying');
-        connectionCompleter.complete(_pendingConnection!);
-        return;
-      } else {
-        // We probably don't want to connect anymore.
-        connectionCompleter.completeError(
-          StateError('Connection aborted'),
-          StackTrace.current,
-        );
-        return;
-      }
+      throw StateError('Current attempt obsoleted while delaying');
     }
 
     try {
@@ -229,29 +216,20 @@ class SocketConnectionManager {
         callbacks: _ConnectionCallbacks(attempt: attempt, manager: this),
       );
       if (attempt == _currentAttempt) {
-        connectionCompleter.complete(connection);
+        return connection;
       } else {
         connection.close(normalClosure, 'Closing unnecessary connection');
-      }
-    } catch (error, stackTrace) {
-      _logger.warning('Failed to initialize connection', error, stackTrace);
-
-      _onError(error, stackTrace);
-
-      // Checks just as above.
-      if (attempt == _currentAttempt) {
-        _attemptConnection(_reconnectDelay(), connectionCompleter);
-      } else if (_pendingConnection != null) {
-        _logger.warning(
-          'Pending connection updated while waiting for initialization',
-        );
-        connectionCompleter.complete(_pendingConnection);
-      } else {
-        connectionCompleter.completeError(
-          StateError('Connection aborted'),
+        throw ConnectionInitializationException(
+          'Current attempt obsoleted while delaying',
           StackTrace.current,
         );
       }
+    } catch (error, stackTrace) {
+      if (attempt == _currentAttempt) {
+        _onError(error, stackTrace);
+      }
+
+      rethrow;
     }
   }
 
@@ -262,7 +240,8 @@ class SocketConnectionManager {
   }
 }
 
-/// Wraps upstream callbacks to filter out obsolete or invalid callbacks from _WsConnection
+/// Wraps upstream callbacks to filter out obsolete or invalid callbacks from
+/// _WebSocketConnection.
 final class _ConnectionCallbacks {
   _ConnectionCallbacks({
     required this.attempt,
@@ -331,11 +310,11 @@ final class _ConnectionCallbacks {
       case WebSocketClosed():
         if (_logger.isLoggable(Level.FINE)) {
           _logger.fine(
-            'Socket closed, ${manager._disposed ? ' not ' : ''}attempting to reconnect',
+            'Socket closed, ${manager._shouldAttemptReconnection ? ' not ' : ''}attempting to reconnect',
           );
         }
-        if (!manager._disposed) {
-          manager._attemptConnection(manager._reconnectDelay());
+        if (!manager._shouldAttemptReconnection) {
+          manager._connect();
         }
       case WebSocketReady():
         manager._connectionAttempts = 0;

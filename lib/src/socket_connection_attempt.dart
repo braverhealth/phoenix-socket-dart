@@ -14,7 +14,7 @@ final class SocketConnectionAttempt {
 
   SocketConnectionAttempt.aborted() {
     _delayTimer = Timer(Duration.zero, () {});
-    completionFuture.ignore();
+    delayFuture.ignore();
     abort();
   }
 
@@ -22,12 +22,12 @@ final class SocketConnectionAttempt {
   late final idAsString = _id.toRadixString(16).padLeft(8, '0');
 
   final Completer<void> _delayCompleter = Completer();
-  Future<void> get completionFuture => _delayCompleter.future;
-  bool get done => _delayCompleter.isCompleted;
+  bool get delayDone => _delayCompleter.isCompleted;
+  late final Future<void> delayFuture = _delayCompleter.future;
 
   late Timer _delayTimer;
 
-  void completeNow() {
+  void skipDelay() {
     if (_delayTimer.isActive) {
       _delayTimer.cancel();
     }
