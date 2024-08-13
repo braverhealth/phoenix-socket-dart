@@ -57,7 +57,7 @@ class PhoenixSocket {
 
     _subscriptions = [
       _messageStream.listen(_onMessage),
-      _openStream.listen((_) => _isConnected = true),
+      _openStream.listen((_) => _isOpen = true),
       _closeStream.listen(_onSocketClosed),
       _errorStream.listen(_onSocketError),
       _socketStateStream.distinct().listen(_onSocketStateChanged),
@@ -135,9 +135,12 @@ class PhoenixSocket {
 
   bool _disposed = false;
 
-  /// Whether the underlying socket is connected of not.
-  bool _isConnected = false;
-  bool get isConnected => _isConnected;
+  bool _isOpen = false;
+
+  /// Whether the phoenix socket is ready to join channels. Note that this is
+  /// not the same as the WebSocketReady state, but rather is set to true when
+  /// both web socket is ready, and the first heartbeat reply has been received.
+  bool get isConnected => _isOpen;
 
   bool get _isConnectingOrConnected => switch (_socketStateStream.valueOrNull) {
         WebSocketInitializing() || WebSocketReady() => true,
@@ -479,7 +482,7 @@ class PhoenixSocket {
 
   void _onSocketStateChanged(WebSocketConnectionState state) {
     if (state is! WebSocketReady) {
-      _isConnected = false;
+      _isOpen = false;
     }
 
     switch (state) {
@@ -510,7 +513,7 @@ class PhoenixSocket {
 
     _logger.severe('Error on socket', errorEvent.error, errorEvent.stacktrace);
 
-    if (_isConnected) {
+    if (_isOpen) {
       _triggerChannelExceptions(PhoenixException(socketError: errorEvent));
     }
   }
