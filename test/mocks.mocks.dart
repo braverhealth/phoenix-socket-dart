@@ -14,8 +14,11 @@ import 'package:phoenix_socket/src/exceptions.dart' as _i11;
 import 'package:phoenix_socket/src/message.dart' as _i3;
 import 'package:phoenix_socket/src/push.dart' as _i4;
 import 'package:phoenix_socket/src/socket.dart' as _i2;
+import 'package:phoenix_socket/src/socket_connection.dart' as _i14;
 import 'package:stream_channel/stream_channel.dart' as _i7;
 import 'package:web_socket_channel/web_socket_channel.dart' as _i6;
+
+import 'mocks.dart' as _i13;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -921,4 +924,54 @@ class MockPhoenixSocketOptions extends _i1.Mock
         returnValueForMissingStub:
             _i9.Future<Map<String, String>>.value(<String, String>{}),
       ) as _i9.Future<Map<String, String>>);
+}
+
+/// A class which mocks [OnMessage_MockBase].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockOnMessage extends _i1.Mock implements _i13.OnMessage_MockBase {
+  @override
+  void call(String? message) => super.noSuchMethod(
+        Invocation.method(
+          #call,
+          [message],
+        ),
+        returnValueForMissingStub: null,
+      );
+}
+
+/// A class which mocks [OnError_MockBase].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockOnError extends _i1.Mock implements _i13.OnError_MockBase {
+  @override
+  void call(
+    Object? error, [
+    StackTrace? stackTrace,
+  ]) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #call,
+          [
+            error,
+            stackTrace,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+}
+
+/// A class which mocks [OnStateChange_MockBase].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockOnStateChange extends _i1.Mock
+    implements _i13.OnStateChange_MockBase {
+  @override
+  void call(_i14.WebSocketConnectionState? state) => super.noSuchMethod(
+        Invocation.method(
+          #call,
+          [state],
+        ),
+        returnValueForMissingStub: null,
+      );
 }
