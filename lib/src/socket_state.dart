@@ -22,48 +22,48 @@ sealed class WebSocketConnectionState {
 
 /// A connection attempt has started. This encompasses both local preparation of
 /// initial connection, and waiting for connection to become ready.
-final class WebSocketInitializing extends WebSocketConnectionState {
-  const WebSocketInitializing._() : super._();
+final class WebSocketConnecting extends WebSocketConnectionState {
+  const WebSocketConnecting._() : super._();
 
   @override
-  String toString() => 'WebSocketInitializing';
+  String toString() => 'WebSocketConnecting';
 }
 
 /// WebSocket connection was established and accepts sending messages through it.
-final class WebSocketReady extends WebSocketConnectionState {
-  const WebSocketReady._() : super._();
+final class WebSocketConnected extends WebSocketConnectionState {
+  const WebSocketConnected._() : super._();
 
   @override
-  String toString() => 'WebSocketReady';
+  String toString() => 'WebSocketConnected';
 }
 
 /// WebSocket connection has stopped accepting messages, and waits for final
 /// server reply to the Close message.
-final class WebSocketClosing extends WebSocketConnectionState {
-  const WebSocketClosing._() : super._();
+final class WebSocketDisconnecting extends WebSocketConnectionState {
+  const WebSocketDisconnecting._() : super._();
 
   @override
-  String toString() => 'WebSocketClosing';
+  String toString() => 'WebSocketDisconnecting';
 }
 
 /// WebSocket connection does not accept nor provide messages, nor will in the
 /// future. This also encompasses situations where WebSocket connection was not
 /// established at all.
-final class WebSocketClosed extends WebSocketConnectionState {
-  WebSocketClosed._(this.code, this.reason) : super._();
+final class WebSocketDisconnected extends WebSocketConnectionState {
+  WebSocketDisconnected._(this.code, this.reason) : super._();
 
   final int code;
   final String? reason;
 
   @override
-  String toString() => 'WebSocketClosed($code, $reason)';
+  String toString() => 'WebSocketDisconnected($code, $reason)';
 
   @override
   int get hashCode => Object.hash(code, reason);
 
   @override
   bool operator ==(Object other) {
-    return other is WebSocketClosed &&
+    return other is WebSocketDisconnected &&
         other.code == code &&
         other.reason == reason &&
         other.runtimeType == runtimeType;

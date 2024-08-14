@@ -307,7 +307,7 @@ final class _ConnectionCallbacks {
     lastState = newState;
 
     switch (newState) {
-      case WebSocketClosed():
+      case WebSocketDisconnected():
         if (_logger.isLoggable(Level.FINE)) {
           _logger.fine(
             'Socket closed, ${!manager._shouldAttemptReconnection ? ' not ' : ''}attempting to reconnect',
@@ -316,10 +316,10 @@ final class _ConnectionCallbacks {
         if (manager._shouldAttemptReconnection) {
           manager._connect();
         }
-      case WebSocketReady():
+      case WebSocketConnected():
         manager._connectionAttempts = 0;
-      case WebSocketClosing():
-      case WebSocketInitializing():
+      case WebSocketDisconnecting():
+      case WebSocketConnecting():
       // Do nothing.
     }
 
@@ -334,9 +334,9 @@ final class _ConnectionCallbacks {
       case (null, _):
         return true;
       case (final a, final b) when a == b:
-      case (_, WebSocketInitializing()):
-      case (WebSocketClosed(), _):
-      case (WebSocketClosing(), final b) when b is! WebSocketClosed:
+      case (_, WebSocketConnecting()):
+      case (WebSocketDisconnected(), _):
+      case (WebSocketDisconnecting(), final b) when b is! WebSocketDisconnected:
         return false;
       case _:
         return true;
@@ -349,7 +349,7 @@ class _WebSocketConnection {
     WebSocketChannelFactory factory, {
     required _ConnectionCallbacks callbacks,
   }) async {
-    callbacks.onStateChange(const WebSocketInitializing._());
+    callbacks.onStateChange(const WebSocketConnecting._());
     final WebSocketChannel ws;
     try {
       ws = await factory();
@@ -358,7 +358,7 @@ class _WebSocketConnection {
       throw ConnectionInitializationException(error, stackTrace);
     }
 
-    callbacks.onStateChange(const WebSocketReady._());
+    callbacks.onStateChange(const WebSocketConnected._());
 
     return _WebSocketConnection._(
       ws,
@@ -382,7 +382,7 @@ class _WebSocketConnection {
       onError: onError,
       onDone: () {
         onStateChange(
-          WebSocketClosed._(_ws.closeCode ?? 4000, _ws.closeReason),
+          WebSocketDisconnected._(_ws.closeCode ?? 4000, _ws.closeReason),
         );
         acceptingMessages = false;
         subscription.cancel();
@@ -393,7 +393,7 @@ class _WebSocketConnection {
       (_) {
         if (acceptingMessages) {
           acceptingMessages = false;
-          onStateChange(const WebSocketClosing._());
+          onStateChange(const WebSocketDisconnecting._());
         }
       },
       onError: onError,

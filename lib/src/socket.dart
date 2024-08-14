@@ -138,12 +138,13 @@ class PhoenixSocket {
   bool _isOpen = false;
 
   /// Whether the phoenix socket is ready to join channels. Note that this is
-  /// not the same as the WebSocketReady state, but rather is set to true when
-  /// both web socket is ready, and the first heartbeat reply has been received.
+  /// not the same as the WebSocketConnected state, but rather is set to true
+  /// when both web socket is connected, and the first heartbeat reply has been
+  /// received.
   bool get isConnected => _isOpen;
 
   bool get _isConnectingOrConnected => switch (_socketStateStream.valueOrNull) {
-        WebSocketInitializing() || WebSocketReady() => true,
+        WebSocketConnecting() || WebSocketConnected() => true,
         _ => false,
       };
 
@@ -259,8 +260,9 @@ class PhoenixSocket {
     }
     if (_isConnectingOrConnected) {
       _connectionManager.stop(code, reason);
-    } else if (_socketStateStream.valueOrNull is! WebSocketClosed) {
-      await _socketStateStream.firstWhere((state) => state is WebSocketClosed);
+    } else if (_socketStateStream.valueOrNull is! WebSocketDisconnected) {
+      await _socketStateStream
+          .firstWhere((state) => state is WebSocketDisconnected);
     }
   }
 
@@ -351,7 +353,7 @@ class PhoenixSocket {
   /// HEARTBEAT
 
   Future<void> _startHeartbeat() async {
-    if (_socketStateStream.valueOrNull is! WebSocketReady) {
+    if (_socketStateStream.valueOrNull is! WebSocketConnected) {
       throw StateError('Cannot start heartbeat while disconnected');
     }
 
@@ -453,7 +455,7 @@ class PhoenixSocket {
 
   bool _shouldPipeMessage(String message) {
     final currentSocketState = _socketStateStream.valueOrNull;
-    if (currentSocketState is WebSocketReady) {
+    if (currentSocketState is WebSocketConnected) {
       return true;
     } else {
       _logger.warning(
@@ -500,24 +502,24 @@ class PhoenixSocket {
   }
 
   void _onSocketStateChanged(WebSocketConnectionState state) {
-    if (state is! WebSocketReady) {
+    if (state is! WebSocketConnected) {
       _isOpen = false;
     }
 
     switch (state) {
-      case WebSocketReady():
+      case WebSocketConnected():
         _startHeartbeat();
-      case WebSocketClosing():
+      case WebSocketDisconnecting():
         _cancelHeartbeat(successfully: false);
 
-      case WebSocketClosed(:final code, :final reason):
-        // Just in case we skipped the closing event.
+      case WebSocketDisconnected(:final code, :final reason):
+        // Just in case we skipped the disconnecting event.
         _cancelHeartbeat(successfully: false);
 
         _stateEventStreamController.add(
           PhoenixSocketCloseEvent(code: code, reason: reason),
         );
-      case WebSocketInitializing():
+      case WebSocketConnecting():
     }
   }
 

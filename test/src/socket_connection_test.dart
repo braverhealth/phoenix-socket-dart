@@ -63,7 +63,7 @@ void main() {
 
       verify(mockChannelConfig.channel.ready).called(1);
       verify(
-        mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnecting>())),
       ).called(1);
       verifyNoMoreInteractions(mockOnStateChange);
 
@@ -71,7 +71,7 @@ void main() {
       await Future.delayed(Duration.zero);
 
       verify(
-        mockOnStateChange.call(argThat(isA<WebSocketReady>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnected>())),
       ).called(1);
       verifyNoMoreInteractions(mockOnStateChange);
 
@@ -112,7 +112,7 @@ void main() {
 
       verify(channelMocks[0].channel.ready).called(1);
       verify(
-        mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnecting>())),
       ).called(1);
       verifyNoMoreInteractions(mockOnStateChange);
       verifyZeroInteractions(mockOnError);
@@ -143,14 +143,14 @@ void main() {
       expect(invocationCount, 2);
 
       verify(
-        mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnecting>())),
       ).called(1);
       verifyNoMoreInteractions(mockOnStateChange);
 
       channelMocks[1].readyCompleter.complete();
       await Future.delayed(Duration.zero);
       verify(
-        mockOnStateChange.call(argThat(isA<WebSocketReady>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnected>())),
       ).called(1);
       verifyNoMoreInteractions(mockOnError);
       verifyNoMoreInteractions(mockOnStateChange);
@@ -180,7 +180,7 @@ void main() {
 
       verify(channelMocks.channel.ready).called(1);
       verify(
-        mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnecting>())),
       ).called(1);
       verifyNoMoreInteractions(mockOnStateChange);
 
@@ -195,7 +195,7 @@ void main() {
       channelMocks.readyCompleter.complete();
       await Future.delayed(Duration.zero);
       verify(
-        mockOnStateChange.call(argThat(isA<WebSocketReady>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnected>())),
       ).called(1);
       verifyNoMoreInteractions(mockOnStateChange);
 
@@ -227,7 +227,7 @@ void main() {
 
       verify(channelMocks[0].channel.ready).called(1);
       verify(
-        mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnecting>())),
       ).called(1);
       verifyNoMoreInteractions(mockOnStateChange);
 
@@ -249,8 +249,8 @@ void main() {
       await Future.delayed(Duration.zero);
       expect(invocationCount, 2);
       verifyInOrder([
-        mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
-        mockOnStateChange.call(argThat(isA<WebSocketReady>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnecting>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnected>())),
       ]);
       verifyNoMoreInteractions(mockOnStateChange);
 
@@ -276,8 +276,8 @@ void main() {
 
       verify(channelMocks.channel.ready).called(1);
       verifyInOrder([
-        mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
-        mockOnStateChange.call(argThat(isA<WebSocketReady>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnecting>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnected>())),
       ]);
       verifyNoMoreInteractions(mockOnStateChange);
 
@@ -285,7 +285,7 @@ void main() {
       await Future.delayed(Duration.zero);
 
       verify(
-        mockOnStateChange.call(argThat(isA<WebSocketClosing>())),
+        mockOnStateChange.call(argThat(isA<WebSocketDisconnecting>())),
       ).called(1);
 
       verifyNoMoreInteractions(mockOnStateChange);
@@ -312,8 +312,8 @@ void main() {
 
       verify(channelMock.channel.ready).called(1);
       verifyInOrder([
-        mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
-        mockOnStateChange.call(argThat(isA<WebSocketReady>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnecting>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnected>())),
       ]);
       verifyNoMoreInteractions(mockOnStateChange);
 
@@ -321,7 +321,7 @@ void main() {
       await Future.delayed(Duration.zero);
 
       verify(
-        mockOnStateChange.call(argThat(isA<WebSocketClosed>())),
+        mockOnStateChange.call(argThat(isA<WebSocketDisconnected>())),
       ).called(1);
 
       verifyNoMoreInteractions(mockOnStateChange);
@@ -348,8 +348,8 @@ void main() {
 
       verify(channelMock.channel.ready).called(1);
       verifyInOrder([
-        mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
-        mockOnStateChange.call(argThat(isA<WebSocketReady>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnecting>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnected>())),
       ]);
       verifyNoMoreInteractions(mockOnStateChange);
       verifyZeroInteractions(mockOnError);
@@ -387,8 +387,8 @@ void main() {
 
       verify(channelMock.channel.ready).called(1);
       verifyInOrder([
-        mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
-        mockOnStateChange.call(argThat(isA<WebSocketReady>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnecting>())),
+        mockOnStateChange.call(argThat(isA<WebSocketConnected>())),
       ]);
       verifyNoMoreInteractions(mockOnStateChange);
 
