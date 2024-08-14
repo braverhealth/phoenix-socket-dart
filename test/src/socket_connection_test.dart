@@ -6,34 +6,49 @@ import 'package:test/test.dart';
 
 import '../mocks.mocks.dart';
 
+typedef MockWebSocketChannelConfig = ({
+  MockWebSocketChannel channel,
+  StreamController<String> streamController,
+  Completer<void> sinkDoneCompleter,
+  Completer<void> readyCompleter,
+});
+
 void main() {
   group('$SocketConnectionManager', () {
     late MockOnMessage mockOnMessage;
     late MockOnError mockOnError;
     late MockOnStateChange mockOnStateChange;
-    late MockWebSocketSink mockWebSocketSink;
-    late MockWebSocketChannel mockChannel;
-    late StreamController<String> channelController;
-    late Completer<void> readyCompleter;
 
     setUp(() {
       mockOnMessage = MockOnMessage();
       mockOnError = MockOnError();
       mockOnStateChange = MockOnStateChange();
-      mockWebSocketSink = MockWebSocketSink();
-      mockChannel = MockWebSocketChannel();
-      readyCompleter = Completer();
-      channelController = StreamController<String>();
-
-      when(mockChannel.ready).thenAnswer((_) => readyCompleter.future);
-      when(mockChannel.sink).thenReturn(mockWebSocketSink);
-      when(mockWebSocketSink.done).thenAnswer((_) => Completer().future);
-      when(mockChannel.stream).thenAnswer((_) => channelController.stream);
     });
 
+    MockWebSocketChannelConfig setUpChannelMock() {
+      final mockSink = MockWebSocketSink();
+      final streamController = StreamController<String>();
+      final readyCompleter = Completer();
+      final doneCompleter = Completer();
+      final mockChannel = MockWebSocketChannel();
+
+      when(mockChannel.ready).thenAnswer((_) => readyCompleter.future);
+      when(mockChannel.sink).thenReturn(mockSink);
+      when(mockChannel.stream).thenAnswer((_) => streamController.stream);
+      when(mockSink.done).thenAnswer((_) => doneCompleter.future);
+
+      return (
+        channel: mockChannel,
+        streamController: streamController,
+        sinkDoneCompleter: doneCompleter,
+        readyCompleter: readyCompleter,
+      );
+    }
+
     test('start() - happy path', () async {
+      MockWebSocketChannelConfig mockChannelConfig = setUpChannelMock();
       SocketConnectionManager connectionManager = SocketConnectionManager(
-        factory: () => Future.value(mockChannel),
+        factory: () => Future.value(mockChannelConfig.channel),
         reconnectDelays: [Duration.zero],
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
@@ -41,18 +56,18 @@ void main() {
       );
 
       // No interactions in constructor.
-      verifyZeroInteractions(mockChannel);
+      verifyZeroInteractions(mockChannelConfig.channel);
 
       connectionManager.start();
       await Future.delayed(Duration.zero);
 
-      verify(mockChannel.ready).called(1);
+      verify(mockChannelConfig.channel.ready).called(1);
       verify(
         mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
       ).called(1);
       verifyNoMoreInteractions(mockOnStateChange);
 
-      readyCompleter.complete();
+      mockChannelConfig.readyCompleter.complete();
       await Future.delayed(Duration.zero);
 
       verify(
@@ -61,34 +76,41 @@ void main() {
       verifyNoMoreInteractions(mockOnStateChange);
 
       // Clear expectations on these calls before proceeding.
-      verify(mockChannel.sink);
-      verify(mockChannel.stream);
+      verify(mockChannelConfig.channel.sink);
+      verify(mockChannelConfig.channel.stream);
 
       // Calling start again will not establish a new connection.
       connectionManager.start();
       await Future.delayed(Duration.zero);
 
-      verifyNoMoreInteractions(mockChannel);
+      verifyNoMoreInteractions(mockChannelConfig.channel);
       verifyNoMoreInteractions(mockOnStateChange);
       verifyZeroInteractions(mockOnError);
       verifyZeroInteractions(mockOnMessage);
     });
 
     test('start() - reconnection after failure', () async {
+      int invocationCount = 0;
+      final channelMocks = [
+        setUpChannelMock(),
+        setUpChannelMock(),
+      ];
+
       SocketConnectionManager connectionManager = SocketConnectionManager(
-        factory: () => Future.value(mockChannel),
+        factory: () => Future.value(channelMocks[invocationCount++].channel),
         reconnectDelays: [Duration.zero],
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
       );
 
-      verifyZeroInteractions(mockChannel);
-
       connectionManager.start();
-      await Future.delayed(Duration.zero);
 
-      verify(mockChannel.ready).called(1);
+      expect(invocationCount, 0);
+      await Future.delayed(Duration.zero);
+      expect(invocationCount, 1);
+
+      verify(channelMocks[0].channel.ready).called(1);
       verify(
         mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
       ).called(1);
@@ -98,7 +120,7 @@ void main() {
 
       final cause = Object();
       final stackTrace = StackTrace.current;
-      readyCompleter.completeError(cause, stackTrace);
+      channelMocks[0].readyCompleter.completeError(cause, stackTrace);
       await Future.delayed(Duration.zero);
 
       verify(
@@ -112,17 +134,20 @@ void main() {
                 )),
             any),
       ).called(1);
+      verifyNever(channelMocks[0].channel.sink);
+      verifyNever(channelMocks[0].channel.stream);
       verifyNoMoreInteractions(mockOnError);
       verifyNoMoreInteractions(mockOnStateChange);
 
-      readyCompleter = Completer<void>();
       await Future.delayed(Duration.zero);
+      expect(invocationCount, 2);
+
       verify(
         mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
       ).called(1);
       verifyNoMoreInteractions(mockOnStateChange);
 
-      readyCompleter.complete();
+      channelMocks[1].readyCompleter.complete();
       await Future.delayed(Duration.zero);
       verify(
         mockOnStateChange.call(argThat(isA<WebSocketReady>())),
@@ -133,22 +158,27 @@ void main() {
     });
 
     test('start() - multiple attempts - happy path', () async {
+      var invocationCount = 0;
+      final channelMocks = setUpChannelMock();
       SocketConnectionManager connectionManager = SocketConnectionManager(
-        factory: () => Future.value(mockChannel),
+        factory: () {
+          invocationCount++;
+          return Future.value(channelMocks.channel);
+        },
         reconnectDelays: [Duration.zero],
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
       );
 
-      verifyZeroInteractions(mockChannel);
-
       // .start() called twice synchronously.
       connectionManager.start();
       connectionManager.start();
+      expect(invocationCount, 0);
       await Future.delayed(Duration.zero);
+      expect(invocationCount, 1);
 
-      verify(mockChannel.ready).called(1);
+      verify(channelMocks.channel.ready).called(1);
       verify(
         mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
       ).called(1);
@@ -157,10 +187,12 @@ void main() {
       // .start() called during initialization.
       connectionManager.start();
       await Future.delayed(Duration.zero);
-      verifyNoMoreInteractions(mockOnStateChange);
-      verifyNever(mockChannel.ready);
+      expect(invocationCount, 1);
 
-      readyCompleter.complete();
+      verifyNoMoreInteractions(mockOnStateChange);
+      verifyNever(channelMocks.channel.ready);
+
+      channelMocks.readyCompleter.complete();
       await Future.delayed(Duration.zero);
       verify(
         mockOnStateChange.call(argThat(isA<WebSocketReady>())),
@@ -172,21 +204,28 @@ void main() {
     });
 
     test('start() - multiple attempts - connection problems', () async {
+      var invocationCount = 0;
+      final channelMocks = [
+        setUpChannelMock(),
+        setUpChannelMock(),
+      ];
+
       SocketConnectionManager connectionManager = SocketConnectionManager(
-        factory: () => Future.value(mockChannel),
+        factory: () => Future.value(channelMocks[invocationCount++].channel),
         reconnectDelays: [Duration.zero],
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
       );
-      verifyZeroInteractions(mockChannel);
 
       // .start() called twice synchronously.
       connectionManager.start();
       connectionManager.start();
+      expect(invocationCount, 0);
       await Future.delayed(Duration.zero);
+      expect(invocationCount, 1);
 
-      verify(mockChannel.ready).called(1);
+      verify(channelMocks[0].channel.ready).called(1);
       verify(
         mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
       ).called(1);
@@ -195,17 +234,20 @@ void main() {
       // .start() called during initialization.
       connectionManager.start();
       await Future.delayed(Duration.zero);
+      expect(invocationCount, 1);
       verifyNoMoreInteractions(mockOnStateChange);
-      verifyNever(mockChannel.ready);
+      verifyNever(channelMocks[0].channel.ready);
 
-      readyCompleter.completeError(Object());
+      channelMocks[0].readyCompleter.completeError(Object());
       await Future.delayed(Duration.zero);
       verifyNoMoreInteractions(mockOnStateChange);
       verify(mockOnError.call(any, any)).called(1);
       verifyNoMoreInteractions(mockOnError);
 
-      readyCompleter = Completer()..complete();
+      expect(invocationCount, 1);
+      channelMocks[1].readyCompleter.complete();
       await Future.delayed(Duration.zero);
+      expect(invocationCount, 2);
       verifyInOrder([
         mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
         mockOnStateChange.call(argThat(isA<WebSocketReady>())),
@@ -218,31 +260,28 @@ void main() {
 
     test('emits WebSocketClosing state when WebSocketChannel\'s done completes',
         () async {
-      final doneCompleter = Completer<void>();
-      when(mockWebSocketSink.done).thenAnswer((_) => doneCompleter.future);
+      final channelMocks = setUpChannelMock();
 
       SocketConnectionManager connectionManager = SocketConnectionManager(
-        factory: () => Future.value(mockChannel),
+        factory: () => Future.value(channelMocks.channel),
         reconnectDelays: [Duration.zero],
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
       );
-      verifyZeroInteractions(mockChannel);
 
-      // .start() called twice synchronously.
       connectionManager.start();
-      readyCompleter.complete();
+      channelMocks.readyCompleter.complete();
       await Future.delayed(Duration.zero);
 
-      verify(mockChannel.ready).called(1);
+      verify(channelMocks.channel.ready).called(1);
       verifyInOrder([
         mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
         mockOnStateChange.call(argThat(isA<WebSocketReady>())),
       ]);
       verifyNoMoreInteractions(mockOnStateChange);
 
-      doneCompleter.complete();
+      channelMocks.sinkDoneCompleter.complete();
       await Future.delayed(Duration.zero);
 
       verify(
@@ -257,27 +296,28 @@ void main() {
 
     test('emits WebSocketClosed state when WebSocketChannel\'s stream closes',
         () async {
+      final channelMock = setUpChannelMock();
+
       SocketConnectionManager connectionManager = SocketConnectionManager(
-        factory: () => Future.value(mockChannel),
+        factory: () => Future.value(channelMock.channel),
         reconnectDelays: [Duration.zero],
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
       );
-      verifyZeroInteractions(mockChannel);
 
       connectionManager.start();
-      readyCompleter.complete();
+      channelMock.readyCompleter.complete();
       await Future.delayed(Duration.zero);
 
-      verify(mockChannel.ready).called(1);
+      verify(channelMock.channel.ready).called(1);
       verifyInOrder([
         mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
         mockOnStateChange.call(argThat(isA<WebSocketReady>())),
       ]);
       verifyNoMoreInteractions(mockOnStateChange);
 
-      channelController.close();
+      channelMock.streamController.close();
       await Future.delayed(Duration.zero);
 
       verify(
@@ -292,20 +332,21 @@ void main() {
 
     test('calls onError callback when WebSocketChannel\'s stream emits error',
         () async {
+      final channelMock = setUpChannelMock();
+
       SocketConnectionManager connectionManager = SocketConnectionManager(
-        factory: () => Future.value(mockChannel),
+        factory: () => Future.value(channelMock.channel),
         reconnectDelays: [Duration.zero],
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
       );
-      verifyZeroInteractions(mockChannel);
 
       connectionManager.start();
-      readyCompleter.complete();
+      channelMock.readyCompleter.complete();
       await Future.delayed(Duration.zero);
 
-      verify(mockChannel.ready).called(1);
+      verify(channelMock.channel.ready).called(1);
       verifyInOrder([
         mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
         mockOnStateChange.call(argThat(isA<WebSocketReady>())),
@@ -314,7 +355,7 @@ void main() {
       verifyZeroInteractions(mockOnError);
 
       final error = Object();
-      channelController.addError(error);
+      channelMock.streamController.addError(error);
       await Future.delayed(Duration.zero);
       verify(mockOnError.call(error, any)).called(1);
       verifyNoMoreInteractions(mockOnError);
@@ -325,25 +366,26 @@ void main() {
 
     test('start(immediatelly: true) executes connection attempt without delay',
         () async {
+      final channelMock = setUpChannelMock();
       SocketConnectionManager connectionManager = SocketConnectionManager(
-        factory: () => Future.value(mockChannel),
+        factory: () => Future.value(channelMock.channel),
         reconnectDelays: [const Duration(days: 1)],
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
       );
 
-      readyCompleter.complete(); // don't delay.
+      channelMock.readyCompleter.complete(); // don't delay.
       connectionManager.start(immediately: false);
       await Future.delayed(Duration.zero);
 
-      verifyZeroInteractions(mockChannel);
+      verifyZeroInteractions(channelMock.channel);
       verifyZeroInteractions(mockOnStateChange);
 
       connectionManager.start(immediately: true);
       await Future.delayed(Duration.zero);
 
-      verify(mockChannel.ready).called(1);
+      verify(channelMock.channel.ready).called(1);
       verifyInOrder([
         mockOnStateChange.call(argThat(isA<WebSocketInitializing>())),
         mockOnStateChange.call(argThat(isA<WebSocketReady>())),
