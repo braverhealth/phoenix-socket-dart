@@ -310,10 +310,10 @@ final class _ConnectionCallbacks {
       case WebSocketClosed():
         if (_logger.isLoggable(Level.FINE)) {
           _logger.fine(
-            'Socket closed, ${manager._shouldAttemptReconnection ? ' not ' : ''}attempting to reconnect',
+            'Socket closed, ${!manager._shouldAttemptReconnection ? ' not ' : ''}attempting to reconnect',
           );
         }
-        if (!manager._shouldAttemptReconnection) {
+        if (manager._shouldAttemptReconnection) {
           manager._connect();
         }
       case WebSocketReady():

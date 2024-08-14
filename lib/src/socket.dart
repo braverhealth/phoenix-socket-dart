@@ -354,7 +354,7 @@ class PhoenixSocket {
       throw StateError('Cannot start heartbeat while disconnected');
     }
 
-    _cancelHeartbeat();
+    _cancelHeartbeat(successfully: false);
 
     _logger.info('Waiting for initial heartbeat round trip');
     final initialHeartbeatSucceeded = await _sendHeartbeat(force: true);
@@ -432,15 +432,20 @@ class PhoenixSocket {
     });
   }
 
-  void _cancelHeartbeat() {
+  void _cancelHeartbeat({bool successfully = true}) {
     if (_heartbeatTimeout != null) {
       _heartbeatTimeout?.cancel();
       _heartbeatTimeout = null;
     }
     if (_latestHeartbeatRef != null) {
-      _pendingMessages.remove(_latestHeartbeatRef)?.complete(
-            Message.heartbeat(_latestHeartbeatRef!), // doesn't matter
-          );
+      final heartbeatCompleter = _pendingMessages.remove(_latestHeartbeatRef);
+      if (successfully) {
+        heartbeatCompleter?.complete(
+          Message.heartbeat(_latestHeartbeatRef!), // doesn't matter
+        );
+      } else {
+        heartbeatCompleter?.completeError('Heartbeat cancelled');
+      }
       _latestHeartbeatRef = null;
     }
   }
@@ -502,11 +507,11 @@ class PhoenixSocket {
       case WebSocketReady():
         _startHeartbeat();
       case WebSocketClosing():
-        _cancelHeartbeat();
+        _cancelHeartbeat(successfully: false);
 
       case WebSocketClosed(:final code, :final reason):
         // Just in case we skipped the closing event.
-        _cancelHeartbeat();
+        _cancelHeartbeat(successfully: false);
 
         _stateEventStreamController.add(
           PhoenixSocketCloseEvent(code: code, reason: reason),

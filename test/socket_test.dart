@@ -12,46 +12,72 @@ import 'mocks.dart';
 
 void main() {
   test('socket connect retries on unexpected error', () async {
-    final sink = MockWebSocketSink();
-    final websocket = MockWebSocketChannel();
-    final phoenixSocket = PhoenixSocket(
-      'endpoint',
-      socketOptions: PhoenixSocketOptions(params: {'token': 'token'}),
-      webSocketChannelFactory: (_) => websocket,
-    );
     int invocations = 0;
     final exceptions = ['E', PhoenixException()];
+    final sinkCompleters = [
+      Completer<void>(),
+      Completer<void>(),
+      Completer<void>(),
+    ];
 
-    when(websocket.sink).thenReturn(sink);
+    // This code might throw asynchronous errors, prevent the test from failing
+    // if these are expected ones (as defined in `exceptions`).
+    await runZonedGuarded(
+      () async {
+        final websocket = MockWebSocketChannel();
+        final phoenixSocket = PhoenixSocket(
+          'endpoint',
+          socketOptions: PhoenixSocketOptions(
+            params: {'token': 'token'},
+            reconnectDelays: [Duration.zero],
+          ),
+          webSocketChannelFactory: (_) => websocket,
+        );
 
-    when(websocket.stream).thenAnswer((_) {
-      if (invocations < 2) {
-        // Return a never stream to keep the socket open on the first two
-        // attempts. If it is an empty Stream the socket will close immediately.
-        return NeverStream();
-      } else {
-        // Return a heartbeat on the third attempt which allows the socket
-        // to connect.
-        final controller = StreamController<String>()
-          ..add(jsonEncode(Message.heartbeat('$invocations').encode()));
-        return controller.stream;
-      }
-    });
+        when(websocket.sink).thenAnswer((_) {
+          final sink = MockWebSocketSink();
+          final doneCompleter = sinkCompleters[invocations];
+          when(sink.done).thenAnswer((_) => doneCompleter.future);
+          when(sink.add(any)).thenAnswer((_) {
+            // Throw an error adding data to the sink on the first two attempts.
+            // On the third attempt, the sink add should work as expected.
+            if (invocations < 2) {
+              doneCompleter.complete();
+              throw exceptions[invocations++];
+            }
+          });
+          return sink;
+        });
+        when(websocket.ready).thenAnswer((_) => Future.value());
 
-    // Throw an error adding data to the sink on the first two attempts.
-    // On the third attempt, the sink add should work as expected.
-    when(sink.add(any)).thenAnswer((_) {
-      if (invocations < 2) {
-        throw exceptions[invocations++];
-      }
-    });
+        when(websocket.stream).thenAnswer((_) {
+          final invocation = invocations;
+          final controller = StreamController<String>();
+          // Close controller when sink is done.
+          sinkCompleters[invocation].future.then((_) {
+            return controller.close();
+          });
+          if (invocation == 2) {
+            // Automatically emit heartbeat response.
+            controller
+                .add(jsonEncode(Message.heartbeat('$invocation').encode()));
+          }
+          return controller.stream;
+        });
 
-    // Connect to the socket
-    await phoenixSocket.connect();
-    expect(phoenixSocket.isConnected, isTrue);
+        // Connect to the socket
+        await phoenixSocket.connect();
 
-    // Expect the first two unexpected failures to be retried
-    verify(sink.add(any)).called(3);
+        await phoenixSocket.openStream.first;
+        expect(phoenixSocket.isConnected, isTrue);
+        expect(invocations, 2);
+      },
+      (error, stackTrace) {
+        if (!exceptions.contains(error)) {
+          throw Exception('Unexepcted exception: $error');
+        }
+      },
+    );
   });
 
   test('socket connect does not create new socket if one is already connected',
@@ -105,7 +131,9 @@ void main() {
 
     optionsCompleter.complete({'token': 'fakeUserToken'});
 
+    // First skip options retrieval
     await Future.delayed(Duration.zero);
+    // Then skip initialization delay
     await Future.delayed(Duration.zero);
 
     for (final ref in sentRefs) {
