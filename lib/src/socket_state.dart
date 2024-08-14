@@ -3,9 +3,9 @@ part of 'socket_connection.dart';
 /// Represents current logical state of the underlying WebSocket connection.
 ///
 /// The flow of the states for a single connection attempt is:
-/// Initializing → Ready → Closing → Closed
+/// Connecting → Connected → Disconnecting → Disconnected
 ///
-/// However, the state can change to Closed from any state.
+/// However, the state can change to Disconnected from any state.
 ///
 /// A single WebSocket connection does not get re-initialized.
 sealed class WebSocketConnectionState {
