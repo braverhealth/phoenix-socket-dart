@@ -232,6 +232,7 @@ class PhoenixSocket {
     _topicMessages.close();
     _topicStreams.clear();
 
+    _socketStateStream.close();
     _stateEventStreamController.close();
     _receiveStreamController.close();
     _logger.info('Disposed of PhoenixSocket');
