@@ -45,7 +45,7 @@ class SocketConnectionManager {
   /// success.
   int _connectionAttempts = 0;
 
-  SocketConnectionAttempt _currentAttempt = SocketConnectionAttempt.aborted();
+  SocketConnectionAttempt? _currentAttempt;
 
   bool _disposed = false;
   bool get _shouldAttemptReconnection =>
@@ -64,13 +64,18 @@ class SocketConnectionManager {
     }
 
     if (immediately) {
-      if (_pendingConnection != null && !_currentAttempt.delayDone) {
-        _currentAttempt.skipDelay();
+      final currentAttempt = _currentAttempt;
+      if (_pendingConnection != null &&
+          currentAttempt != null &&
+          !currentAttempt.delayDone) {
+        currentAttempt.skipDelay();
         return;
       }
 
       _stopConnecting(
-          forcedReconnectionRequested, 'Immediate connection requested');
+        forcedReconnectionRequested,
+        'Immediate connection requested',
+      );
       _connectionAttempts = 0;
     }
     _maybeConnect();
@@ -118,10 +123,11 @@ class SocketConnectionManager {
     _pendingConnection = null;
 
     // Make sure that no old attempt will begin emitting messages.
-    if (!_currentAttempt.delayDone) {
-      _currentAttempt.abort();
+    final oldAttempt = _currentAttempt;
+    if (oldAttempt != null && !oldAttempt.delayDone) {
+      oldAttempt.abort();
     }
-    _currentAttempt = SocketConnectionAttempt.aborted();
+    _currentAttempt = null;
 
     currentConnection?.then((connection) {
       connection.close(code, reason);
