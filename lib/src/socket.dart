@@ -476,10 +476,8 @@ class PhoenixSocket {
 
   // Exists for testing only
   void onSocketDataCallback(String message) {
-    if (_shouldPipeMessage(message)) {
-      if (!_receiveStreamController.isClosed) {
-        _receiveStreamController.add(message);
-      }
+    if (_shouldPipeMessage(message) && !_receiveStreamController.isClosed) {
+      _receiveStreamController.add(message);
     }
   }
 
