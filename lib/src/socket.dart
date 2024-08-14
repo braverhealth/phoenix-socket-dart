@@ -382,7 +382,7 @@ class PhoenixSocket {
 
     try {
       final heartbeatMessage = Message.heartbeat(nextRef);
-      sendMessage(heartbeatMessage);
+      await sendMessage(heartbeatMessage);
       _logger.fine('Heartbeat ${heartbeatMessage.ref} sent');
       final heartbeatRef = _latestHeartbeatRef = heartbeatMessage.ref!;
 
