@@ -274,7 +274,7 @@ class PhoenixSocket {
   /// a channel, you would usually use [PhoenixChannel.push] instead.
   ///
   /// Returns a future that completes when the reply for the sent message is
-  /// received. If your flow awaits for the result of this future, add a timout
+  /// received. If your flow awaits for the result of this future, add a timeout
   /// to it so that you are not stuck in case that the reply is never received.
   Future<Message> sendMessage(Message message) {
     if (message.ref == null) {
