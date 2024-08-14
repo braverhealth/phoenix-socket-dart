@@ -79,8 +79,9 @@ class SocketConnectionManager {
   ///
   /// If after call to [addMessage] a call to [dispose] or [stop] is made, then
   /// this future will complete with an error instead.
-  Future<void> addMessage(String message) {
-    return _maybeConnect().then((connection) => connection.send(message));
+  Future<void> addMessage(String message) async {
+    final connection = await _maybeConnect();
+    return connection.send(message);
   }
 
   /// Stops the attempts to connect, and closes the current connection if one is
