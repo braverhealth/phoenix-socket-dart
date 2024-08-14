@@ -13,7 +13,6 @@ typedef WebSocketChannelFactory = Future<WebSocketChannel> Function();
 final _logger = Logger('phoenix_socket.connection');
 
 // Some custom close codes.
-const unknownReason = 4000;
 const heartbeatTimedOut = 4001;
 const forcedReconnectionRequested = 4002;
 
@@ -395,7 +394,7 @@ class _WebSocketConnection {
       onDone: () {
         onStateChange(
           WebSocketDisconnected._(
-            _ws.closeCode ?? unknownReason,
+            _ws.closeCode ?? noStatusReceived,
             _ws.closeReason,
           ),
         );
