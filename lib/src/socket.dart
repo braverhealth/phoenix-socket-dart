@@ -285,10 +285,6 @@ class PhoenixSocket {
       );
     }
     _addToSink(_options.serializer.encode(message));
-    if (message.event != PhoenixChannelEvent.heartbeat) {
-      _cancelHeartbeat();
-      _scheduleHeartbeat();
-    }
     return (_pendingMessages[message.ref!] = Completer<Message>()).future;
   }
 
