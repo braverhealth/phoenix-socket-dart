@@ -69,7 +69,7 @@ void main() {
         await phoenixSocket.connect();
 
         await phoenixSocket.openStream.first;
-        expect(phoenixSocket.isConnected, isTrue);
+        expect(phoenixSocket.isOpen, isTrue);
         expect(invocations, 2);
       },
       (error, stackTrace) {
@@ -169,27 +169,27 @@ void main() {
           async.elapse(Duration.zero);
 
           verify(mockPhoenixSocketOptions.getParams()).called(1);
-          expect(phoenixSocket.isConnected, isFalse);
+          expect(phoenixSocket.isOpen, isFalse);
 
           // first retry after ~10 seconds
           async.elapse(const Duration(seconds: 11));
           verify(mockPhoenixSocketOptions.getParams()).called(1);
-          expect(phoenixSocket.isConnected, isFalse);
+          expect(phoenixSocket.isOpen, isFalse);
 
           // second retry after ~20 seconds
           async.elapse(const Duration(seconds: 21));
           verify(mockPhoenixSocketOptions.getParams()).called(1);
-          expect(phoenixSocket.isConnected, isFalse);
+          expect(phoenixSocket.isOpen, isFalse);
 
           // third retry after ~30 seconds
           async.elapse(const Duration(seconds: 31));
           verify(mockPhoenixSocketOptions.getParams()).called(1);
-          expect(phoenixSocket.isConnected, isFalse);
+          expect(phoenixSocket.isOpen, isFalse);
 
           // fourth retry after ~30 seconds (the last reconnect delay is repeated from now on)
           async.elapse(const Duration(seconds: 31));
           verify(mockPhoenixSocketOptions.getParams()).called(1);
-          expect(phoenixSocket.isConnected, isFalse);
+          expect(phoenixSocket.isOpen, isFalse);
         },
       );
     },

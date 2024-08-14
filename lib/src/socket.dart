@@ -141,7 +141,7 @@ class PhoenixSocket {
   /// not the same as the WebSocketConnected state, but rather is set to true
   /// when both web socket is connected, and the first heartbeat reply has been
   /// received.
-  bool get isConnected => _isOpen;
+  bool get isOpen => _isOpen;
 
   bool get _isConnectingOrConnected => switch (_socketStateStream.valueOrNull) {
         WebSocketConnecting() || WebSocketConnected() => true,
@@ -168,6 +168,9 @@ class PhoenixSocket {
   /// WebSocket is scheduled. If a WebSocket is connected or connecting, then
   /// it returns without any action.
   ///
+  /// To check whether the socket is ready for use, use [isOpen], or await on an
+  /// event from [openStream].
+  ///
   /// If [immediately] is set to `true`, then if a
   /// connection is not established, it will attempt to connect to a socket
   /// without delay.
@@ -182,7 +185,7 @@ class PhoenixSocket {
       );
     }
 
-    if (isConnected) {
+    if (isOpen) {
       return;
     } else if (!_socketStateStream.hasValue || _isConnectingOrConnected) {
       return _connectionManager.start(immediately: immediately);
@@ -372,7 +375,7 @@ class PhoenixSocket {
   /// Returns a Future completing with true if the heartbeat message was sent,
   /// and the reply to it was received.
   Future<bool> _sendHeartbeat({bool force = false}) async {
-    if (!force && !isConnected) return false;
+    if (!force && !isOpen) return false;
 
     if (_heartbeatTimeout != null) {
       if (_heartbeatTimeout!.isActive) {

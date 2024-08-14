@@ -11,7 +11,7 @@ void main() {
         () {
       final mockSocket = MockPhoenixSocket();
       when(mockSocket.defaultTimeout).thenReturn(Duration.zero);
-      when(mockSocket.isConnected).thenReturn(true);
+      when(mockSocket.isOpen).thenReturn(true);
 
       final channel = PhoenixChannel.fromSocket(mockSocket, topic: 'test');
       channel.join();
@@ -26,7 +26,7 @@ void main() {
         () {
       final mockSocket = MockPhoenixSocket();
       when(mockSocket.defaultTimeout).thenReturn(Duration.zero);
-      when(mockSocket.isConnected).thenReturn(false);
+      when(mockSocket.isOpen).thenReturn(false);
 
       final channel = PhoenixChannel.fromSocket(mockSocket, topic: 'test');
       channel.join();

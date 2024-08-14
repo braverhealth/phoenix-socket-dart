@@ -11,7 +11,7 @@ void main() {
       final socket = PhoenixSocket(addr);
 
       await socket.connect().then((_) => socket.openStream.first).then((_) {
-        expect(socket.isConnected, isTrue);
+        expect(socket.isOpen, isTrue);
       });
     });
 
@@ -32,7 +32,7 @@ void main() {
       );
 
       await socket.connect().then((_) => socket.openStream.first).then((_) {
-        expect(socket.isConnected, isTrue);
+        expect(socket.isOpen, isTrue);
       });
     });
 

@@ -95,8 +95,7 @@ class PhoenixChannel {
   PhoenixChannelState get state => _state;
 
   /// Whether the channel can send messages.
-  bool get canPush =>
-      socket.isConnected && _state == PhoenixChannelState.joined;
+  bool get canPush => socket.isOpen && _state == PhoenixChannelState.joined;
 
   String? _loggerName;
 
@@ -180,7 +179,7 @@ class PhoenixChannel {
         _joinPush.reset();
       }
 
-      if (socket.isConnected) {
+      if (socket.isOpen) {
         _startRejoinTimer();
       }
     }
@@ -201,7 +200,7 @@ class PhoenixChannel {
       timeout: timeout ?? _timeout,
     );
 
-    if (!socket.isConnected || prevState != PhoenixChannelState.joined) {
+    if (!socket.isOpen || prevState != PhoenixChannelState.joined) {
       currentLeavePush.trigger(PushResponse(status: 'ok'));
     } else {
       void onClose(PushResponse reply) {
@@ -227,7 +226,7 @@ class PhoenixChannel {
     }
 
     _joinedOnce = true;
-    if (socket.isConnected) {
+    if (socket.isOpen) {
       _attemptJoin();
     } else {
       _state = PhoenixChannelState.errored;
@@ -333,7 +332,7 @@ class PhoenixChannel {
       ..onReply('error', (response) {
         _logger.warning('Join message got error response: $response');
         _state = PhoenixChannelState.errored;
-        if (socket.isConnected) {
+        if (socket.isOpen) {
           _startRejoinTimer();
         }
       })
@@ -349,7 +348,7 @@ class PhoenixChannel {
 
         _state = PhoenixChannelState.errored;
         _joinPush.reset();
-        if (socket.isConnected) {
+        if (socket.isOpen) {
           _startRejoinTimer();
         }
       });
@@ -358,7 +357,7 @@ class PhoenixChannel {
   void _startRejoinTimer() {
     _rejoinTimer?.cancel();
     _rejoinTimer = Timer(_timeout, () {
-      if (socket.isConnected) _attemptJoin();
+      if (socket.isOpen) _attemptJoin();
     });
   }
 
@@ -390,7 +389,7 @@ class PhoenixChannel {
         _joinPush.reset();
       }
       _state = PhoenixChannelState.errored;
-      if (socket.isConnected) {
+      if (socket.isOpen) {
         _rejoinTimer?.cancel();
         _startRejoinTimer();
       }
