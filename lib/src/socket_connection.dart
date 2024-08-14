@@ -12,6 +12,11 @@ typedef WebSocketChannelFactory = Future<WebSocketChannel> Function();
 
 final _logger = Logger('phoenix_socket.connection');
 
+// Some custom close codes.
+const unknownReason = 4000;
+const heartbeatTimedOut = 4001;
+const forcedReconnectionRequested = 4002;
+
 /// Maintains connection to the underlying websocket, reconnecting to it if
 /// necessary.
 class SocketConnectionManager {
@@ -65,7 +70,8 @@ class SocketConnectionManager {
         return;
       }
 
-      _stopConnecting(4002, 'Immediate connection requested');
+      _stopConnecting(
+          forcedReconnectionRequested, 'Immediate connection requested');
       _connectionAttempts = 0;
     }
     _maybeConnect();
@@ -167,7 +173,8 @@ class SocketConnectionManager {
       } finally {
         if (_disposed) {
           // Manager was disposed while running connection attempt.
-          connection?.close(goingAway, 'Client disposed');
+          // Should be goingAway, but https://github.com/dart-lang/http/issues/1294
+          connection?.close(normalClosure, 'Client disposed');
           connectionCompleter.completeError(StateError('Client disposed'));
         } else if (connectionFuture != _pendingConnection) {
           connection?.close(normalClosure, 'Closing obsolete connection');
@@ -176,7 +183,7 @@ class SocketConnectionManager {
             connectionCompleter
                 .completeError(StateError('Connection attempt aborted'));
           } else {
-            // _startConnecting() was called during connection attempt, return the
+            // _connect() was called during connection attempt, return the
             // new Future instead.
             connectionCompleter.complete(_pendingConnection);
           }
@@ -230,7 +237,11 @@ class SocketConnectionManager {
         _onError(error, stackTrace);
       }
 
-      rethrow;
+      if (error is ConnectionInitializationException) {
+        rethrow;
+      } else {
+        throw ConnectionInitializationException(error, stackTrace);
+      }
     }
   }
 
@@ -383,7 +394,10 @@ class _WebSocketConnection {
       onError: onError,
       onDone: () {
         onStateChange(
-          WebSocketDisconnected._(_ws.closeCode ?? 4000, _ws.closeReason),
+          WebSocketDisconnected._(
+            _ws.closeCode ?? unknownReason,
+            _ws.closeReason,
+          ),
         );
         acceptingMessages = false;
         subscription.cancel();

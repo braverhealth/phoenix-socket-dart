@@ -203,7 +203,11 @@ class PhoenixSocket {
     if (reconnect) {
       _reconnect(code ?? normalClosure, reason: reason);
     } else {
-      _closeConnection(code ?? goingAway, reason: reason);
+      _closeConnection(
+        // Should be goingAway, but https://github.com/dart-lang/http/issues/1294
+        code ?? normalClosure,
+        reason: reason,
+      );
     }
   }
 
@@ -407,7 +411,7 @@ class PhoenixSocket {
       return false;
     } catch (error, stackTrace) {
       _logger.warning('Heartbeat message failed', error, stackTrace);
-      _reconnect(4001, reason: 'Heartbeat timeout');
+      _reconnect(heartbeatTimedOut, reason: 'Heartbeat timed out');
       return false;
     }
   }
@@ -485,11 +489,8 @@ class PhoenixSocket {
         completer.complete(message);
       }
 
-      if (message.ref != _latestHeartbeatRef) {
-        // The connection is alive, prevent heartbeat timeout from closing
-        // connection.
-        _latestHeartbeatRef = null;
-      }
+      // The connection is alive, prevent heartbeat timeout from closing it.
+      _latestHeartbeatRef = null;
     }
 
     if (message.topic != null && message.topic!.isNotEmpty) {
