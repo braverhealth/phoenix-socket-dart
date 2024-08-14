@@ -389,7 +389,9 @@ class PhoenixSocket {
 
     try {
       final heartbeatMessage = Message.heartbeat(nextRef);
-      await sendMessage(heartbeatMessage);
+      // No await here, since the heartbeat will already be completed when it
+      // returns, and `_pendingMessages[heartbeatRef]` won't exist.
+      sendMessage(heartbeatMessage);
       _logger.fine('Heartbeat ${heartbeatMessage.ref} sent');
       final heartbeatRef = _latestHeartbeatRef = heartbeatMessage.ref!;
 
