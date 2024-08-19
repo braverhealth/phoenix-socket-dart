@@ -29,9 +29,10 @@ class PhoenixSocket {
 
     /// The factory to use to create the WebSocketChannel.
     WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
-  }) {
-    _options = socketOptions ?? PhoenixSocketOptions();
-
+  })  : _endpoint = endpoint,
+        _options = socketOptions ?? const PhoenixSocketOptions(),
+        _webSocketChannelFactory =
+            webSocketChannelFactory ?? WebSocketChannel.connect {
     _messageStream =
         _receiveStreamController.stream.map(_options.serializer.decode);
     _openStream =
@@ -40,20 +41,6 @@ class PhoenixSocket {
         _stateEventStreamController.stream.whereType<PhoenixSocketCloseEvent>();
     _errorStream =
         _stateEventStreamController.stream.whereType<PhoenixSocketErrorEvent>();
-
-    _connectionManager = SocketConnectionManager(
-      factory: () async {
-        final mountPoint = await _buildMountPoint(endpoint, _options);
-        return (webSocketChannelFactory ?? WebSocketChannel.connect)
-            .call(mountPoint);
-      },
-      reconnectDelays: _options.reconnectDelays,
-      onMessage: onSocketDataCallback,
-      onError: (error, [stackTrace]) => _stateEventStreamController.add(
-        PhoenixSocketErrorEvent(error: error, stacktrace: stackTrace),
-      ),
-      onStateChange: _socketStateStream.add,
-    );
 
     _subscriptions = [
       _messageStream.listen(_onMessage),
@@ -64,18 +51,12 @@ class PhoenixSocket {
     ];
   }
 
-  static Future<Uri> _buildMountPoint(
-    String endpoint,
-    PhoenixSocketOptions options,
-  ) async {
-    var decodedUri = Uri.parse(endpoint);
-    final params = await options.getParams();
-    final queryParams = decodedUri.queryParameters.entries.toList()
-      ..addAll(params.entries.toList());
-    return decodedUri.replace(
-      queryParameters: Map.fromEntries(queryParams),
-    );
-  }
+  final String _endpoint;
+  final PhoenixSocketOptions _options;
+  final WebSocketChannel Function(Uri uri)? _webSocketChannelFactory;
+
+  /// Default duration for a connection timeout.
+  Duration get defaultTimeout => _options.timeout;
 
   final Map<String, Completer<Message>> _pendingMessages = {};
   final Map<String, Stream<Message>> _topicStreams = {};
@@ -92,12 +73,7 @@ class PhoenixSocket {
   late Stream<PhoenixSocketCloseEvent> _closeStream;
   late Stream<PhoenixSocketErrorEvent> _errorStream;
   late Stream<Message> _messageStream;
-  late SocketConnectionManager _connectionManager;
-
-  late PhoenixSocketOptions _options;
-
-  /// Default duration for a connection timeout.
-  Duration get defaultTimeout => _options.timeout;
+  SocketConnectionManager? _connectionManager;
 
   _StreamRouter<Message>? _router;
 
@@ -171,9 +147,8 @@ class PhoenixSocket {
   /// To check whether the socket is ready for use, use [isOpen], or await on an
   /// event from [openStream].
   ///
-  /// If [immediately] is set to `true`, then if a
-  /// connection is not established, it will attempt to connect to a socket
-  /// without delay.
+  /// If [immediately] is set to `true` and if a connection is not established,
+  /// it will attempt to connect to a socket without delay.
   Future<void> connect({bool immediately = false}) async {
     if (_disposed) {
       throw StateError('PhoenixSocket cannot connect after being disposed.');
@@ -188,13 +163,46 @@ class PhoenixSocket {
     if (isOpen) {
       return;
     } else if (!_socketStateStream.hasValue || _isConnectingOrConnected) {
-      return _connectionManager.start(immediately: immediately);
+      await (_connectionManager ??= _createConnectionManager())
+          .start(immediately: immediately);
     } else {
-      return _reconnect(
+      await _reconnect(
         normalClosure, // Any code is a good code.
         immediately: immediately,
       );
     }
+
+    assert(
+      _stateEventStreamController.valueOrNull is! PhoenixSocketOpenEvent,
+      'Phoenix socket should not be open at this stage',
+    );
+    await _openStream.first;
+  }
+
+  SocketConnectionManager _createConnectionManager() {
+    return SocketConnectionManager(
+      factory: () async {
+        final mountPoint = await _buildMountPoint();
+        return (_webSocketChannelFactory ?? WebSocketChannel.connect)
+            .call(mountPoint);
+      },
+      reconnectDelays: _options.reconnectDelays,
+      onMessage: onSocketDataCallback,
+      onError: (error, [stackTrace]) => _stateEventStreamController.add(
+        PhoenixSocketErrorEvent(error: error, stacktrace: stackTrace),
+      ),
+      onStateChange: _socketStateStream.add,
+    );
+  }
+
+  Future<Uri> _buildMountPoint() async {
+    var decodedUri = Uri.parse(_endpoint);
+    final params = await _options.getParams();
+    final queryParams = decodedUri.queryParameters.entries.toList()
+      ..addAll(params.entries.toList());
+    return decodedUri.replace(
+      queryParameters: Map.fromEntries(queryParams),
+    );
   }
 
   /// Close the underlying connection supporting the socket.
@@ -255,19 +263,27 @@ class PhoenixSocket {
       throw StateError('Cannot reconnect a disposed socket');
     }
 
-    if (_socketStateStream.hasValue) {
-      await _closeConnection(code, reason: reason);
+    if (_connectionManager == null) {
+      return connect(immediately: immediately);
     }
-    _connectionManager.start(immediately: immediately);
+
+    _connectionManager!
+        .reconnect(code, reason: reason, immediately: immediately);
   }
 
   Future<void> _closeConnection(int code, {String? reason}) async {
     if (_disposed) {
       _logger.warning('Cannot close a disposed socket');
     }
-    if (_isConnectingOrConnected) {
-      _connectionManager.stop(code, reason);
-    } else if (_socketStateStream.valueOrNull is! WebSocketDisconnected) {
+    if (_connectionManager != null) {
+      _connectionManager!.dispose(code, reason);
+      _connectionManager = null;
+    }
+    if (_stateEventStreamController.valueOrNull is! PhoenixSocketCloseEvent) {
+      _stateEventStreamController
+          .add(PhoenixSocketCloseEvent(code: code, reason: reason));
+    }
+    if (_socketStateStream.valueOrNull is! WebSocketDisconnected) {
       await _socketStateStream
           .firstWhere((state) => state is WebSocketDisconnected);
     }
@@ -295,11 +311,12 @@ class PhoenixSocket {
     return (_pendingMessages[message.ref!] = Completer<Message>()).future;
   }
 
-  void _addToSink(String data) {
+  Future<void> _addToSink(String data) async {
     if (_disposed) {
-      return;
+      throw StateError('Cannot add messages to a disposed socket');
     }
-    _connectionManager.addMessage(data);
+
+    _connectionManager!.addMessage(data);
   }
 
   /// CHANNELS

@@ -68,7 +68,6 @@ void main() {
         // Connect to the socket
         await phoenixSocket.connect();
 
-        await phoenixSocket.openStream.first;
         expect(phoenixSocket.isOpen, isTrue);
         expect(invocations, 2);
       },

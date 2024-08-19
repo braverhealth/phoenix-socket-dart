@@ -10,7 +10,7 @@ void main() {
     test('can connect to a running Phoenix server', () async {
       final socket = PhoenixSocket(addr);
 
-      await socket.connect().then((_) => socket.openStream.first).then((_) {
+      await socket.connect().then((_) {
         expect(socket.isOpen, isTrue);
       });
     });
@@ -31,7 +31,7 @@ void main() {
         ),
       );
 
-      await socket.connect().then((_) => socket.openStream.first).then((_) {
+      await socket.connect().then((_) {
         expect(socket.isOpen, isTrue);
       });
     });
