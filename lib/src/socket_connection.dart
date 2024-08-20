@@ -21,7 +21,7 @@ const forcedReconnectionRequested = 4002;
 /// necessary.
 class SocketConnectionManager {
   SocketConnectionManager({
-    required Future<WebSocketChannel> Function() factory,
+    required WebSocketChannelFactory factory,
     required List<Duration> reconnectDelays,
     required void Function(String) onMessage,
     required void Function(WebSocketConnectionState) onStateChange,
@@ -51,9 +51,11 @@ class SocketConnectionManager {
 
   bool _disposed = false;
 
-  /// Requests to start connecting to the socket. Returns a future
+  /// Requests to start connecting to the socket. Returns a future that
+  /// completes when a WebSocket connection has been established.
   ///
-  /// Has no effect if the connection is already established.
+  /// If [immediately] is false, and a connection is already established, then
+  /// this method does not have any effect.
   ///
   /// If [immediately] is set to true, then an attempt to connect is made
   /// immediately. This might result in dropping the current connection and
@@ -84,16 +86,26 @@ class SocketConnectionManager {
   /// Sends a message to the socket. Will start connecting to the socket if
   /// necessary.
   ///
-  /// Returns a future that completes when the message is successfully added to
-  /// the socket.
+  /// Returns a future that completes when the message is successfully passed to
+  /// an established WebSocket.
   ///
-  /// If after call to [addMessage] a call to [dispose] or [stop] is made, then
-  /// this future will complete with an error instead.
+  /// The future will complete with error if the message couldn't be added to
+  /// a WebSocket, either because this connection manager was disposed, or the
+  /// WebSocket could not accept messages.
   Future<void> addMessage(String message) async {
     final connection = await _maybeConnect();
     return connection.send(message);
   }
 
+  /// Forces reconnection to the WebSocket. Returns a future that completes when
+  /// a WebSocket connection has been established.
+  ///
+  /// If a connection was already established, it gets closed with the provided
+  /// code and optional reason.
+  ///
+  /// If [immediately] is true, then the new connection attempt is executed
+  /// immediately, irrespective of ordinary reconnection delays provided to the
+  /// constructor.
   Future<void> reconnect(int code, {String? reason, bool immediately = false}) {
     final currentConnection = _connectionsStream.valueOrNull;
     final connectFuture = _connect();

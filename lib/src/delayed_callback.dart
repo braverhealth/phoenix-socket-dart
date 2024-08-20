@@ -6,8 +6,8 @@ final _random = Random();
 /// Like [Future.delayed], but allows some control of the delay before the
 /// callback execution.
 final class DelayedCallback<T> {
-  // Created a socket connection attempt whose delayFuture will complete after
-  // the given delay.
+  /// Executes the provided [callback] after [delay] elapses, unless aborted
+  /// during the delay.
   DelayedCallback({
     required Duration delay,
     required Future<T> Function() callback,
@@ -28,6 +28,13 @@ final class DelayedCallback<T> {
   final Future<T> Function() _callback;
   bool _callbackRan = false;
   final _callbackCompleter = Completer<T>();
+
+  /// Returns a future that is completed with result of callback execution.
+  ///
+  /// If the callback throws, then this future completes with the thrown error.
+  ///
+  /// If the callback gets aborted before execution, the future is completed
+  /// with a custom error.
   late final Future<T> callbackFuture = _callbackCompleter.future;
 
   void _runCallback() {
@@ -44,8 +51,8 @@ final class DelayedCallback<T> {
   /// executed.
   bool get delayDone => !_delayTimer.isActive;
 
-  // Immediately skips delay and executes callback. Has no effect if the delay
-  // has expired already.
+  /// Immediately skips delay and executes callback. Has no effect if the delay
+  /// has expired already, or if the callback was aborted.
   void skipDelay() {
     if (_delayTimer.isActive) {
       _delayTimer.cancel();
@@ -55,9 +62,9 @@ final class DelayedCallback<T> {
     }
   }
 
-  // Immediately completes delay with an error. The [callbackFuture] is going
-  // to be completed with an error. Has no effect if the delay has expired
-  // already.
+  /// Aborts attempt at calling the callback. The [callbackFuture] is going to
+  /// be completed with an error. Has no effect if the delay has expired
+  /// already.
   void abort() {
     if (_delayTimer.isActive) {
       _delayTimer.cancel();

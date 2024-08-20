@@ -115,7 +115,7 @@ class PhoenixSocket {
 
   /// Whether the phoenix socket is ready to join channels. Note that this is
   /// not the same as the WebSocketConnected state, but rather is set to true
-  /// when both web socket is connected, and the first heartbeat reply has been
+  /// when both WebSocket is connected, and the first heartbeat reply has been
   /// received.
   bool get isOpen => _isOpen;
 
@@ -140,15 +140,15 @@ class PhoenixSocket {
   /// Connects to the underlying WebSocket and prepares this PhoenixSocket for
   /// connecting to channels.
   ///
-  /// The returned future will complete as soon as the attempt to connect to a
-  /// WebSocket is scheduled. If a WebSocket is connected or connecting, then
-  /// it returns without any action.
-  ///
-  /// To check whether the socket is ready for use, use [isOpen], or await on an
-  /// event from [openStream].
+  /// The returned future will complete when a connection is established and the
+  /// first heartbeat round-trip completes.
   ///
   /// If [immediately] is set to `true` and if a connection is not established,
   /// it will attempt to connect to a socket without delay.
+  ///
+  /// If a connection is already open, then this method returns immediately. If
+  /// you want to force a new connection, use [close] with reconnect parameter
+  /// set to true.
   Future<void> connect({bool immediately = false}) async {
     if (_disposed) {
       throw StateError('PhoenixSocket cannot connect after being disposed.');
