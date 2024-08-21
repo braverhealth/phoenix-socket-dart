@@ -478,7 +478,7 @@ class MockPhoenixSocket extends _i1.Mock implements _i2.PhoenixSocket {
 
   @override
   bool get isOpen => (super.noSuchMethod(
-        Invocation.getter(#isConnected),
+        Invocation.getter(#isOpen),
         returnValue: false,
         returnValueForMissingStub: false,
       ) as bool);
