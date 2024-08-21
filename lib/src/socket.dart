@@ -299,7 +299,16 @@ class PhoenixSocket {
   /// Returns a future that completes when the reply for the sent message is
   /// received. If your flow awaits for the result of this future, add a timeout
   /// to it so that you are not stuck in case that the reply is never received.
-  Future<Message> sendMessage(Message message) {
+  Future<Message> sendMessage(Message message) async {
+    return (_pendingMessages[message.ref!] = await _sendMessage(message))
+        .future;
+  }
+
+  Future<Completer<Message>> _sendMessage(Message message) async {
+    if (_disposed) {
+      throw StateError('Cannot add messages to a disposed socket');
+    }
+
     if (message.ref == null) {
       throw ArgumentError.value(
         message,
@@ -307,16 +316,13 @@ class PhoenixSocket {
         'does not contain a ref',
       );
     }
-    _addToSink(_options.serializer.encode(message));
-    return (_pendingMessages[message.ref!] = Completer<Message>()).future;
-  }
 
-  Future<void> _addToSink(String data) async {
-    if (_disposed) {
-      throw StateError('Cannot add messages to a disposed socket');
+    if (_connectionManager == null) {
+      throw StateError('Cannot add messages to a disconnected socket');
     }
 
-    _connectionManager!.addMessage(data);
+    await _connectionManager!.addMessage(_options.serializer.encode(message));
+    return _pendingMessages[message.ref!] = Completer<Message>();
   }
 
   /// CHANNELS
@@ -406,15 +412,15 @@ class PhoenixSocket {
 
     try {
       final heartbeatMessage = Message.heartbeat(nextRef);
-      // No await here, since the heartbeat will already be completed when it
-      // returns, and `_pendingMessages[heartbeatRef]` won't exist.
-      sendMessage(heartbeatMessage);
+      // Using _sendMessages to wait for potential problems when sending message
+      // (eg. WebSocket failure), but not until the response is reported.
+      final heartbeatCompleter = await _sendMessage(heartbeatMessage);
       _logger.fine('Heartbeat ${heartbeatMessage.ref} sent');
       final heartbeatRef = _latestHeartbeatRef = heartbeatMessage.ref!;
 
       _heartbeatTimeout = _scheduleHeartbeat(heartbeatRef);
 
-      await _pendingMessages[heartbeatRef]!.future;
+      await heartbeatCompleter.future;
       _logger.fine('Heartbeat $heartbeatRef completed');
       return true;
     } on WebSocketChannelException catch (error, stackTrace) {

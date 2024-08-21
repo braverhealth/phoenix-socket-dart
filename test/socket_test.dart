@@ -19,6 +19,11 @@ void main() {
       Completer<void>(),
       Completer<void>(),
     ];
+    final streamControllers = [
+      StreamController<String>(),
+      StreamController<String>(),
+      StreamController<String>(),
+    ];
 
     // This code might throw asynchronous errors, prevent the test from failing
     // if these are expected ones (as defined in `exceptions`).
@@ -43,27 +48,18 @@ void main() {
             // On the third attempt, the sink add should work as expected.
             if (invocations < 2) {
               doneCompleter.complete();
+              streamControllers[invocations].close();
               throw exceptions[invocations++];
             }
+            streamControllers[invocations]
+                .add(jsonEncode(Message.heartbeat('$invocations').encode()));
           });
           return sink;
         });
         when(websocket.ready).thenAnswer((_) => Future.value());
 
-        when(websocket.stream).thenAnswer((_) {
-          final invocation = invocations;
-          final controller = StreamController<String>();
-          // Close controller when sink is done.
-          sinkCompleters[invocation].future.then((_) {
-            return controller.close();
-          });
-          if (invocation == 2) {
-            // Automatically emit heartbeat response.
-            controller
-                .add(jsonEncode(Message.heartbeat('$invocation').encode()));
-          }
-          return controller.stream;
-        });
+        when(websocket.stream)
+            .thenAnswer((_) => streamControllers[invocations].stream);
 
         // Connect to the socket
         await phoenixSocket.connect();
