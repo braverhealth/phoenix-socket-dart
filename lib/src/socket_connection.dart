@@ -74,11 +74,12 @@ class SocketConnectionManager {
         return;
       }
 
-      reconnect(
+      await reconnect(
         forcedReconnectionRequested,
         reason: 'Immediate connection requested',
         immediately: true,
       );
+      return;
     }
     await _maybeConnect();
   }
