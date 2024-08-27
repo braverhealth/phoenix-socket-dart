@@ -249,9 +249,13 @@ class PhoenixSocket {
     _topicMessages.close();
     _topicStreams.clear();
 
+    _connectionManager?.dispose(normalClosure);
+    _connectionManager = null;
+
     _socketStateStream.close();
     _stateEventStreamController.close();
     _receiveStreamController.close();
+
     _logger.info('Disposed of PhoenixSocket');
   }
 
@@ -275,6 +279,7 @@ class PhoenixSocket {
   Future<void> _closeConnection(int code, {String? reason}) async {
     if (_disposed) {
       _logger.warning('Cannot close a disposed socket');
+      return;
     }
     if (_connectionManager != null) {
       _connectionManager!.dispose(code, reason);
@@ -582,6 +587,10 @@ class PhoenixSocket {
       () =>
           'Socket closed with code ${closeEvent.code} and reason "${closeEvent.reason}"',
     );
-    _triggerChannelExceptions(exception);
+
+    if (_connectionManager != null) {
+      // Otherwise we have closed the connections ourselves.
+      _triggerChannelExceptions(exception);
+    }
   }
 }
