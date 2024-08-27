@@ -29,6 +29,7 @@ void main() {
       final completer = Completer<void>();
 
       await socket.connect();
+      addTearDown(socket.dispose);
       socket.addChannel(topic: 'channel1').join().onReply('ok', (reply) {
         expect(reply.status, equals('ok'));
         completer.complete();
@@ -45,6 +46,7 @@ void main() {
       final completer = Completer<void>();
 
       await socket.connect();
+      addTearDown(socket.dispose);
 
       socket.addChannel(topic: 'channel1').join().onReply('ok', (reply) {
         expect(reply.status, equals('ok'));
@@ -61,6 +63,7 @@ void main() {
       final completer = Completer<void>();
 
       await socket.connect();
+      addTearDown(socket.dispose);
 
       await haltProxy();
       final joinFuture = socket.addChannel(topic: 'channel1').join();
@@ -82,9 +85,7 @@ void main() {
       final completer = Completer<void>();
 
       await socket.connect();
-      addTearDown(() {
-        socket.dispose();
-      });
+      addTearDown(socket.dispose);
       await resetPeer();
 
       runZonedGuarded(() {
@@ -180,6 +181,7 @@ void main() {
       final socket = PhoenixSocket(addr);
 
       await socket.connect();
+      addTearDown(socket.dispose);
 
       final channel1 = socket.addChannel(topic: 'channel1');
       await channel1.join().future;
@@ -198,6 +200,7 @@ void main() {
       final socket = PhoenixSocket(addr);
 
       await socket.connect();
+      addTearDown(socket.dispose);
 
       final channel1 = socket.addChannel(topic: 'channel1');
       await channel1.join().future;
@@ -215,17 +218,16 @@ void main() {
         'throws when sending messages to channels that got "peer reset" '
         'and that have not recovered yet', () async {
       final socket = PhoenixSocket(addr);
-
-      await socket.connect();
-
-      final channel1 = socket.addChannel(topic: 'channel1');
-      await channel1.join().future;
-
-      await resetPeer();
-
+      addTearDown(socket.dispose);
       final Completer<Object> errorCompleter = Completer();
 
       runZonedGuarded(() async {
+        await socket.connect();
+        final channel1 = socket.addChannel(topic: 'channel1');
+        await channel1.join().future;
+
+        await resetPeer();
+
         final push = channel1.push('hello!', {'foo': 'bar'});
         try {
           await push.future;
@@ -234,15 +236,19 @@ void main() {
         }
       }, (error, stack) {});
 
-      final Object exception;
-      expect(exception = await errorCompleter.future, isA<PhoenixException>());
-      expect((exception as PhoenixException).socketClosed, isNotNull);
+      final Object exception = await errorCompleter.future;
+      expect(
+        exception,
+        isA<PhoenixException>().having(
+            (exception) => exception.socketClosed, 'socketClosed', isNotNull),
+      );
     });
 
     test('only emits reply messages that are channel replies', () async {
       final socket = PhoenixSocket(addr);
 
       socket.connect();
+      addTearDown(socket.dispose);
 
       final channel1 = socket.addChannel(topic: 'channel1');
       final channelMessages = [];
@@ -258,6 +264,7 @@ void main() {
       final socket = PhoenixSocket(addr);
 
       await socket.connect();
+      addTearDown(socket.dispose);
 
       final channel2 = socket.addChannel(topic: 'channel2');
       await channel2.join().future;
@@ -415,6 +422,7 @@ void main() {
     test('timeout on send message will throw', () async {
       final socket = PhoenixSocket(addr);
       await socket.connect();
+      addTearDown(socket.dispose);
       final channel = socket.addChannel(topic: 'channel1');
       await channel.join().future;
 
