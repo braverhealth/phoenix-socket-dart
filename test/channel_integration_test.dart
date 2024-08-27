@@ -83,7 +83,7 @@ void main() {
 
       await socket.connect();
       addTearDown(() {
-        socket.close();
+        socket.dispose();
       });
       await resetPeer();
 
@@ -312,8 +312,8 @@ void main() {
       await channel2.join().future;
 
       addTearDown(() {
-        socket1.close();
-        socket2.close();
+        socket1.dispose();
+        socket2.dispose();
       });
 
       expect(
@@ -371,8 +371,8 @@ void main() {
       await channel2.join().future;
 
       addTearDown(() {
-        socket1.close();
-        socket2.close();
+        socket1.dispose();
+        socket2.dispose();
       });
 
       channel1.push('ping', {'from': 'socket1'});
@@ -405,8 +405,8 @@ void main() {
       await channel2.join().future;
 
       addTearDown(() {
-        socket1.close();
-        socket2.close();
+        socket1.dispose();
+        socket2.dispose();
       });
 
       channel1.push('ping', {'from': 'socket1'});
