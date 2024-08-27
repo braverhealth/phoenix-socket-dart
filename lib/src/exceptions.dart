@@ -19,7 +19,7 @@ class PhoenixException implements Exception {
   final PhoenixSocketCloseEvent? socketClosed;
 
   /// The associated channel event.
-  final String? channelEvent;
+  final Object? channelEvent;
 
   /// The error message for this exception.
   Message? get message {
@@ -36,7 +36,8 @@ class PhoenixException implements Exception {
     if (socketError != null) {
       return socketError!.error.toString();
     } else {
-      return 'PhoenixException: socket closed';
+      final suffix = channelEvent == null ? '' : ' with event $channelEvent';
+      return 'PhoenixException: socket closed$suffix';
     }
   }
 }
