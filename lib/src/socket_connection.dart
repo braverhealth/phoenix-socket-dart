@@ -375,14 +375,14 @@ class _WebSocketConnection {
           : onError(PhoenixException(), StackTrace.current),
       onError: onError,
       onDone: () {
+        connected = false;
+        subscription.cancel();
         onStateChange(
           WebSocketDisconnected._(
             _ws.closeCode ?? noStatusReceived,
             _ws.closeReason,
           ),
         );
-        connected = false;
-        subscription.cancel();
       },
     );
 
