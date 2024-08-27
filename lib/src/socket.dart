@@ -279,14 +279,17 @@ class PhoenixSocket {
     if (_connectionManager != null) {
       _connectionManager!.dispose(code, reason);
       _connectionManager = null;
-    }
-    if (_stateEventStreamController.valueOrNull is! PhoenixSocketCloseEvent) {
-      _stateEventStreamController
-          .add(PhoenixSocketCloseEvent(code: code, reason: reason));
-    }
-    if (_socketStateStream.valueOrNull is! WebSocketDisconnected) {
-      await _socketStateStream
-          .firstWhere((state) => state is WebSocketDisconnected);
+
+      if (_socketStateStream.valueOrNull is! WebSocketDisconnected) {
+        await _socketStateStream
+            .firstWhere((state) => state is WebSocketDisconnected);
+      }
+    } else {
+      _isOpen = false;
+      if (_stateEventStreamController.valueOrNull is! PhoenixSocketCloseEvent) {
+        _stateEventStreamController
+            .add(PhoenixSocketCloseEvent(code: code, reason: reason));
+      }
     }
   }
 
@@ -561,6 +564,7 @@ class PhoenixSocket {
     if (_isOpen) {
       _triggerChannelExceptions(PhoenixException(socketError: errorEvent));
     }
+    // _connectionManager?.reconnect(internalServerError, reason: 'Error on socket: ${errorEvent.error}');
   }
 
   void _onSocketClosed(PhoenixSocketCloseEvent closeEvent) {
@@ -576,7 +580,7 @@ class PhoenixSocket {
 
     _logger.fine(
       () =>
-          'Socket closed with reason ${closeEvent.reason} and code ${closeEvent.code}',
+          'Socket closed with code ${closeEvent.code} and reason "${closeEvent.reason}"',
     );
     _triggerChannelExceptions(exception);
   }
