@@ -187,6 +187,7 @@ class PhoenixSocket {
             .call(mountPoint);
       },
       reconnectDelays: _options.reconnectDelays,
+      readyTimeout: _options.timeout,
       onMessage: onSocketDataCallback,
       onError: (error, [stackTrace]) => _stateEventStreamController.add(
         PhoenixSocketErrorEvent(error: error, stacktrace: stackTrace),

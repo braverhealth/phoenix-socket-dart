@@ -50,6 +50,7 @@ void main() {
       SocketConnectionManager connectionManager = SocketConnectionManager(
         factory: () => Future.value(mockChannelConfig.channel),
         reconnectDelays: [Duration.zero],
+        readyTimeout: Duration(minutes: 1),
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
@@ -99,6 +100,7 @@ void main() {
       SocketConnectionManager connectionManager = SocketConnectionManager(
         factory: () => Future.value(channelMocks[invocationCount++].channel),
         reconnectDelays: [Duration.zero],
+        readyTimeout: Duration(minutes: 1),
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
@@ -166,6 +168,7 @@ void main() {
           return Future.value(channelMocks.channel);
         },
         reconnectDelays: [Duration.zero],
+        readyTimeout: Duration(minutes: 1),
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
@@ -213,6 +216,7 @@ void main() {
       SocketConnectionManager connectionManager = SocketConnectionManager(
         factory: () => Future.value(channelMocks[invocationCount++].channel),
         reconnectDelays: [Duration.zero],
+        readyTimeout: Duration(minutes: 1),
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
@@ -265,6 +269,7 @@ void main() {
       SocketConnectionManager connectionManager = SocketConnectionManager(
         factory: () => Future.value(channelMocks.channel),
         reconnectDelays: [Duration.zero],
+        readyTimeout: Duration(minutes: 1),
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
@@ -301,6 +306,7 @@ void main() {
       SocketConnectionManager connectionManager = SocketConnectionManager(
         factory: () => Future.value(channelMock.channel),
         reconnectDelays: [Duration.zero],
+        readyTimeout: Duration(minutes: 1),
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
@@ -337,6 +343,7 @@ void main() {
       SocketConnectionManager connectionManager = SocketConnectionManager(
         factory: () => Future.value(channelMock.channel),
         reconnectDelays: [Duration.zero],
+        readyTimeout: Duration(minutes: 1),
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,
@@ -370,6 +377,7 @@ void main() {
       SocketConnectionManager connectionManager = SocketConnectionManager(
         factory: () => Future.value(channelMock.channel),
         reconnectDelays: [const Duration(days: 1)],
+        readyTimeout: Duration(minutes: 1),
         onMessage: mockOnMessage.call,
         onStateChange: mockOnStateChange.call,
         onError: mockOnError.call,

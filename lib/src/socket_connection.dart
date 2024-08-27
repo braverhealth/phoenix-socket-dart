@@ -23,17 +23,20 @@ class SocketConnectionManager {
   SocketConnectionManager({
     required WebSocketChannelFactory factory,
     required List<Duration> reconnectDelays,
+    required Duration readyTimeout,
     required void Function(String) onMessage,
     required void Function(WebSocketConnectionState) onStateChange,
     required void Function(Object, [StackTrace?]) onError,
   })  : _factory = factory,
         _reconnectDelays = reconnectDelays,
+        _readyTimeout = readyTimeout,
         _onError = onError,
         _onStateChange = onStateChange,
         _onMessage = onMessage;
 
   final WebSocketChannelFactory _factory;
   final List<Duration> _reconnectDelays;
+  final Duration _readyTimeout;
   final void Function(String message) _onMessage;
   final void Function(WebSocketConnectionState state) _onStateChange;
   final void Function(Object error, [StackTrace? stacktrace]) _onError;
@@ -230,6 +233,7 @@ class SocketConnectionManager {
     try {
       return await _WebSocketConnection.connect(
         _factory,
+        timeout: _readyTimeout,
         callbacks: _ConnectionCallbacks(attempt: attempt, manager: this),
       );
     } on ConnectionInitializationException {
@@ -342,12 +346,13 @@ class _WebSocketConnection {
   static Future<_WebSocketConnection> connect(
     WebSocketChannelFactory factory, {
     required _ConnectionCallbacks callbacks,
+    required Duration timeout,
   }) async {
     callbacks.onStateChange(const WebSocketConnecting._());
     final WebSocketChannel ws;
     try {
       ws = await factory();
-      await ws.ready;
+      await ws.ready.timeout(timeout);
     } catch (error, stackTrace) {
       throw ConnectionInitializationException(error, stackTrace);
     }
@@ -372,7 +377,7 @@ class _WebSocketConnection {
     subscription = _ws.stream.listen(
       (event) => event is String
           ? onMessage(event)
-          : onError(PhoenixException(), StackTrace.current),
+          : onError(PhoenixException(channelEvent: event), StackTrace.current),
       onError: onError,
       onDone: () {
         connected = false;
