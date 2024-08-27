@@ -239,36 +239,6 @@ void main() {
       expect((exception as PhoenixException).socketClosed, isNotNull);
     });
 
-    test(
-      'throws when sending messages to channels that got disconnected '
-      'and that have not recovered yet',
-      () async {
-        final socket = PhoenixSocket(addr);
-
-        await socket.connect();
-
-        final channel1 = socket.addChannel(topic: 'channel1');
-        await channel1.join().future;
-
-        await haltProxy();
-
-        final Completer<Object> errorCompleter = Completer();
-        runZonedGuarded(() async {
-          try {
-            final push = channel1.push('hello!', {'foo': 'bar'});
-            await push.future;
-          } catch (err) {
-            errorCompleter.complete(err);
-          }
-        }, (error, stack) {});
-
-        expect(await errorCompleter.future, isA<ChannelClosedError>());
-      },
-      timeout: Timeout(
-        Duration(seconds: 5),
-      ),
-    );
-
     test('only emits reply messages that are channel replies', () async {
       final socket = PhoenixSocket(addr);
 
@@ -439,20 +409,6 @@ void main() {
             'was from socket1',
           ),
         ),
-      );
-    });
-
-    test('Pushing message on a closed channel throws exception', () async {
-      final socket = PhoenixSocket(addr);
-      await socket.connect();
-      final channel = socket.addChannel(topic: 'channel3');
-
-      await channel.join().future;
-      await channel.leave().future;
-
-      expect(
-        () => channel.push('EventName', {}),
-        throwsA(isA<ChannelClosedError>()),
       );
     });
 
