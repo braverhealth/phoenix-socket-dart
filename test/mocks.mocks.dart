@@ -915,6 +915,19 @@ class MockPhoenixSocketOptions extends _i1.Mock
       ) as Duration);
 
   @override
+  Duration get heartbeatTimeout => (super.noSuchMethod(
+        Invocation.getter(#heartbeatTimeout),
+        returnValue: _FakeDuration_3(
+          this,
+          Invocation.getter(#heartbeatTimeout),
+        ),
+        returnValueForMissingStub: _FakeDuration_3(
+          this,
+          Invocation.getter(#heartbeatTimeout),
+        ),
+      ) as Duration);
+
+  @override
   _i9.Future<Map<String, String>> getParams() => (super.noSuchMethod(
         Invocation.method(
           #getParams,
