@@ -78,24 +78,24 @@ void main() {
   test('socket connect does not create new socket if one is already connected',
       () async {
     final optionsCompleter = Completer<Map<String, String>>();
-    final mockPhoenixSocketOptions = MockPhoenixSocketOptions();
-    when(mockPhoenixSocketOptions.getParams())
-        .thenAnswer((_) => optionsCompleter.future);
-    when(mockPhoenixSocketOptions.heartbeat).thenReturn(Duration(days: 1));
-    when(mockPhoenixSocketOptions.reconnectDelays).thenReturn([Duration.zero]);
 
     final sentRefs = <String>[];
-    when(mockPhoenixSocketOptions.serializer).thenReturn(MessageSerializer(
-      encoder: (object) {
-        if (object is List) {
-          final message = Message.fromJson(object);
-          sentRefs.add(message.ref!);
-          return message.ref!;
-        }
-        return 'ignored';
-      },
-      decoder: (ref) => Message.heartbeat(ref).encode(),
-    ));
+
+    PhoenixSocketOptions socketOptions = PhoenixSocketOptions(
+        dynamicParams: () => optionsCompleter.future,
+        heartbeat: Duration(days: 1),
+        reconnectDelays: [Duration.zero],
+        serializer: MessageSerializer(
+          encoder: (object) {
+            if (object is List) {
+              final message = Message.fromJson(object);
+              sentRefs.add(message.ref!);
+              return message.ref!;
+            }
+            return 'ignored';
+          },
+          decoder: (ref) => Message.heartbeat(ref).encode(),
+        ));
 
     int factoryCalls = 0;
     WebSocketChannel stubWebSocketChannelFactory(Uri uri) {
@@ -112,7 +112,7 @@ void main() {
     final phoenixSocket = PhoenixSocket(
       'ws://endpoint',
       webSocketChannelFactory: stubWebSocketChannelFactory,
-      socketOptions: mockPhoenixSocketOptions,
+      socketOptions: socketOptions,
     );
 
     // Connect to the socket
