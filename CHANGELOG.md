@@ -1,3 +1,7 @@
+## [0.7.5.]
+
+- Upgrade web_socket_channel to 3.0.1
+
 ## [0.7.4.]
 
 - Fix some race conditions when handling connectivity issues
