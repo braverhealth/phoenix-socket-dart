@@ -1,3 +1,7 @@
+## [0.7.6.]
+
+- Change referenced rxdart version ^0.27.0
+
 ## [0.7.5.]
 
 - Upgrade web_socket_channel to 3.0.1
