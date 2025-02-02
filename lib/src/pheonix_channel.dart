@@ -5,8 +5,8 @@ import 'package:logging/logging.dart';
 import 'events.dart';
 import 'exceptions.dart';
 import 'message.dart';
+import 'pheonix_socket.dart';
 import 'push.dart';
-import 'socket.dart';
 
 /// The different states a channel can be.
 enum PhoenixChannelState {
@@ -190,6 +190,7 @@ class PhoenixChannel {
   Push leave({Duration? timeout}) {
     _joinPush.cancelTimeout();
     _rejoinTimer?.cancel();
+    _joinedOnce = false;
 
     final prevState = _state;
     _state = PhoenixChannelState.leaving;
@@ -212,7 +213,7 @@ class PhoenixChannel {
       currentLeavePush
         ..onReply('ok', onClose)
         ..onReply('timeout', onClose)
-        ..send();
+        ..sendExpectingReply();
     }
 
     return currentLeavePush;
@@ -247,16 +248,18 @@ class PhoenixChannel {
     /// The message payload.
     ///
     /// This needs to be a JSON encodable object.
-    Map<String, dynamic> payload, [
+    Map<String, dynamic> payload, {
     /// Manually set timeout value for this push.
     ///
     /// If not provided, the default timeout will be used.
     Duration? newTimeout,
-  ]) =>
+    required bool expectingReply,
+  }) =>
       pushEvent(
         PhoenixChannelEvent.custom(eventName),
         payload,
-        newTimeout,
+        newTimeout: newTimeout,
+        expectingReply: expectingReply,
       );
 
   /// Push a message with a valid [PhoenixChannelEvent] name.
@@ -265,11 +268,10 @@ class PhoenixChannel {
   /// using [push] instead.
   Push pushEvent(
     PhoenixChannelEvent event,
-    Map<String, dynamic> payload, [
+    Map<String, dynamic> payload, {
     Duration? newTimeout,
-  ]) {
-    assert(_joinedOnce);
-
+    required bool expectingReply,
+  }) {
     final pushEvent = Push(
       this,
       event: event,
@@ -278,12 +280,19 @@ class PhoenixChannel {
     );
 
     if (canPush) {
+      assert(_joinedOnce);
       _logger.finest(() => 'Sending out push ${pushEvent.ref}');
-      pushEvent.send();
+      if (expectingReply) {
+        pushEvent.sendExpectingReply();
+      } else {
+        pushEvent.sendAndForget();
+      }
     } else {
       if (_state == PhoenixChannelState.closed ||
           _state == PhoenixChannelState.errored) {
-        throw ChannelClosedError('Can\'t push event on a $_state channel');
+        throw ChannelClosedError(
+          message: 'Can\'t push event on a $_state channel',
+        );
       }
 
       _logger.finest(
@@ -330,7 +339,7 @@ class PhoenixChannel {
         _state = PhoenixChannelState.joined;
         _rejoinTimer?.cancel();
         for (final push in pushBuffer) {
-          push.send();
+          push.sendExpectingReply();
         }
         pushBuffer.clear();
       })
@@ -349,7 +358,7 @@ class PhoenixChannel {
           event: PhoenixChannelEvent.leave,
           payload: () => {},
           timeout: _timeout,
-        ).send();
+        ).sendAndForget();
 
         _state = PhoenixChannelState.errored;
         _joinPush.reset();
@@ -370,7 +379,12 @@ class PhoenixChannel {
     if (_state != PhoenixChannelState.leaving) {
       _state = PhoenixChannelState.joining;
       _bindJoinPush(_joinPush);
-      unawaited(_joinPush.resend(_timeout));
+      unawaited(
+        _joinPush.resend(
+          newTimeout: _timeout,
+          expectingReply: true,
+        ),
+      );
     }
   }
 

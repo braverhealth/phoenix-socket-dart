@@ -103,7 +103,6 @@ void main() {
             reconnectDelays: const [
               Duration.zero,
               Duration.zero,
-              Duration.zero,
               Duration(seconds: 10),
             ],
           ));

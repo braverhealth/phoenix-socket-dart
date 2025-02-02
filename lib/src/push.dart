@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 
-import 'channel.dart';
 import 'events.dart';
 import 'exceptions.dart';
 import 'message.dart';
+import 'pheonix_channel.dart';
 
 typedef ReceiverCallback = void Function(PushResponse response);
 
@@ -139,10 +139,27 @@ class Push {
   /// a reply.
   bool hasReceived(String status) => _received?.status == status;
 
-  /// Send the push message.
+  /// Send the push message without expecting a reply.
+  void sendAndForget() async {
+    _logger.finer('Sending out push for $ref');
+    _sent = true;
+    _awaitingReply = false;
+
+    final message = Message(
+      event: event!,
+      topic: _channel.topic,
+      payload: payload!(),
+      ref: ref,
+      joinRef: _channel.joinRef,
+    );
+
+    _channel.socket.sendMessage(message);
+  }
+
+  /// Send the push message and expect a reply.
   ///
   /// This also schedules the timeout to be triggered in the future.
-  Future<void> send() async {
+  Future<void> sendExpectingReply() async {
     if (_received is PushResponse && _received!.isTimeout) {
       _logger.warning('Trying to send push $ref after timeout');
       return;
@@ -153,16 +170,18 @@ class Push {
 
     startTimeout();
     try {
-      await _channel.socket.sendMessage(Message(
+      final message = Message(
         event: event!,
         topic: _channel.topic,
         payload: payload!(),
         ref: ref,
         joinRef: _channel.joinRef,
-      ));
+      );
+      _channel.socket.sendMessage(message);
+      await _channel.socket.waitForMessage(message);
       // ignore: avoid_catches_without_on_clauses
     } catch (err, stacktrace) {
-      _logger.warning(
+      _logger.fine(
         'Caught error for push $ref',
         err,
         stacktrace,
@@ -175,12 +194,20 @@ class Push {
   ///
   /// This is usually done automatically by the managing [PhoenixChannel]
   /// after a reconnection.
-  Future<void> resend(Duration? newTimeout) async {
+  Future<void> resend({
+    Duration? newTimeout,
+    required bool expectingReply,
+  }) async {
     timeout = newTimeout ?? timeout;
     if (_sent) {
       reset();
     }
-    await send();
+
+    if (expectingReply) {
+      await sendExpectingReply();
+    } else {
+      sendAndForget();
+    }
   }
 
   /// Associate a callback to be called if and when a reply with the given

@@ -10,14 +10,16 @@ void main() async {
   await channel1.join().future;
   var uuid = Uuid().v4();
 
-  channel1.push('ping', {'from': uuid});
+  channel1.push('ping', {'from': uuid}, expectingReply: false);
 
   await for (var message in channel1.messages) {
     if (message.event != PhoenixChannelEvent.custom('pong') ||
-        message.payload?['from'] == uuid) continue;
+        message.payload?['from'] == uuid) {
+      continue;
+    }
     print("received ${message.event} from ${message.payload!['from']}");
     Timer(const Duration(seconds: 1), () {
-      channel1.push('ping', {'from': uuid});
+      channel1.push('ping', {'from': uuid}, expectingReply: false);
     });
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'message_serializer.dart';
 
 /// Options for the open Phoenix socket.
@@ -16,6 +18,7 @@ class PhoenixSocketOptions {
     /// The duration after which a heartbeat request
     /// is considered timed out
     Duration? heartbeatTimeout,
+    this.maxReconnectionAttempts,
 
     /// The list of delays between reconnection attempts.
     ///
@@ -51,6 +54,7 @@ class PhoenixSocketOptions {
   /// The serializer used to serialize and deserialize messages on
   /// applicable sockets.
   final MessageSerializer serializer;
+  final int? maxReconnectionAttempts;
 
   final Duration _timeout;
   final Duration _heartbeat;
@@ -85,4 +89,16 @@ class PhoenixSocketOptions {
       'vsn': '2.0.0',
     };
   }
+
+  Duration? getReconnectionDelay(int numberOfAttempts) => reconnectDelays[max(
+        0,
+        min(
+          numberOfAttempts,
+          reconnectDelays.length - 1,
+        ),
+      )];
+
+  bool shouldAttemptReconnection(int numberOfAttempts) =>
+      maxReconnectionAttempts == null ||
+      maxReconnectionAttempts! > numberOfAttempts;
 }

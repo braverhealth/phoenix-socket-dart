@@ -1,16 +1,19 @@
 import 'events.dart';
 import 'message.dart';
 import 'push.dart';
-import 'socket.dart';
+import 'pheonix_socket.dart';
 
 /// Exception yield when a [PhoenixSocket] closes for unexpected reasons.
 class PhoenixException implements Exception {
   /// The default constructor for this exception.
   PhoenixException({
+    required String? message,
     this.socketClosed,
     this.socketError,
     this.channelEvent,
-  });
+  }) : _message = message;
+
+  final String? _message;
 
   /// The associated error event.
   final PhoenixSocketErrorEvent? socketError;
@@ -33,7 +36,9 @@ class PhoenixException implements Exception {
 
   @override
   String toString() {
-    if (socketError != null) {
+    if (_message != null) {
+      return 'PhoenixException: $_message';
+    } else if (socketError != null) {
       return socketError!.error.toString();
     } else {
       return 'PhoenixException: socket closed';
@@ -51,6 +56,22 @@ class ChannelTimeoutException implements Exception {
   PushResponse response;
 }
 
-class ChannelClosedError extends StateError {
-  ChannelClosedError(super.message);
+class ChannelClosedError extends PhoenixException {
+  ChannelClosedError({
+    required super.message,
+  });
+}
+
+class SocketClosedError extends PhoenixException {
+  SocketClosedError({
+    required super.message,
+    required super.socketClosed,
+  });
+}
+
+class ConnectionManagerClosedError extends PhoenixException {
+  ConnectionManagerClosedError({
+    required super.message,
+    super.socketClosed,
+  });
 }

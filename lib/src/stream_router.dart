@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-part of 'socket.dart';
+import 'dart:async';
+
+import 'package:phoenix_socket/src/utils/iterable_extensions.dart';
 
 /// Splits a [Stream] of events into multiple Streams based on a set of
 /// predicates.
@@ -24,32 +26,32 @@ part of 'socket.dart';
 ///
 /// Example:
 ///
-///    var router = _StreamRouter(window.onClick);
+///    var router = PhoenixStreamRouter(window.onClick);
 ///    var onRightClick = router.route((e) => e.button == 2);
 ///    var onAltClick = router.route((e) => e.altKey);
 ///    var onOtherClick router.defaultStream;
-class _StreamRouter<T> {
+class PhoenixStreamRouter<T> {
   /// Create a new StreamRouter that listens to the [incoming] stream.
-  _StreamRouter(Stream<T> incoming) : _incoming = incoming {
+  PhoenixStreamRouter(Stream<T> incoming) : _incoming = incoming {
     _subscription = _incoming.listen(_handle, onDone: close);
   }
 
   final Stream<T> _incoming;
   late StreamSubscription<T> _subscription;
 
-  final List<_Route<T>> _routes = <_Route<T>>[];
+  final List<Route<T>> _routes = <Route<T>>[];
   final StreamController<T> _defaultController =
       StreamController<T>.broadcast();
 
   /// Events that match [predicate] are sent to the stream created by this
   /// method, and not sent to any other router streams.
-  Stream<T> route(_Predicate<T> predicate) {
-    _Route<T>? route;
+  Stream<T> route(Predicate<T> predicate) {
+    Route<T>? route;
     // ignore: close_sinks
     final controller = StreamController<T>.broadcast(onCancel: () {
       _routes.remove(route);
     });
-    route = _Route<T>(predicate, controller);
+    route = Route<T>(predicate, controller);
     _routes.add(route);
     return controller.stream;
   }
@@ -69,11 +71,11 @@ class _StreamRouter<T> {
   }
 }
 
-typedef _Predicate<T> = bool Function(T event);
+typedef Predicate<T> = bool Function(T event);
 
-class _Route<T> {
-  _Route(this.predicate, this.controller);
+class Route<T> {
+  Route(this.predicate, this.controller);
 
-  final _Predicate<T> predicate;
+  final Predicate<T> predicate;
   final StreamController<T> controller;
 }

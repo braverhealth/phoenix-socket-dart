@@ -1,5 +1,7 @@
-import 'channel.dart';
-import 'socket.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+import 'pheonix_channel.dart';
+import 'pheonix_socket.dart';
 
 /// Base socket event
 abstract class PhoenixSocketEvent {
@@ -42,8 +44,8 @@ class PhoenixSocketCloseEvent extends PhoenixSocketEvent {
 class PhoenixSocketErrorEvent extends PhoenixSocketEvent {
   /// Default constructor for the error event.
   const PhoenixSocketErrorEvent({
-    this.error,
-    this.stacktrace,
+    required this.error,
+    required this.stacktrace,
   });
 
   /// The error that happened on the socket
@@ -60,7 +62,12 @@ class PhoenixSocketErrorEvent extends PhoenixSocketEvent {
   int get hashCode => Object.hash(runtimeType, error);
 
   @override
-  String toString() => 'PhoenixSocketErrorEvent(error: $error)';
+  String toString() {
+    if (error is WebSocketChannelException) {
+      return 'PhoenixSocketErrorEvent(error: WebSocketChannelException(${error.hashCode}))';
+    }
+    return 'PhoenixSocketErrorEvent(error: $error)';
+  }
 }
 
 /// Encapsulates constants used in the protocol over [PhoenixChannel].

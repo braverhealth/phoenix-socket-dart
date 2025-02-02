@@ -31,7 +31,7 @@ void main() {
       );
 
       expectLater(() => push.future, throwsA(isA<Exception>()));
-      await push.send();
+      await push.sendExpectingReply();
     },
   );
 
@@ -55,7 +55,7 @@ void main() {
       );
 
       expectLater(() => push.future, throwsA(isA<Exception>()));
-      await push.send();
+      await push.sendExpectingReply();
     },
   );
 }

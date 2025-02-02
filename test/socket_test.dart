@@ -14,12 +14,23 @@ void main() {
     final websocket = MockWebSocketChannel();
     final phoenixSocket = PhoenixSocket(
       'endpoint',
-      webSocketChannelFactory: (_) => websocket,
+      webSocketChannelFactory: (_) {
+        return websocket;
+      },
     );
     int invocations = 0;
-    final exceptions = ['E', PhoenixException()];
+    final exceptions = ['E', PhoenixException(message: '')];
 
+    when(sink.close(any, any)).thenAnswer((_) async {});
     when(websocket.sink).thenReturn(sink);
+    when(websocket.ready).thenAnswer((_) async {
+      if (invocations < 2) {
+        when(websocket.closeCode).thenReturn(1000);
+        throw exceptions[invocations++];
+      } else {
+        when(websocket.closeCode).thenReturn(null);
+      }
+    });
 
     when(websocket.stream).thenAnswer((_) {
       if (invocations < 2) {
@@ -44,10 +55,12 @@ void main() {
     });
 
     // Connect to the socket
-    await phoenixSocket.connect();
+    final connectionFuture = phoenixSocket.connect();
+
+    await connectionFuture;
     expect(phoenixSocket.isConnected, isTrue);
 
     // Expect the first two unexpected failures to be retried
-    verify(sink.add(any)).called(3);
+    verify(websocket.ready).called(3);
   });
 }

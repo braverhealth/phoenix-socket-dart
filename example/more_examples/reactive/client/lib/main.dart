@@ -41,7 +41,11 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  void _incrementCounter() => _channel?.push('sum', {'times': 1});
+  void _incrementCounter() => _channel?.push(
+        'sum',
+        {'times': 1},
+        expectingReply: false,
+      );
 
   @override
   Widget build(BuildContext context) {

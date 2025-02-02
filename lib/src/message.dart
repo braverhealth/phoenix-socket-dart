@@ -1,8 +1,8 @@
 import 'package:logging/logging.dart';
 
-import 'channel.dart';
+import 'pheonix_channel.dart';
 import 'events.dart';
-import 'socket.dart';
+import 'pheonix_socket.dart';
 
 final Logger _logger = Logger('phoenix_socket.message');
 

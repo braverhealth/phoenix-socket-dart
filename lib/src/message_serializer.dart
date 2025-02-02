@@ -1,9 +1,13 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'message.dart';
 
 typedef DecoderCallback = dynamic Function(String rawData);
 typedef EncoderCallback = String Function(Object? data);
+
+typedef BinaryDecoderCallback = dynamic Function(Uint8List rawData);
+typedef BinaryEncoderCallback = Uint8List Function(Object? data);
 
 /// Default class to serialize [Message] instances to JSON.
 class MessageSerializer {
@@ -19,7 +23,7 @@ class MessageSerializer {
 
   /// Yield a [Message] from some raw string arriving from a websocket.
   Message decode(dynamic rawData) {
-    if (rawData is String || rawData is List<int>) {
+    if (rawData is String) {
       return Message.fromJson(_decoder(rawData));
     } else {
       throw ArgumentError('Received a non-string or a non-list of integers');

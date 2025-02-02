@@ -63,14 +63,15 @@ void main() {
       await socket.connect();
 
       await haltProxy();
-      final joinFuture = socket.addChannel(topic: 'channel1').join();
-      Future.delayed(const Duration(milliseconds: 300))
-          .then((value) => resumeProxy());
-
-      joinFuture.onReply('ok', (reply) {
-        expect(reply.status, equals('ok'));
-        completer.complete();
-      });
+      runZonedGuarded(() {
+        final joinPush = socket.addChannel(topic: 'channel1').join();
+        Future.delayed(const Duration(milliseconds: 300))
+            .then((value) => resumeProxy());
+        joinPush.onReply('ok', (reply) {
+          expect(reply.status, equals('ok'));
+          completer.complete();
+        });
+      }, (error, stack) {});
 
       await completer.future;
     });
@@ -169,7 +170,13 @@ void main() {
       final channel1 = socket.addChannel(topic: 'channel1');
       await channel1.join().future;
 
-      final reply = await channel1.push('hello!', {'foo': 'bar'}).future;
+      final reply = await channel1
+          .push(
+            'hello!',
+            {'foo': 'bar'},
+            expectingReply: true,
+          )
+          .future;
       expect(reply.status, equals('ok'));
       expect(reply.response, equals({'name': 'bar'}));
     });
@@ -187,7 +194,13 @@ void main() {
       await haltThenResumeProxy();
       await socket.openStream.first;
 
-      final reply = await channel1.push('hello!', {'foo': 'bar'}).future;
+      final reply = await channel1
+          .push(
+            'hello!',
+            {'foo': 'bar'},
+            expectingReply: true,
+          )
+          .future;
       expect(reply.status, equals('ok'));
       expect(reply.response, equals({'name': 'bar'}));
     });
@@ -204,7 +217,11 @@ void main() {
 
       await resetPeerThenResumeProxy();
 
-      final push = channel1.push('hello!', {'foo': 'bar'});
+      final push = channel1.push(
+        'hello!',
+        {'foo': 'bar'},
+        expectingReply: true,
+      );
       final reply = await push.future;
 
       expect(reply.status, equals('ok'));
@@ -226,7 +243,11 @@ void main() {
       final Completer<Object> errorCompleter = Completer();
 
       runZonedGuarded(() async {
-        final push = channel1.push('hello!', {'foo': 'bar'});
+        final push = channel1.push(
+          'hello!',
+          {'foo': 'bar'},
+          expectingReply: true,
+        );
         try {
           await push.future;
         } catch (err) {
@@ -255,7 +276,11 @@ void main() {
         final Completer<Object> errorCompleter = Completer();
         runZonedGuarded(() async {
           try {
-            final push = channel1.push('hello!', {'foo': 'bar'});
+            final push = channel1.push(
+              'hello!',
+              {'foo': 'bar'},
+              expectingReply: true,
+            );
             await push.future;
           } catch (err) {
             errorCompleter.complete(err);
@@ -279,7 +304,9 @@ void main() {
       channel1.messages.forEach((element) => channelMessages.add(element));
 
       await channel1.join().future;
-      await channel1.push('hello!', {'foo': 'bar'}).future;
+      await channel1
+          .push('hello!', {'foo': 'bar'}, expectingReply: true)
+          .future;
 
       expect(channelMessages, hasLength(2));
     });
@@ -352,11 +379,23 @@ void main() {
         ]),
       );
 
-      channel1.push('ping', {'from': 'socket1'});
+      channel1.push(
+        'ping',
+        {'from': 'socket1'},
+        expectingReply: false,
+      );
       await Future.delayed(Duration(milliseconds: 50));
-      channel2.push('ping', {'from': 'socket2'});
+      channel2.push(
+        'ping',
+        {'from': 'socket2'},
+        expectingReply: false,
+      );
       await Future.delayed(Duration(milliseconds: 50));
-      channel2.push('ping', {'from': 'socket2'});
+      channel2.push(
+        'ping',
+        {'from': 'socket2'},
+        expectingReply: false,
+      );
     });
 
     test('closes successfully', () async {
@@ -370,12 +409,16 @@ void main() {
       final channel2 = socket2.addChannel(topic: 'channel3');
       await channel2.join().future;
 
-      addTearDown(() {
+      addTearDown(() async {
         socket1.close();
         socket2.close();
       });
 
-      channel1.push('ping', {'from': 'socket1'});
+      channel1.push(
+        'ping',
+        {'from': 'socket1'},
+        expectingReply: false,
+      );
 
       expect(
         channel2.messages,
@@ -409,7 +452,11 @@ void main() {
         socket2.close();
       });
 
-      channel1.push('ping', {'from': 'socket1'});
+      channel1.push(
+        'ping',
+        {'from': 'socket1'},
+        expectingReply: false,
+      );
 
       expect(
         channel2.messages,
@@ -429,7 +476,11 @@ void main() {
       final channel3 = socket1.addChannel(topic: 'channel3');
       await channel3.join().future;
 
-      channel3.push('ping', {'from': 'socket1'});
+      channel3.push(
+        'ping',
+        {'from': 'socket1'},
+        expectingReply: false,
+      );
 
       expect(
         channel2.messages,
@@ -451,7 +502,11 @@ void main() {
       await channel.leave().future;
 
       expect(
-        () => channel.push('EventName', {}),
+        () => channel.push(
+          'EventName',
+          {},
+          expectingReply: true,
+        ),
         throwsA(isA<ChannelClosedError>()),
       );
     });
@@ -462,7 +517,12 @@ void main() {
       final channel = socket.addChannel(topic: 'channel1');
       await channel.join().future;
 
-      final push = channel.push('hello!', {'foo': 'bar'}, Duration.zero);
+      final push = channel.push(
+        'hello!',
+        {'foo': 'bar'},
+        newTimeout: Duration.zero,
+        expectingReply: true,
+      );
 
       expect(
         push.future,

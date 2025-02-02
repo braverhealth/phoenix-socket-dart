@@ -5,7 +5,7 @@
 
 import 'dart:async';
 
-import 'channel.dart';
+import 'pheonix_channel.dart';
 import 'message.dart';
 
 typedef JoinHandler = void Function(
