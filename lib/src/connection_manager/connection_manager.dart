@@ -558,6 +558,7 @@ class ConnectionManager {
       case ConnectedState(channel: final currentChannel, :final pendingMessages)
           when channel == null || channel == currentChannel:
         currentChannel.sink.close();
+        _stateStreamController.add(closeEvent);
 
         for (final completer in pendingMessages.values) {
           completer.completeError(
