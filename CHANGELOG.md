@@ -1,3 +1,7 @@
+## [0.7.7.]
+
+- Change referenced rxdart version ^0.28.0
+
 ## [0.7.6.]
 
 - Change referenced rxdart version ^0.27.0
