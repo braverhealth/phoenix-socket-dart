@@ -5,7 +5,7 @@ import 'message_serializer.dart';
 /// Provided durations are all in milliseconds.
 class PhoenixSocketOptions {
   /// Create a PhoenixSocketOptions
-  const PhoenixSocketOptions({
+  PhoenixSocketOptions({
     /// The duration after which a connection attempt
     /// is considered failed
     Duration? timeout,
@@ -16,6 +16,9 @@ class PhoenixSocketOptions {
     /// The duration after which a heartbeat request
     /// is considered timed out
     Duration? heartbeatTimeout,
+
+    /// Whether to use MessagePack for serialization.
+    this.useMessagePack = false,
 
     /// The list of delays between reconnection attempts.
     ///
@@ -42,7 +45,8 @@ class PhoenixSocketOptions {
     this.dynamicParams,
     MessageSerializer? serializer,
   })  : _timeout = timeout ?? const Duration(seconds: 10),
-        serializer = serializer ?? const MessageSerializer(),
+        serializer =
+            serializer ?? MessageSerializer(useMessagePack: useMessagePack),
         _heartbeat = heartbeat ?? const Duration(seconds: 30),
         _heartbeatTimeout = heartbeatTimeout ?? const Duration(seconds: 10),
         assert(!(params != null && dynamicParams != null),
@@ -73,6 +77,9 @@ class PhoenixSocketOptions {
   /// Parameters sent to your Phoenix backend on connection.
   /// Use [dynamicParams] if your params are dynamic.
   final Map<String, String>? params;
+
+  /// Whether to use MessagePack for serialization.
+  final bool useMessagePack;
 
   /// Will be called to get fresh params before each connection attempt.
   final Future<Map<String, String>> Function()? dynamicParams;
