@@ -1,26 +1,27 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:msgpack_dart/msgpack_dart.dart';
 import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:phoenix_socket/src/utils/serializer.dart';
 
 typedef DecoderCallback = dynamic Function(String rawData);
 typedef EncoderCallback = String Function(Object? data);
+typedef PayloadDecoderCallback = dynamic Function(Uint8List payload);
 
 /// Default class to serialize [Message] instances to JSON.
 class MessageSerializer {
   final DecoderCallback _decoder;
   final EncoderCallback _encoder;
-  final bool useMessagePack;
+  final PayloadDecoderCallback? _payloadDecoder;
 
   /// Default constructor returning the singleton instance of this class.
   const MessageSerializer({
     DecoderCallback decoder = jsonDecode,
     EncoderCallback encoder = jsonEncode,
-    this.useMessagePack = true,
+    PayloadDecoderCallback? payloadDecoder,
   })  : _decoder = decoder,
-        _encoder = encoder;
+        _encoder = encoder,
+        _payloadDecoder = payloadDecoder;
 
   /// Yield a [Message] from some raw string arriving from a websocket.
   Message decode(dynamic rawData) {
@@ -44,9 +45,9 @@ class MessageSerializer {
   /// a websocket.
   String encode(Message message) => _encoder(message.encode());
 
-  Map<String, dynamic>? _getPayload(payLoad) {
-    if (useMessagePack && payLoad is Uint8List) {
-      final deserializedPayload = deserialize(payLoad);
+  Map<String, dynamic>? _getPayload(dynamic payLoad) {
+    if (_payloadDecoder != null && payLoad is Uint8List) {
+      final deserializedPayload = _payloadDecoder!(payLoad);
       if (deserializedPayload is Map) {
         return deepConvertToStringDynamic(deserializedPayload);
       } else {
