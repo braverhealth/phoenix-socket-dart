@@ -1,5 +1,5 @@
+import 'dart:typed_data';
 import 'package:logging/logging.dart';
-
 import 'channel.dart';
 import 'events.dart';
 import 'socket.dart';
@@ -53,6 +53,23 @@ class Message {
     this.payload,
   });
 
+  /// Build a [Message] with binary payload.
+  factory Message.binary({
+    String? joinRef,
+    String? ref,
+    String? topic,
+    required PhoenixChannelEvent event,
+    required Uint8List payload,
+  }) {
+    return Message(
+      joinRef: joinRef,
+      ref: ref,
+      topic: topic,
+      event: event,
+      payload: payload,
+    );
+  }
+
   /// Reference of the channel on which the message is received.
   ///
   /// Used by the [PhoenixSocket] to route the message on the proper
@@ -73,8 +90,8 @@ class Message {
 
   /// The payload of this message.
   ///
-  /// This needs to be a JSON-encodable object.
-  final Map<String, dynamic>? payload;
+  /// This can be either a JSON-encodable Map or a Uint8List for binary data.
+  final dynamic payload;
 
   /// Encode a message to a JSON-encodable list of values.
   Object encode() {

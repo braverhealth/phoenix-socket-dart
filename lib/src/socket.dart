@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:core';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 import 'package:phoenix_socket/src/utils/iterable_extensions.dart';
@@ -86,7 +87,7 @@ class PhoenixSocket {
 
   final BehaviorSubject<PhoenixSocketEvent> _stateStreamController =
       BehaviorSubject();
-  final StreamController<String> _receiveStreamController =
+  final StreamController<dynamic> _receiveStreamController =
       StreamController.broadcast();
   final String _endpoint;
   final StreamController<Message> _topicMessages = StreamController();
@@ -408,7 +409,7 @@ class PhoenixSocket {
   ///
   /// Used to define a custom message type for proper data decoding
   onSocketDataCallback(message) {
-    if (message is String) {
+    if (message is String || message is Uint8List) {
       if (!_receiveStreamController.isClosed) {
         _receiveStreamController.add(message);
       }
