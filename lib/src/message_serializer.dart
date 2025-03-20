@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:phoenix_socket/src/utils/serializer.dart';
+import 'package:phoenix_socket/src/utils/map_utils.dart';
 
 typedef DecoderCallback = dynamic Function(String rawData);
 typedef EncoderCallback = String Function(Object? data);
@@ -10,6 +11,15 @@ typedef PayloadDecoderCallback = dynamic Function(Uint8List payload);
 
 /// Default class to serialize [Message] instances to JSON.
 class MessageSerializer {
+  static const int headerLength = 1;
+  static const int metaLength = 4;
+
+  static const Map<String, int> kinds = {
+    'push': 0,
+    'reply': 1,
+    'broadcast': 2,
+  };
+
   final DecoderCallback _decoder;
   final EncoderCallback _encoder;
   final PayloadDecoderCallback? _payloadDecoder;
@@ -23,7 +33,25 @@ class MessageSerializer {
         _encoder = encoder,
         _payloadDecoder = payloadDecoder;
 
-  /// Yield a [Message] from some raw string arriving from a websocket.
+  /// Encode a [Message] into a raw string or a Uint8List.
+  ///
+  /// If the message has a binary payload, it will be encoded using the
+  /// [BinaryDecoder.binaryEncode] method. Otherwise, the message will be
+  /// encoded using the [encoder] callback.
+  /// Given a [Message], return the raw string that would be sent through
+  /// a websocket.
+  dynamic encode(Message message) {
+    if (message.payload is Uint8List) {
+      return BinaryDecoder.binaryEncode(message);
+    }
+    return _encoder(message.encode());
+  }
+
+  /// Decode a [Message] from a raw string or a Uint8List.
+  ///
+  /// If the message has a binary payload, it will be decoded using the
+  /// [BinaryDecoder.binaryDecode] method. Otherwise, the message will be
+  /// decoded using the [decoder] callback.
   Message decode(dynamic rawData) {
     if (rawData is String) {
       return Message.fromJson(_decoder(rawData));
@@ -41,15 +69,13 @@ class MessageSerializer {
     }
   }
 
-  /// Given a [Message], return the raw string that would be sent through
-  /// a websocket.
-  String encode(Message message) => _encoder(message.encode());
-
-  Map<String, dynamic>? _getPayload(dynamic payLoad) {
+  dynamic _getPayload(dynamic payLoad) {
     if (_payloadDecoder != null && payLoad is Uint8List) {
       final deserializedPayload = _payloadDecoder!(payLoad);
       if (deserializedPayload is Map) {
-        return deepConvertToStringDynamic(deserializedPayload);
+        return MapUtils.deepConvertToStringDynamic(deserializedPayload);
+      } else if (deserializedPayload is Uint8List) {
+        return deserializedPayload;
       } else {
         return {'data': deserializedPayload};
       }
@@ -57,24 +83,4 @@ class MessageSerializer {
       return payLoad;
     }
   }
-}
-
-Map<String, dynamic> deepConvertToStringDynamic(Map<dynamic, dynamic> input) {
-  return input.map((key, value) {
-    if (value is Map) {
-      return MapEntry(key.toString(), deepConvertToStringDynamic(value));
-    } else if (value is List) {
-      return MapEntry(
-          key.toString(),
-          value.map((element) {
-            if (element is Map) {
-              return deepConvertToStringDynamic(element);
-            } else {
-              return element;
-            }
-          }).toList());
-    } else {
-      return MapEntry(key.toString(), value);
-    }
-  });
 }

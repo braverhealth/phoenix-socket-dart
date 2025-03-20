@@ -45,10 +45,12 @@ class PhoenixSocketOptions {
     this.dynamicParams,
     MessageSerializer? serializer,
   })  : _timeout = timeout ?? const Duration(seconds: 10),
-        serializer = serializer ?? MessageSerializer(payloadDecoder: payloadDecoder),
+        serializer =
+            serializer ?? MessageSerializer(payloadDecoder: payloadDecoder),
         _heartbeat = heartbeat ?? const Duration(seconds: 30),
         _heartbeatTimeout = heartbeatTimeout ?? const Duration(seconds: 10),
-        assert(!(params != null && dynamicParams != null), "Can't set both params and dynamicParams");
+        assert(!(params != null && dynamicParams != null),
+            "Can't set both params and dynamicParams");
 
   /// The serializer used to serialize and deserialize messages on
   /// applicable sockets.
