@@ -18,7 +18,7 @@ jobs:
         ports:
           - 4001:4001
           - 4002:4002
-        
+
       proxy:
         image: ghcr.io/shopify/toxiproxy
         ports:
@@ -26,12 +26,11 @@ jobs:
           - 4004:4004
 
     steps:
-
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
         with:
           architecture: x64
-          sdk: "3.1.2"
+          sdk: "3.7.2"
 
       - name: Fetch sources
         uses: actions/checkout@v2
