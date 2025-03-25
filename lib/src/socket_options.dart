@@ -5,7 +5,7 @@ import 'message_serializer.dart';
 /// Provided durations are all in milliseconds.
 class PhoenixSocketOptions {
   /// Create a PhoenixSocketOptions
-  const PhoenixSocketOptions({
+  PhoenixSocketOptions({
     /// The duration after which a connection attempt
     /// is considered failed
     Duration? timeout,
@@ -16,6 +16,9 @@ class PhoenixSocketOptions {
     /// The duration after which a heartbeat request
     /// is considered timed out
     Duration? heartbeatTimeout,
+
+    /// Function to decode binary payloads
+    PayloadDecoderCallback? payloadDecoder,
 
     /// The list of delays between reconnection attempts.
     ///
@@ -42,7 +45,8 @@ class PhoenixSocketOptions {
     this.dynamicParams,
     MessageSerializer? serializer,
   })  : _timeout = timeout ?? const Duration(seconds: 10),
-        serializer = serializer ?? const MessageSerializer(),
+        serializer =
+            serializer ?? MessageSerializer(payloadDecoder: payloadDecoder),
         _heartbeat = heartbeat ?? const Duration(seconds: 30),
         _heartbeatTimeout = heartbeatTimeout ?? const Duration(seconds: 10),
         assert(!(params != null && dynamicParams != null),
