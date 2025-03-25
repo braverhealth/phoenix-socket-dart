@@ -1,3 +1,7 @@
+## [0.8.0.]
+
+- Add binary message decoding/encoding support for message and optional payload decoder
+
 ## [0.7.7.]
 
 - Change referenced rxdart version ^0.28.0
