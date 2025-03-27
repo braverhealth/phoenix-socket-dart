@@ -37,8 +37,9 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final _socketOptions =
-      PhoenixSocketOptions(params: {'user_id': 'example user 1'});
+  final _socketOptions = PhoenixSocketOptions(
+    params: {'user_id': 'example user 1'},
+  );
   late PhoenixSocket _socket;
   late PhoenixChannel _channel;
   late PhoenixPresence _presence;
@@ -54,15 +55,18 @@ class _MyHomePageState extends State<MyHomePage> {
     //       ...
     //       android:usesCleartextTraffic="true">
     //       <activity...
-    _socket = PhoenixSocket('ws://localhost:4001/socket/websocket',
-        socketOptions: _socketOptions);
+    _socket = PhoenixSocket(
+      'ws://localhost:4001/socket/websocket',
+      socketOptions: _socketOptions,
+    );
     _channel = _socket.addChannel(topic: 'presence:lobby');
     _presence = PhoenixPresence(channel: _channel);
 
     _socket.closeStream.listen((event) {
-      // Temporary fix until https://github.com/braverhealth/phoenix-socket-dart/issues/34 is resolved.
-      _socket.close();
+      // Handle socket close event
+      // print(event.code)
     });
+
     _socket.openStream.listen((event) {
       _channel.join();
     });
@@ -83,8 +87,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    _responses =
-        _presence.list(_presence.state, (String id, Presence presence) {
+    _responses = _presence.list(_presence.state, (
+      String id,
+      Presence presence,
+    ) {
       final metas = presence.metas;
       var count = metas.length;
 
@@ -106,9 +112,7 @@ class _MyHomePageState extends State<MyHomePage> {
         child: ListView.builder(
           itemCount: _responses.length,
           itemBuilder: (BuildContext context, int index) {
-            return ListTile(
-              title: Text(_responses[index]),
-            );
+            return ListTile(title: Text(_responses[index]));
           },
         ),
       ),
@@ -125,9 +129,10 @@ class MyCustomPhoenixPresenceMeta extends PhoenixPresenceMeta {
   DateTime get onlineAt => _onlineAt;
 
   MyCustomPhoenixPresenceMeta._fromJson(Map<String, dynamic> meta)
-      : _onlineAt =
-            DateTime.fromMillisecondsSinceEpoch(int.parse(meta['online_at'])),
-        super.fromJson(meta);
+    : _onlineAt = DateTime.fromMillisecondsSinceEpoch(
+        int.parse(meta['online_at']),
+      ),
+      super.fromJson(meta);
 
   factory MyCustomPhoenixPresenceMeta(PhoenixPresenceMeta meta) {
     return MyCustomPhoenixPresenceMeta._fromJson(meta.data);
