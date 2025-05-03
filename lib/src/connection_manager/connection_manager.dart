@@ -266,6 +266,9 @@ class ConnectionManager {
     };
 
     for (final completer in pendingCompleters) {
+      if (completer?.isCompleted ?? true) {
+        continue;
+      }
       completer?.completeError(
         SocketClosedError(
           message: 'ConnectionManager was closed',
@@ -304,26 +307,26 @@ class ConnectionManager {
 
     switch (next) {
       case ConnectedState():
-        _stateStreamController.add(
+        _addStateEvent(
           PhoenixSocketOpenEvent(),
         );
 
       case DisconnectedState():
         if (event case ChannelError(:final error)) {
-          _stateStreamController.add(
+          _addStateEvent(
             PhoenixSocketCloseEvent(
               reason: error.toString(),
             ),
           );
         } else if (event case ChannelClosed(:final code)) {
-          _stateStreamController.add(
+          _addStateEvent(
             PhoenixSocketCloseEvent(code: code),
           );
         }
 
       case _:
         if (event case ChannelError(:final error, :final stackTrace)) {
-          _stateStreamController.add(
+          _addStateEvent(
             PhoenixSocketErrorEvent(
               error: error,
               stacktrace: stackTrace,
@@ -558,7 +561,7 @@ class ConnectionManager {
       case ConnectedState(channel: final currentChannel, :final pendingMessages)
           when channel == null || channel == currentChannel:
         currentChannel.sink.close();
-        _stateStreamController.add(closeEvent);
+        _addStateEvent(closeEvent);
 
         for (final completer in pendingMessages.values) {
           completer.completeError(
@@ -654,7 +657,7 @@ class ConnectionManager {
               ConnectingState(:final channel) ||
               ReconnectingState(:final channel)
           when channel == affectedChannel:
-        _stateStreamController.add(
+        _addStateEvent(
           PhoenixSocketErrorEvent(
             error: error,
             stacktrace: stackTrace,
@@ -673,6 +676,12 @@ class ConnectionManager {
       case _:
     }
     return null;
+  }
+
+  void _addStateEvent(PhoenixSocketEvent event) {
+    if (!_stateStreamController.isClosed) {
+      _stateStreamController.add(event);
+    }
   }
 
   void _scheduleHeartbeat(
