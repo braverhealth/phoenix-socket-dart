@@ -36,8 +36,6 @@ enum SocketState {
   unknown,
 }
 
-final Logger _logger = Logger('phoenix_socket.socket');
-
 final Random _random = Random();
 
 /// Main class to use when wishing to establish a persistent connection
@@ -56,9 +54,13 @@ class PhoenixSocket {
 
     /// The factory to use to create the WebSocketChannel.
     WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
+
+    /// Logger name for the socket instance.
+    String loggerName = 'phoenix_socket.socket';
   })  : _endpoint = endpoint,
         _socketState = SocketState.unknown,
-        _webSocketChannelFactory = webSocketChannelFactory {
+        _webSocketChannelFactory = webSocketChannelFactory,
+        _logger = Logger(loggerName) {
     _options = socketOptions ?? PhoenixSocketOptions();
 
     _reconnects = _options.reconnectDelays;
@@ -82,6 +84,7 @@ class PhoenixSocket {
     ];
   }
 
+  final Logger _logger;
   final Map<String, Completer<Message>> _pendingMessages = {};
   final Map<String, Stream<Message>> _topicStreams = {};
 
