@@ -84,6 +84,9 @@ class PhoenixSocket {
     ];
   }
 
+  /// Logger instance used for logging messages related to this
+  /// `PhoenixSocket` instance. The logger name is configurable
+  /// via the `loggerName` parameter in the constructor.
   final Logger _logger;
   final Map<String, Completer<Message>> _pendingMessages = {};
   final Map<String, Stream<Message>> _topicStreams = {};
