@@ -56,7 +56,7 @@ class PhoenixSocket {
     WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
 
     /// Logger name for the socket instance.
-    String loggerName = 'phoenix_socket.socket';
+    String loggerName = 'phoenix_socket.socket',
   })  : _endpoint = endpoint,
         _socketState = SocketState.unknown,
         _webSocketChannelFactory = webSocketChannelFactory,
