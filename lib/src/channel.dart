@@ -124,7 +124,7 @@ class PhoenixChannel {
     );
     final completer = Completer<Message>();
     _waiters[replyEvent] = completer;
-    completer.future.whenComplete(() => _waiters.remove(replyEvent));
+    completer.future.whenComplete(() => _waiters.remove(replyEvent)).ignore();
     return completer.future;
   }
 
