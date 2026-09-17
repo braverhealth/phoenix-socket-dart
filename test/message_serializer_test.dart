@@ -224,6 +224,53 @@ void main() {
         expect(decoded.payload?['list'][0]['item'], equals(1));
         expect(decoded.payload?['list'][1]['item'], equals(2));
       });
+
+      test('returns string-keyed decoder output without rebuilding it', () {
+        final original = <String, dynamic>{
+          'nested': <String, dynamic>{'data': 42},
+        };
+        final serializer = MessageSerializer(
+          payloadDecoder: (payload) => original,
+        );
+
+        final List<int> message = [
+          2, // broadcast type
+          3, // topic length
+          5, // event length
+          ...utf8.encode('top'),
+          ...utf8.encode('event'),
+          1, // payload
+        ];
+
+        final decoded = serializer.decode(Uint8List.fromList(message));
+
+        // Already Map<String, dynamic> at every level: the deep key
+        // conversion is skipped, so the exact instance passes through.
+        expect(identical(decoded.payload, original), isTrue);
+      });
+
+      test('still converts dynamic-keyed decoder output', () {
+        final serializer = MessageSerializer(
+          payloadDecoder: (payload) => <dynamic, dynamic>{
+            'nested': <dynamic, dynamic>{'data': 42},
+          },
+        );
+
+        final List<int> message = [
+          2, // broadcast type
+          3, // topic length
+          5, // event length
+          ...utf8.encode('top'),
+          ...utf8.encode('event'),
+          1, // payload
+        ];
+
+        final decoded = serializer.decode(Uint8List.fromList(message));
+
+        expect(decoded.payload, isA<Map<String, dynamic>>());
+        expect(decoded.payload?['nested'], isA<Map<String, dynamic>>());
+        expect(decoded.payload?['nested']['data'], equals(42));
+      });
     });
   });
 }

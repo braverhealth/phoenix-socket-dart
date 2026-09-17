@@ -72,7 +72,14 @@ class MessageSerializer {
   dynamic _getPayload(dynamic payLoad) {
     if (_payloadDecoder != null && payLoad is Uint8List) {
       final deserializedPayload = _payloadDecoder!(payLoad);
-      if (deserializedPayload is Map) {
+      if (deserializedPayload is Map<String, dynamic>) {
+        // Already string-keyed at every level (e.g. jsonDecode output) — the
+        // deep rebuild below would recursively copy the entire payload tree
+        // for nothing. On multi-MB payloads that rebuild can dominate
+        // main-thread time in consuming apps.
+        return deserializedPayload;
+      } else if (deserializedPayload is Map) {
+        // Dynamic-keyed maps (e.g. msgpack output) genuinely need conversion.
         return MapUtils.deepConvertToStringDynamic(deserializedPayload);
       } else if (deserializedPayload is Uint8List) {
         return deserializedPayload;
