@@ -360,7 +360,7 @@ class PhoenixSocket {
     return (_pendingMessages[message.ref!] = Completer<Message>()).future;
   }
 
-  void _addToSink(String data) {
+  void _addToSink(dynamic data) {
     if (_disposed) {
       return;
     }
