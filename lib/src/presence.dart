@@ -208,10 +208,12 @@ class PhoenixPresence<T> {
     switch (state) {
       case PhoenixChannelState.closed:
         unawaited(dispose());
-      case PhoenixChannelState.errored:
       case PhoenixChannelState.leaving:
         _invalidate();
+      case PhoenixChannelState.errored:
       case PhoenixChannelState.joining:
+        // A join requested before connecting is deferred as errored. Until
+        // initial synchronization, there is no cached state to mark stale.
         if (snapshot.status == PresenceSyncStatus.awaitingState) {
           _joinRef = null;
           _pendingJoinRef = null;
@@ -250,6 +252,13 @@ class PhoenixPresence<T> {
       return;
     }
     if (event != stateEventName && event != diffEventName) return;
+    // A matching join ref can outlive its active channel attempt. Do not let
+    // delayed state or diffs revive presence after an error or leave.
+    final channelState = channel.state;
+    if (channelState != PhoenixChannelState.joining &&
+        channelState != PhoenixChannelState.joined) {
+      return;
+    }
 
     final currentJoinRef = channel.joinRef;
     if (_pendingJoinRef != currentJoinRef) {

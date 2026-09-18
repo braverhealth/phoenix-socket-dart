@@ -741,6 +741,106 @@ void main() {
     expect(client.snapshot.status, PresenceSyncStatus.closed);
   });
 
+  test('deferred initial join preserves awaiting state for late subscribers',
+      () async {
+    final socket = PhoenixSocket('ws://unused.invalid/socket');
+    final realChannel = socket.addChannel(topic: 'presence:lobby');
+    final client = PhoenixPresence<Json>(channel: realChannel);
+    addTearDown(() async {
+      await client.dispose();
+      socket.dispose();
+    });
+
+    // This is the documented pre-connect join sequence. No transport is opened.
+    final join = realChannel.join();
+    expect(realChannel.state, PhoenixChannelState.errored);
+    expect(client.snapshot.status, PresenceSyncStatus.awaitingState);
+    expect((await client.snapshots.first).status,
+        PresenceSyncStatus.awaitingState);
+
+    join.trigger(PushResponse(status: 'ok'));
+    expect(client.snapshot.status, PresenceSyncStatus.awaitingState);
+    realChannel.trigger(Message(
+      event: const PhoenixChannelEvent.custom('presence_state'),
+      payload: {},
+    ));
+    await flush();
+    expect(client.snapshot.isSynchronized, isTrue);
+
+    // An empty synchronized snapshot still becomes stale on a later failure.
+    realChannel.triggerError(ChannelClosedError(message: 'Local failure'));
+    expect(client.snapshot.status, PresenceSyncStatus.stale);
+  });
+
+  test('initial channel retries preserve awaiting state and clear old diffs',
+      () {
+    channel.diff(joins: {
+      'obsolete': entry(['o1'])
+    });
+    channel.transition(PhoenixChannelState.errored);
+    channel.transition(PhoenixChannelState.joining);
+    channel.transition(PhoenixChannelState.joined);
+    expect(presence.snapshot.status, PresenceSyncStatus.awaitingState);
+    channel.emitState({});
+    expect(presence.snapshot.isSynchronized, isTrue);
+    expect(presence.state, isEmpty);
+  });
+
+  for (final lifecycle in [
+    PhoenixChannelState.errored,
+    PhoenixChannelState.leaving,
+  ]) {
+    test('delayed presence messages cannot synchronize a $lifecycle channel',
+        () async {
+      channel.emitState({
+        'a': entry(['a1'])
+      });
+      final changes = <PresenceChange<Json>>[];
+      final sub = presence.changes.listen(changes.add);
+      addTearDown(sub.cancel);
+      var syncs = 0;
+      presence.onSync = () => syncs++;
+
+      channel.transition(lifecycle);
+      final stale = presence.snapshot;
+      expect(stale.status, PresenceSyncStatus.stale);
+      for (final ref in [channel.joinRef, null]) {
+        channel.send(
+            'presence_diff',
+            {
+              'joins': {
+                'delayed': entry(['d1'])
+              },
+              'leaves': {},
+            },
+            joinRef: ref);
+        channel.send(
+            'presence_state',
+            {
+              'delayed': entry(['d1'])
+            },
+            joinRef: ref);
+      }
+      await flush();
+      expect(presence.snapshot.status, PresenceSyncStatus.stale);
+      expect(presence.snapshot, same(stale));
+      expect(presence.state.keys, ['a']);
+      expect(changes, isEmpty);
+      expect(syncs, 0);
+
+      if (lifecycle == PhoenixChannelState.errored) {
+        channel.transition(PhoenixChannelState.joining);
+        channel.joinRef = '2';
+        channel.transition(PhoenixChannelState.joined);
+        channel.emitState({
+          'b': entry(['b1'])
+        });
+        expect(presence.snapshot.isSynchronized, isTrue);
+        expect(presence.state.keys, ['b']);
+      }
+    });
+  }
+
   test('phx_close terminates observation', () async {
     channel.send('phx_close', {});
     await presence.dispose();
@@ -752,11 +852,11 @@ void main() {
     channel.emitState({
       'a': entry(['a1'])
     });
-    channel.states.add(PhoenixChannelState.errored);
+    channel.transition(PhoenixChannelState.errored);
     expect(presence.snapshot.status, PresenceSyncStatus.stale);
-    channel.states.add(PhoenixChannelState.joining);
+    channel.transition(PhoenixChannelState.joining);
     channel.joinRef = '2';
-    channel.states.add(PhoenixChannelState.joined);
+    channel.transition(PhoenixChannelState.joined);
     expect(presence.snapshot.status, PresenceSyncStatus.stale);
     channel.diff(joins: {
       'b': entry(['b1'])
@@ -766,7 +866,7 @@ void main() {
       'a': entry(['a1'])
     });
     expect(presence.state.keys, ['a', 'b']);
-    channel.states.add(PhoenixChannelState.leaving);
+    channel.transition(PhoenixChannelState.leaving);
     expect(presence.snapshot.status, PresenceSyncStatus.stale);
   });
 
@@ -817,6 +917,15 @@ class FakeChannel implements PhoenixChannel {
   @override
   String joinRef = '1';
   bool closed = false;
+  PhoenixChannelState _state = PhoenixChannelState.joined;
+
+  @override
+  PhoenixChannelState get state => _state;
+
+  void transition(PhoenixChannelState value) {
+    _state = value;
+    states.add(value);
+  }
 
   @override
   Stream<Message> get messages => controller.stream;
