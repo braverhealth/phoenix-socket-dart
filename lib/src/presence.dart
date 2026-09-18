@@ -1,321 +1,426 @@
-// ignore_for_file: public_member_api_docs
-
-// TODO: This is a very much a non-tested port of the javascript code!
-//       Feel free to test, improve and make a pull request.
-
 import 'dart:async';
 
-import 'pheonix_channel.dart';
+import 'package:rxdart/rxdart.dart';
+
+import 'events.dart';
 import 'message.dart';
+import 'pheonix_channel.dart';
+import 'presence_models.dart';
 
-typedef JoinHandler = void Function(
-  String key,
-  dynamic current,
-  dynamic joined,
-);
-typedef LeaveHandler = void Function(
-  String key,
-  dynamic current,
-  dynamic left,
-);
+export 'presence_models.dart'
+    show
+        PresenceSyncStatus,
+        PresenceSnapshot,
+        PresenceChange,
+        PresenceError,
+        Presence,
+        PhoenixPresenceMeta;
 
-// No-op methods, default values for callbacks.
-void _noopWithThreeArgs(String a, dynamic b, dynamic c) {}
-void _noopWithNoArg() {}
+/// Legacy join notification. Prefer [PhoenixPresence.changes].
+typedef JoinHandler<T> = void Function(
+    String key, Presence<T>? current, Presence<T> joined);
 
-/// A Phoenix Presence client to interact with a backend
-/// Phoenix Channel implementing the Presence module.
-/// https://hexdocs.pm/phoenix/presence.html
-class PhoenixPresence {
-  /// Attaches a Phoenix Presence client to listen to
-  /// new presence messages on an existing [channel].
+/// Legacy leave notification. [current] contains the remaining metadata.
+typedef LeaveHandler<T> = void Function(
+    String key, Presence<T> current, Presence<T> left);
+
+/// Reconciles Phoenix presence state and diffs for one channel.
+///
+/// Attach before joining the channel: channel messages are not replayed.
+/// Without a decoder, metadata values are immutable JSON maps. When using a
+/// custom type [T], provide a decoder that returns immutable values.
+///
+/// This client observes presence. Tracking/updating a presence on the server
+/// requires an application-defined channel event.
+class PhoenixPresence<T> {
+  /// Starts listening without joining or taking ownership of [channel].
   ///
-  /// By default, the 'state' and 'diff' event names
-  /// which this client listens to are :
-  /// - For state events: 'presence_state'
-  /// - For diff events: 'presence_diff'
-  ///
-  /// This can be customized by passing a custom
-  /// name map [eventNames] for those events.
+  /// Named event options override entries in the legacy [eventNames] map.
   PhoenixPresence({
     required this.channel,
-    this.eventNames = const {
-      'state': 'presence_state',
-      'diff': 'presence_diff'
-    },
-  }) {
-    // Listens to new messages on the [channel] matching [eventNames]
-    // and processes them according to [_onMessage].
-    _subscription = channel.messages
-        .where((message) => eventNames.containsValue(message.event.value))
-        .listen(_onMessage);
+    T Function(Map<String, Object?> json)? decodeMeta,
+    String? stateEvent,
+    String? diffEvent,
+    @Deprecated('Use stateEvent and diffEvent instead.')
+    Map<String, String>? eventNames,
+  })  : _decodeMeta = decodeMeta,
+        stateEventName = stateEvent ?? eventNames?['state'] ?? 'presence_state',
+        diffEventName = diffEvent ?? eventNames?['diff'] ?? 'presence_diff' {
+    if (decodeMeta == null && <String, Object?>{} is! T) {
+      throw ArgumentError('A decodeMeta function is required for $T.');
+    }
+    if (stateEventName.isEmpty ||
+        diffEventName.isEmpty ||
+        stateEventName == diffEventName ||
+        {stateEventName, diffEventName}.any((name) =>
+            PhoenixChannelEvent.statuses.any((e) => e.value == name))) {
+      throw ArgumentError('Presence event names must be distinct, non-empty '
+          'and must not be channel lifecycle events.');
+    }
+    _snapshots = BehaviorSubject.seeded(
+      PresenceSnapshot<T>(
+        presences: {},
+        status: PresenceSyncStatus.awaitingState,
+      ),
+    );
+    _subscriptions.add(channel.messages.listen(
+      _onMessage,
+      onError: _onSourceError,
+      onDone: () => unawaited(dispose()),
+    ));
+    _subscriptions.add(channel.stateStream.listen(
+      _onChannelState,
+      onError: _onSourceError,
+      onDone: () => unawaited(dispose()),
+    ));
+    _subscriptions.add(channel.socket.closeStream.listen(
+      (_) => _invalidate(),
+      onError: _onSourceError,
+    ));
+    _subscriptions.add(channel.socket.errorStream.listen(
+      (event) {
+        _invalidate();
+        _reportError(
+            event.error ?? event,
+            event.stacktrace is StackTrace
+                ? event.stacktrace as StackTrace
+                : StackTrace.current);
+      },
+      onError: _onSourceError,
+    ));
   }
 
-  /// A Phoenix Channel which implements
-  /// the Phoenix Presence module on the backend.
+  /// The channel being observed. Disposing presence does not close it.
   final PhoenixChannel channel;
 
-  /// A custom map of event names to listen to on the [channel].
-  /// Defaults to the standard Phoenix Presence events names:
-  /// ```
-  /// {'state': 'presence_state', 'diff': 'presence_diff'}
-  /// ```
-  final Map<String, String> eventNames;
+  /// The full-state event name.
+  final String stateEventName;
 
-  late StreamSubscription _subscription;
+  /// The incremental-diff event name.
+  final String diffEventName;
 
-  /// All presences advertised by the Phoenix backend in real time.
-  var state = <String, Presence>{};
-  var pendingDiffs = <Map<String, Map<String, Presence>>>[];
-
+  final T Function(Map<String, Object?>)? _decodeMeta;
+  final _subscriptions = <StreamSubscription<dynamic>>[];
+  final _pendingDiffs = <_PresenceDiff<T>>[];
+  late final BehaviorSubject<PresenceSnapshot<T>> _snapshots;
+  final _changes = StreamController<PresenceChange<T>>.broadcast();
+  final _errors = StreamController<PresenceError>.broadcast();
   String? _joinRef;
+  String? _pendingJoinRef;
+  bool _disposed = false;
+  Future<void>? _disposeFuture;
 
-  /// Optional callback to react to changes in the client's local presences when
-  /// connecting/reconnecting with the server.
-  JoinHandler onJoin = _noopWithThreeArgs;
+  /// The latest immutable state, including its synchronization status.
+  PresenceSnapshot<T> get snapshot => _snapshots.value;
 
-  /// Optional callback to react to changes in the client's local presences when
-  /// disconnecting from the server.
-  LeaveHandler onLeave = _noopWithThreeArgs;
+  /// Broadcast snapshots, replaying the latest value to each new subscriber.
+  ///
+  /// A full state and its buffered diffs produce one synchronized snapshot.
+  /// Lifecycle changes also produce snapshots, retaining the last known data.
+  Stream<PresenceSnapshot<T>> get snapshots => _snapshots.stream;
 
-  /// Optional callback triggered after
-  /// a Presence message/event has been processed.
-  Function() onSync = _noopWithNoArg;
+  /// Per-key changes between committed synchronized snapshots; no replay.
+  ///
+  /// Each change includes its resulting snapshot. Consumers should use that
+  /// value rather than assuming [snapshot] has not advanced by delivery time.
+  /// Connection loss alone does not produce leave notifications.
+  Stream<PresenceChange<T>> get changes => _changes.stream;
 
-  /// Checks whether the presence channel is currently syncing with the server.
+  /// Decode, source-stream and legacy-callback failures, delivered as values.
+  ///
+  /// This broadcast stream does not replay or throw unhandled stream errors
+  /// when nobody listens. Invalid payloads retain the last known data and mark
+  /// it stale until a valid full state arrives. No resync request is sent.
+  Stream<PresenceError> get errors => _errors.stream;
+
+  /// Immutable presences from the current snapshot.
+  Map<String, Presence<T>> get state => snapshot.presences;
+
+  /// Whether a full state is still needed for the current channel join.
   bool get inPendingSyncState =>
       _joinRef == null || _joinRef != channel.joinRef;
 
-  /// Gets the name of the 'state' event to listen to if different
-  /// than the default 'presence_state'.
-  String get stateEventName {
-    if (eventNames.containsKey('state')) return eventNames['state']!;
-    return 'presence_state';
+  /// Resolved event names, including defaults.
+  @Deprecated('Use stateEventName and diffEventName instead.')
+  Map<String, String> get eventNames =>
+      Map.unmodifiable({'state': stateEventName, 'diff': diffEventName});
+
+  /// Legacy protocol-level join callback, called after state is committed.
+  @Deprecated('Listen to changes instead.')
+  JoinHandler<T> onJoin = (_, __, ___) {};
+
+  /// Legacy protocol-level leave callback, called after state is committed.
+  @Deprecated('Listen to changes instead.')
+  LeaveHandler<T> onLeave = (_, __, ___) {};
+
+  /// Legacy synchronization callback, called after state is committed.
+  @Deprecated('Listen to snapshots instead.')
+  void Function() onSync = () {};
+
+  /// Legacy projection helper.
+  @Deprecated('Use snapshot.presences.values or entries with Iterable.map.')
+  List<dynamic> list(Map<String, Presence<T>> presences,
+          [dynamic Function(String, Presence<T>)? chooser]) =>
+      presences.entries
+          .map((entry) =>
+              chooser == null ? entry.value : chooser(entry.key, entry.value))
+          .toList();
+
+  /// Stops observing, publishes a closed snapshot, and closes output streams.
+  ///
+  /// Idempotent. Awaits input subscription cleanup, without closing the channel
+  /// or socket. Output completion is queued; paused consumers do not delay this
+  /// future and receive queued events when resumed.
+  Future<void> dispose() => _disposeFuture ??= _dispose();
+
+  Future<void> _dispose() async {
+    _disposed = true;
+    _joinRef = null;
+    _pendingDiffs.clear();
+    _setStatus(PresenceSyncStatus.closed);
+    try {
+      await Future.wait(_subscriptions.map((sub) => sub.cancel()));
+    } finally {
+      unawaited(_snapshots.close());
+      unawaited(_changes.close());
+      unawaited(_errors.close());
+    }
   }
 
-  /// Gets the name of the 'diff' event to listen to if different
-  /// than the default 'presence_diff'.
-  String get diffEventName {
-    if (eventNames.containsKey('diff')) return eventNames['diff']!;
-    return 'presence_diff';
+  void _setStatus(PresenceSyncStatus status) {
+    if (snapshot.status == status) return;
+    _snapshots.add(PresenceSnapshot(
+      presences: state,
+      status: status,
+    ));
   }
 
-  /// Returns the array of presences, with selected
-  /// metadata formatted according to the [chooser] function.
-  /// See Example for better understanding and implementation details.
-  List<dynamic> list(
-    Map<String, Presence> presences, [
-    dynamic Function(String, Presence)? chooser,
-  ]) {
-    chooser = chooser ?? (k, v) => v;
-    return _map(presences, (k, v) => chooser!(k, v));
+  void _invalidate() {
+    if (_disposed) return;
+    _joinRef = null;
+    _pendingJoinRef = null;
+    _pendingDiffs.clear();
+    _setStatus(PresenceSyncStatus.stale);
   }
 
-  /// Stops listening to new messages on [channel].
-  void dispose() {
-    _subscription.cancel();
+  void _onChannelState(PhoenixChannelState state) {
+    if (_disposed) return;
+    switch (state) {
+      case PhoenixChannelState.closed:
+        unawaited(dispose());
+      case PhoenixChannelState.leaving:
+        _invalidate();
+      case PhoenixChannelState.errored:
+      case PhoenixChannelState.joining:
+        // A join requested before connecting is deferred as errored. Until
+        // initial synchronization, there is no cached state to mark stale.
+        if (snapshot.status == PresenceSyncStatus.awaitingState) {
+          _joinRef = null;
+          _pendingJoinRef = null;
+          _pendingDiffs.clear();
+        } else {
+          _invalidate();
+        }
+      case PhoenixChannelState.joined:
+        // Only a full presence state can establish synchronization.
+        break;
+    }
   }
 
-  // Process new Presence messages.
+  void _onSourceError(Object error, StackTrace stackTrace) {
+    _invalidate();
+    _reportError(error, stackTrace);
+  }
+
+  void _reportError(Object error, StackTrace stackTrace, [String? event]) {
+    if (!_disposed) {
+      _errors.add(PresenceError(error, stackTrace, event: event));
+    }
+  }
+
   void _onMessage(Message message) {
-    // Processing of 'state' events.
-    if (message.event.value == stateEventName) {
-      _joinRef = channel.joinRef;
-      final newState = _decodeStateFromPayload(message.payload!);
-      state = _syncState(state, newState);
-      for (final diff in pendingDiffs) {
-        state = _syncDiff(state, diff);
-      }
-      pendingDiffs = [];
-      onSync();
+    if (_disposed) return;
+    final event = message.event.value;
+    // Broadcast diffs may have a null join ref. Explicit old refs are stale.
+    if (message.joinRef != null && message.joinRef != channel.joinRef) return;
+    if (message.event == PhoenixChannelEvent.close) {
+      unawaited(dispose());
+      return;
+    }
+    if (message.event == PhoenixChannelEvent.error) {
+      _invalidate();
+      return;
+    }
+    if (event != stateEventName && event != diffEventName) return;
+    // A matching join ref can outlive its active channel attempt. Do not let
+    // delayed state or diffs revive presence after an error or leave.
+    final channelState = channel.state;
+    if (channelState != PhoenixChannelState.joining &&
+        channelState != PhoenixChannelState.joined) {
+      return;
+    }
 
-      // Processing of 'diff' events.
-    } else if (message.event.value == diffEventName) {
-      final diff = _decodeDiffFromPayload(message.payload!);
-      if (inPendingSyncState) {
-        pendingDiffs.add(diff);
-      } else {
-        state = _syncDiff(state, diff);
-        onSync();
+    final currentJoinRef = channel.joinRef;
+    if (_pendingJoinRef != currentJoinRef) {
+      _pendingDiffs.clear();
+      _pendingJoinRef = currentJoinRef;
+      if (_joinRef != null && _joinRef != currentJoinRef) {
+        _joinRef = null;
+        _setStatus(PresenceSyncStatus.stale);
       }
+    }
+
+    final before = state;
+    final notifications = <_LegacyNotification<T>>[];
+    late Map<String, Presence<T>> next;
+    try {
+      if (event == stateEventName) {
+        final incoming = _decodeState(message.payload, 'state');
+        // Calculate protocol callbacks, but use the authoritative full payload
+        // so enriched fields and unchanged-reference metadata also refresh.
+        _applyDiff(before, _stateDiff(before, incoming), notifications);
+        next = incoming;
+        for (final diff in _pendingDiffs) {
+          next = _applyDiff(next, diff, notifications);
+        }
+      } else {
+        final payload = presenceJsonObject(message.payload, 'diff');
+        final diff = _PresenceDiff(
+          _decodeState(
+              payload.containsKey('joins') ? payload['joins'] : {}, 'joins'),
+          _decodeState(
+              payload.containsKey('leaves') ? payload['leaves'] : {}, 'leaves'),
+        );
+        if (inPendingSyncState) {
+          _pendingDiffs.add(diff);
+          return;
+        }
+        next = _applyDiff(before, diff, notifications);
+      }
+    } catch (error, stackTrace) {
+      _invalidate();
+      _reportError(error, stackTrace, event);
+      return;
+    }
+    _joinRef = currentJoinRef;
+    _pendingDiffs.clear();
+    final committed = PresenceSnapshot<T>(
+      presences: next,
+      status: PresenceSyncStatus.synchronized,
+    );
+    _snapshots.add(committed);
+    for (final key in {...before.keys, ...next.keys}) {
+      final previous = before[key];
+      final current = next[key];
+      if (presenceJsonEquals(previous?.toJson(), current?.toJson())) continue;
+      _changes.add(PresenceChange(
+        key: key,
+        before: previous,
+        after: current,
+        snapshot: committed,
+      ));
+    }
+    for (final notification in notifications) {
+      if (_disposed) break;
+      _notify(() {
+        if (notification.isJoin) {
+          // ignore: deprecated_member_use_from_same_package
+          onJoin(notification.key, notification.current, notification.changed);
+        } else {
+          // ignore: deprecated_member_use_from_same_package
+          onLeave(
+              notification.key, notification.current!, notification.changed);
+        }
+      }, event);
+    }
+    // ignore: deprecated_member_use_from_same_package
+    if (!_disposed) _notify(onSync, event);
+  }
+
+  void _notify(void Function() callback, String event) {
+    try {
+      callback();
+    } catch (error, stackTrace) {
+      _reportError(error, stackTrace, event);
     }
   }
 
-  /// Generates a "state" map with [Presence] objects
-  /// from a serialized message payload.
-  Map<String, Presence> _decodeStateFromPayload(Map<String, dynamic> payload) {
-    return payload.map(
-        (key, metas) => MapEntry(key, Presence.fromJson(key, {key: metas})));
+  Map<String, Presence<T>> _decodeState(Object? value, String path) {
+    final json = presenceJsonObject(value, path);
+    return json.map((key, value) => MapEntry(
+        key,
+        Presence<T>.fromPayload(
+          key,
+          presenceJsonObject(value, '$path.$key'),
+          decodeMeta: _decodeMeta,
+        )));
   }
 
-  /// Generates a "diff" map with [Presence] objects
-  /// from a serialized message payload.
-  Map<String, Map<String, Presence>> _decodeDiffFromPayload(
-      Map<String, dynamic> payload) {
-    return payload.map((key, presence) {
-      if ((presence as Map).isEmpty) {
-        return MapEntry(key, <String, Presence>{});
-      }
-      final presenceKey = (presence as Map<String, dynamic>).keys.first;
-      return MapEntry(
-          key, {presenceKey: Presence.fromJson(presenceKey, presence)});
-    });
-  }
-
-  ///  Used to sync the list of presences on the server
-  ///  with the client's state. Will call [onJoin] and [onLeave] callbacks
-  ///  to react to changes in the client's local presences across
-  ///  disconnects and reconnects with the server.
-  Map<String, Presence> _syncState(
-    Map<String, Presence> currentState,
-    Map<String, Presence> newState,
-  ) {
-    final state = _clone(currentState);
-    final joins = <String, Presence>{};
-    final leaves = <String, Presence>{};
-
-    _map(state, (key, presence) {
-      if (!newState.containsKey(key)) {
-        leaves[key] = presence;
-      }
-    });
-    _map(newState, (key, newPresence) {
-      if (state.containsKey(key)) {
-        final currentPresence = state[key]!;
-        final newRefs = (newPresence.metas).map((m) => m.phxRef).toSet();
-        final curRefs = (currentPresence.metas).map((m) => m.phxRef).toSet();
-
-        final joinedMetas = (newPresence.metas)
-            .where((m) => !curRefs.contains(m.phxRef))
-            .toList();
-
-        final leftMetas = (currentPresence.metas)
-            .where((m) => !newRefs.contains(m.phxRef))
-            .toList();
-
-        if (joinedMetas.isNotEmpty) {
-          joins[key] = newPresence;
-          joins[key]!.metas = joinedMetas;
-        }
-        if (leftMetas.isNotEmpty) {
-          leaves[key] = currentPresence.clone();
-          leaves[key]!.metas = leftMetas;
-        }
-      } else {
-        joins[key] = newPresence;
-      }
-    });
-    return _syncDiff(state, {'joins': joins, 'leaves': leaves});
-  }
-
-  ///  Used to sync a diff of presence join and leave
-  ///  events from the server, as they happen. Will call [onJoin]
-  ///  and [onLeave] callbacks to react to a user
-  ///  joining or leaving from a device.
-  Map<String, Presence> _syncDiff(
-    Map<String, Presence> currentState,
-    Map<String, Map<String, Presence>> diff,
-  ) {
-    final state = _clone(currentState);
-
-    final joins = diff['joins'] ?? {};
-    final leaves = diff['leaves'] ?? {};
-
-    _map(joins, (key, newPresence) {
-      final currentPresence = state[key];
-      state[key] = newPresence;
-      if (currentPresence != null) {
-        final joinedRefs = (state[key]!.metas).map((m) => m.phxRef).toSet();
-        final curMetas = (currentPresence.metas)
-            .where((m) => !joinedRefs.contains(m.phxRef));
-        (state[key]!.metas).insertAll(0, curMetas);
-      }
-      onJoin(key, currentPresence, newPresence);
-    });
-    _map(leaves, (key, leftPresence) {
-      final currentPresence = state[key];
-      if (currentPresence == null) return;
-      final refsToRemove = (leftPresence.metas).map((m) => m.phxRef).toSet();
-      currentPresence.metas = (currentPresence.metas)
-          .where((m) => !refsToRemove.contains(m.phxRef))
-          .toList();
-      onLeave(key, currentPresence, leftPresence);
-      if ((currentPresence.metas).isEmpty) {
-        state.remove(key);
-      }
-    });
-    return state;
-  }
-
-  List<dynamic> _map(
-    Map<String, Presence> presences,
-    dynamic Function(String, Presence) mapper,
-  ) {
-    if (presences.isNotEmpty) {
-      return presences.entries
-          .map((entry) => mapper(entry.key, entry.value))
-          .toList();
-    } else {
-      return [];
+  _PresenceDiff<T> _stateDiff(
+      Map<String, Presence<T>> before, Map<String, Presence<T>> after) {
+    final joins = <String, Presence<T>>{};
+    final leaves = <String, Presence<T>>{};
+    for (final key in {...before.keys, ...after.keys}) {
+      final previous = before[key];
+      final current = after[key];
+      final oldRefs = previous?.metas.map((m) => m.phxRef).toSet() ?? {};
+      final newRefs = current?.metas.map((m) => m.phxRef).toSet() ?? {};
+      final added =
+          current?.metas.where((m) => !oldRefs.contains(m.phxRef)).toList() ??
+              [];
+      final removed =
+          previous?.metas.where((m) => !newRefs.contains(m.phxRef)).toList() ??
+              [];
+      if (added.isNotEmpty) joins[key] = current!.withMetas(added);
+      if (removed.isNotEmpty) leaves[key] = previous!.withMetas(removed);
     }
+    return _PresenceDiff(joins, leaves);
   }
 
-  /// Clones a Map<String, Presence> object. Useful for cloning states.
-  Map<String, Presence> _clone(Map<String, Presence> presences) {
-    return presences.map((key, value) => MapEntry(key, value.clone()));
+  Map<String, Presence<T>> _applyDiff(
+    Map<String, Presence<T>> before,
+    _PresenceDiff<T> diff,
+    List<_LegacyNotification<T>> notifications,
+  ) {
+    final next = Map<String, Presence<T>>.of(before);
+    for (final entry in diff.joins.entries) {
+      final current = next[entry.key];
+      final joined = entry.value;
+      final refs = joined.metas.map((m) => m.phxRef).toSet();
+      next[entry.key] = joined.withMetas([
+        ...?current?.metas.where((m) => !refs.contains(m.phxRef)),
+        ...joined.metas,
+      ]);
+      notifications.add(_LegacyNotification(true, entry.key, current, joined));
+    }
+    for (final entry in diff.leaves.entries) {
+      final current = next[entry.key];
+      if (current == null) continue;
+      final refs = entry.value.metas.map((m) => m.phxRef).toSet();
+      final remaining = current
+          .withMetas(current.metas.where((m) => !refs.contains(m.phxRef)));
+      if (remaining.metas.isEmpty) {
+        next.remove(entry.key);
+      } else {
+        next[entry.key] = remaining;
+      }
+      notifications
+          .add(_LegacyNotification(false, entry.key, remaining, entry.value));
+    }
+    return next;
   }
 }
 
-/// Class that encapsulate all presence events for
-/// a specific [key] as a list of metadatas events [metas].
-class Presence {
-  Presence.fromJson(this.key, Map<String, dynamic> events)
-      : metas = List<Map<String, dynamic>>.from(events[key]['metas'])
-            .map((meta) => PhoenixPresenceMeta.fromJson(meta))
-            .toList();
+class _PresenceDiff<T> {
+  _PresenceDiff(this.joins, this.leaves);
+  final Map<String, Presence<T>> joins;
+  final Map<String, Presence<T>> leaves;
+}
 
-  /// Identify the presence, typically a userId.
+class _LegacyNotification<T> {
+  _LegacyNotification(this.isJoin, this.key, this.current, this.changed);
+  final bool isJoin;
   final String key;
-
-  /// A list of all events metadatas for this Presence [key].
-  List<PhoenixPresenceMeta> metas;
-
-  Presence clone() {
-    final json = _toJson();
-    final key = json.keys.first;
-    return Presence.fromJson(key, json);
-  }
-
-  Map<String, dynamic> _toJson() {
-    final json = <String, dynamic>{};
-    json[key] = <String, dynamic>{};
-    json[key]['metas'] = metas.map((meta) => meta._toJson()).toList();
-    return json;
-  }
-}
-
-/// Class that encapsulate the various metadata for a [Presence] event.
-/// This class only implements the default metadata field [phxRef], all
-/// other custom fields are available in the json map [data] (including
-/// the 'phxRef' field). It can be extended with custom field as
-/// required, see 'example/flutter_presence_app' for an example on
-/// how to implement this in your code.
-class PhoenixPresenceMeta {
-  PhoenixPresenceMeta.fromJson(Map<String, dynamic> meta)
-      : data = {...meta},
-        phxRef = meta['phx_ref'];
-
-  /// The raw data associated with the meta.
-  final Map<String, dynamic> data;
-
-  /// The [Presence] event reference on the backend Phoenix server.
-  final String phxRef;
-
-  /// Clones a [PhoenixPresenceMeta] object
-  PhoenixPresenceMeta clone() {
-    final json = _toJson();
-    return PhoenixPresenceMeta.fromJson(json);
-  }
-
-  Map<String, dynamic> _toJson() => data;
+  final Presence<T>? current;
+  final Presence<T> changed;
 }

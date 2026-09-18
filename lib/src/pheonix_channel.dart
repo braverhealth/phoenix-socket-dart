@@ -70,7 +70,17 @@ class PhoenixChannel {
   final String topic;
 
   Duration _timeout;
-  PhoenixChannelState _state = PhoenixChannelState.closed;
+  PhoenixChannelState _currentState = PhoenixChannelState.closed;
+  final _stateController =
+      StreamController<PhoenixChannelState>.broadcast(sync: true);
+
+  PhoenixChannelState get _state => _currentState;
+  set _state(PhoenixChannelState value) {
+    if (_currentState == value) return;
+    _currentState = value;
+    if (!_stateController.isClosed) _stateController.add(value);
+  }
+
   Timer? _rejoinTimer;
   bool _joinedOnce = false;
   bool _disposed = false;
@@ -95,6 +105,14 @@ class PhoenixChannel {
 
   /// State of the channel.
   PhoenixChannelState get state => _state;
+
+  /// Channel lifecycle transitions, including local errors and leave attempts.
+  ///
+  /// Broadcast without replay; read [state] for the current value. Transitions
+  /// are delivered synchronously so observers can invalidate dependent state
+  /// before subsequent messages arrive. Observers should not change the channel
+  /// lifecycle from inside a listener; schedule that work asynchronously.
+  Stream<PhoenixChannelState> get stateStream => _stateController.stream;
 
   /// Whether the channel can send messages.
   bool get canPush =>
@@ -162,6 +180,7 @@ class PhoenixChannel {
     }
 
     _controller.close();
+    _stateController.close();
     socket.removeChannel(this);
   }
 

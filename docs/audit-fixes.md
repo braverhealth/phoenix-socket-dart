@@ -1,7 +1,7 @@
 # Audit fixes and regression coverage
 
-Presence API changes are excluded. The implementation addresses the 15 findings
-in the September 17, 2026 audit of `1.0.0-alpha` at `791d2ac`.
+This document maps the connection, channel, routing, and configuration fixes
+to the 15 findings in the September 17, 2026 audit of `1.0.0-alpha` at `791d2ac`.
 
 | Finding | Corrected behavior | Regression coverage |
 | --- | --- | --- |
@@ -35,7 +35,7 @@ The older fixed-port/Toxiproxy suites remain available through the explicit
 `legacy` preset. They are not prerequisites for the isolated E2E suite and are
 not started by the default unit-test command.
 
-## Local verification
+## Initial verification
 
 - All 54 unit/regression tests passed on Dart 3.9.2; all 16 isolated real-backend
   E2E tests passed on Dart 3.9.0. `dart analyze lib test tool` and changed-file
@@ -47,6 +47,15 @@ not started by the default unit-test command.
   and proxy were stopped after testing; no existing development service was used.
 - Dart 3.3.4 exposed the incompatible code-generation dependency. Dart 3.4 is
   now the declared minimum, with CI jobs for 3.4.4 and stable. The local 3.4.4
-  runtime check could not be completed because SDK downloads stalled; the new
-  CI jobs have not been run remotely.
-- Legacy fixed-port/Toxiproxy suites and Presence behavior were not validated.
+  runtime check could not be completed because SDK downloads stalled. Both CI
+  test jobs subsequently passed on audit-fix commit `4caecce`, including E2E.
+- Legacy fixed-port/Toxiproxy suites were not validated.
+
+## Merge verification
+
+After merging `origin/1.0.0-alpha` at `24bf3f2`, all 101 unit/regression tests
+passed on Dart 3.9.0, including the upstream Presence tests and new regressions
+covering synchronous leave/close notifications and pending-push settlement.
+`dart analyze --fatal-infos lib test tool`, formatting of the manually edited
+Dart files, and `git diff --check` passed. No local backend or proxy was started
+for this merge; the merged-head E2E validation runs in CI.

@@ -88,14 +88,34 @@ void main() {
   test('close before join ends streams and removes the channel exactly once',
       () async {
     final streamDone = channel.messages.drain<void>();
+    final statesDone = channel.stateStream.drain<void>();
     channel.close();
     channel.close();
-    await streamDone;
+    await Future.wait([streamDone, statesDone]);
     expect(socket.removals, 1);
     expect(socket.incoming.hasListener, isFalse);
     expect(socket.opens.hasListener, isFalse);
     expect(socket.errors.hasListener, isFalse);
     expect(() => channel.join(), throwsA(isA<ChannelClosedError>()));
+  });
+
+  test('lifecycle stream reports leave synchronously and closes with channel',
+      () async {
+    acceptJoins();
+    await channel.join().future;
+    final states = <PhoenixChannelState>[];
+    final done = Completer<void>();
+    final subscription =
+        channel.stateStream.listen(states.add, onDone: done.complete);
+    addTearDown(subscription.cancel);
+
+    final leave = channel.leave();
+    expect(states, [PhoenixChannelState.leaving]);
+    socket.reply(socket.sentMessages.last);
+    expect((await leave.future).isOk, isTrue);
+    await done.future;
+    expect(states, [PhoenixChannelState.leaving, PhoenixChannelState.closed]);
+    expect(socket.removals, 1);
   });
 
   test('explicit close settles pending join and buffered requests', () async {

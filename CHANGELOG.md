@@ -7,6 +7,25 @@
 - Add lifecycle regression tests and isolated E2E coverage using the embedded Elixir backend.
 - Require Dart 3.4 and align CI and example SDK constraints.
 
+## [1.0.0-rc.1]
+
+- Fix presence diffs dropping all but the first join/leave key, join callbacks
+  including old metadata, and partially configured event names ignoring defaults.
+- Add typed metadata decoders, immutable snapshots with synchronization status,
+  replaying snapshot streams, per-key changes, and observable presence errors.
+- Preserve enriched presence fields and expose previous metadata references.
+- Make decoding atomic, isolate callback failures, discard stale join traffic,
+  and make presence disposal awaitable and idempotent.
+- Observe local channel lifecycle changes, and release channel subscriptions
+  even when a channel is closed before its first join.
+- Preserve awaiting status for deferred initial joins and ignore delayed
+  presence payloads after channel errors or leaves.
+- Deprecate callback/list/event-map APIs in favor of typed streams and named
+  event options. Presence data is now immutable and pending diffs are private;
+  see the README migration notes for these breaking changes.
+- Update the Flutter presence example and add server-independent regression tests.
+- Require Dart 3.4 or newer and validate Dart 3.4.4 and stable in CI.
+
 ## [0.7.6.]
 
 - Change referenced rxdart version ^0.27.0
