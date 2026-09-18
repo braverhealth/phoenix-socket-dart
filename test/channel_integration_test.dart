@@ -265,29 +265,28 @@ void main() {
       'and that have not recovered yet',
       () async {
         final socket = PhoenixSocket(addr);
+        addTearDown(socket.close);
 
         await socket.connect();
 
         final channel1 = socket.addChannel(topic: 'channel1');
         await channel1.join().future;
 
+        // The proxy response can arrive before the channel sees the closure.
+        final disconnected = channel1.stateStream.firstWhere(
+          (state) => state == PhoenixChannelState.errored,
+        );
         await haltProxy();
+        await disconnected;
 
-        final Completer<Object> errorCompleter = Completer();
-        runZonedGuarded(() async {
-          try {
-            final push = channel1.push(
-              'hello!',
-              {'foo': 'bar'},
-              expectingReply: true,
-            );
-            await push.future;
-          } catch (err) {
-            errorCompleter.complete(err);
-          }
-        }, (error, stack) {});
-
-        expect(await errorCompleter.future, isA<ChannelClosedError>());
+        expect(
+          () => channel1.push(
+            'hello!',
+            {'foo': 'bar'},
+            expectingReply: true,
+          ),
+          throwsA(isA<ChannelClosedError>()),
+        );
       },
       timeout: Timeout(
         Duration(seconds: 5),
