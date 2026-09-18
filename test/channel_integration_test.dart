@@ -513,18 +513,20 @@ void main() {
 
     test('timeout on send message will throw', () async {
       final socket = PhoenixSocket(addr);
+      addTearDown(socket.close);
       await socket.connect();
-      final channel = socket.addChannel(topic: 'channel1');
+      final channel = socket.addChannel(topic: 'channel3');
       await channel.join().future;
 
+      // This handler broadcasts a pong but never replies to the push.
       final push = channel.push(
-        'hello!',
+        'ping',
         {'foo': 'bar'},
-        newTimeout: Duration.zero,
+        newTimeout: const Duration(milliseconds: 100),
         expectingReply: true,
       );
 
-      expect(
+      await expectLater(
         push.future,
         throwsA(isA<ChannelTimeoutException>()),
       );
