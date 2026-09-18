@@ -5,6 +5,11 @@ on:
     paths:
       - "lib/**"
       - "test/**"
+      - "tool/**"
+      - "example/**"
+      - "pubspec.yaml"
+      - "dart_test.yaml"
+      - "analysis_options.yaml"
       - ".github/workflows/test.yaml"
 
 jobs:
@@ -12,37 +17,47 @@ jobs:
     timeout-minutes: 10
     runs-on: ubuntu-latest
 
-    services:
-      backend:
-        image: braverhq/phoenix-dart-server
-        ports:
-          - 4001:4001
-          - 4002:4002
-        
-      proxy:
-        image: ghcr.io/shopify/toxiproxy
-        ports:
-          - 8474:8474
-          - 4004:4004
+    strategy:
+      matrix:
+        dart: ["3.4.4", stable]
 
     steps:
+
+      - name: Fetch sources
+        uses: actions/checkout@v4
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
         with:
           architecture: x64
-          sdk: "3.1.2"
+          sdk: ${{ matrix.dart }}
 
-      - name: Fetch sources
-        uses: actions/checkout@v2
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "27.3.4"
 
       - name: Fetch dependencies
-        run: dart pub get
+        run: |
+          dart pub get
+          cd example/backend
+          MIX_ENV=test mix deps.get
 
       - name: Run analysis
         run: |
           dart analyze --fatal-infos lib/
           dart analyze test/
+          dart analyze tool/
 
-      - name: Run tests
-        run: dart run test
+      - name: Run unit tests
+        run: dart test
+
+      - name: Run E2E tests against the embedded backend
+        run: dart run tool/run_e2e.dart
+
+      - name: Validate the Dart example
+        working-directory: example
+        run: |
+          dart pub get
+          dart analyze lib/

@@ -73,6 +73,7 @@ class PhoenixChannel {
   PhoenixChannelState _state = PhoenixChannelState.closed;
   Timer? _rejoinTimer;
   bool _joinedOnce = false;
+  bool _disposed = false;
   String? _reference;
   late Push _joinPush;
   Push? _leavePush;
@@ -80,6 +81,7 @@ class PhoenixChannel {
 
   /// A list of push to be sent out once the channel is joined.
   final List<Push> pushBuffer = [];
+  final Map<Push, bool> _bufferExpectsReply = {};
 
   /// Stream of all messages coming through this channel from the backend.
   Stream<Message> get messages => _controller.stream.where(
@@ -113,19 +115,20 @@ class PhoenixChannel {
   /// Returns a future that will complete (or throw) when the provided
   /// reply arrives (or throws).
   Future<Message> onPushReply(PhoenixChannelEvent replyEvent) {
-    if (_waiters.containsKey(replyEvent)) {
-      _logger.finer(
-        () => 'Removing previous waiter for $replyEvent',
-      );
-      _waiters.remove(replyEvent);
+    if (_disposed) {
+      return Future.error(ChannelClosedError(message: 'Channel is closed'));
     }
     _logger.finer(
       () => 'Hooking on channel $topic for reply to $replyEvent',
     );
-    final completer = Completer<Message>();
-    _waiters[replyEvent] = completer;
-    completer.future.whenComplete(() => _waiters.remove(replyEvent));
-    return completer.future;
+    return _waiters.putIfAbsent(replyEvent, Completer<Message>.new).future;
+  }
+
+  /// Stop waiting for a reply when its push is reset or canceled.
+  void cancelPushReply(PhoenixChannelEvent replyEvent) {
+    _waiters.remove(replyEvent)?.completeError(
+          ChannelClosedError(message: 'Push was canceled'),
+        );
   }
 
   /// Close this channel.
@@ -133,22 +136,32 @@ class PhoenixChannel {
   /// As a side effect, this method also remove this channel from
   /// the encompassing [PhoenixSocket].
   void close() {
-    if (_state == PhoenixChannelState.closed) {
+    if (_disposed) {
       return;
     }
+    _disposed = true;
     _state = PhoenixChannelState.closed;
+    _joinedOnce = false;
+    _rejoinTimer?.cancel();
+
+    final error = ChannelClosedError(message: 'Channel is closed');
+    _joinPush.cancel(error);
+    _leavePush?.cancel(error);
 
     for (final push in pushBuffer) {
-      push.cancelTimeout();
+      push.cancel(error);
     }
+    pushBuffer.clear();
+    _bufferExpectsReply.clear();
+    for (final waiter in _waiters.values) {
+      waiter.completeError(error);
+    }
+    _waiters.clear();
     for (final sub in _subscriptions) {
       sub.cancel();
     }
 
-    _joinPush.cancelTimeout();
-
     _controller.close();
-    _waiters.clear();
     socket.removeChannel(this);
   }
 
@@ -162,7 +175,7 @@ class PhoenixChannel {
   /// Trigger an error on this channel.
   void triggerError(PhoenixException error) {
     _logger.fine('Receiving error on channel', error);
-    if (!statesIgnoringErrors.contains(_state)) {
+    if (!_disposed && !statesIgnoringErrors.contains(_state)) {
       if (error.message != null) {
         trigger(error.message!);
       }
@@ -188,32 +201,31 @@ class PhoenixChannel {
 
   /// Leave this channel.
   Push leave({Duration? timeout}) {
-    _joinPush.cancelTimeout();
+    _joinPush.cancel(ChannelClosedError(message: 'Channel is leaving'));
     _rejoinTimer?.cancel();
     _joinedOnce = false;
 
     final prevState = _state;
-    _state = PhoenixChannelState.leaving;
+    if (!_disposed) {
+      _state = PhoenixChannelState.leaving;
+    }
 
-    final currentLeavePush = _leavePush ??= Push(
+    final currentLeavePush = _leavePush ??= (Push(
       this,
       event: PhoenixChannelEvent.leave,
       payload: () => {},
       timeout: timeout ?? _timeout,
-    );
+    )
+      ..onReply('ok', _onLeaveReply)
+      ..onReply('timeout', _onLeaveReply));
 
-    if (!socket.isConnected || prevState != PhoenixChannelState.joined) {
+    if (_disposed ||
+        !socket.isConnected ||
+        (prevState != PhoenixChannelState.joined &&
+            prevState != PhoenixChannelState.joining)) {
       currentLeavePush.trigger(PushResponse(status: 'ok'));
     } else {
-      void onClose(PushResponse reply) {
-        _onClose(reply);
-        close();
-      }
-
-      currentLeavePush
-        ..onReply('ok', onClose)
-        ..onReply('timeout', onClose)
-        ..sendExpectingReply();
+      currentLeavePush.sendExpectingReply();
     }
 
     return currentLeavePush;
@@ -221,6 +233,9 @@ class PhoenixChannel {
 
   /// Join this channel using the associated [PhoenixSocket].
   Push join([Duration? newTimeout]) {
+    if (_disposed) {
+      throw ChannelClosedError(message: 'Channel is closed');
+    }
     assert(!_joinedOnce);
 
     if (newTimeout != null) {
@@ -298,6 +313,7 @@ class PhoenixChannel {
       _logger.finest(
           () => 'Buffering push ${pushEvent.ref} for later send ($_state)');
       pushBuffer.add(pushEvent);
+      _bufferExpectsReply[pushEvent] = expectingReply;
     }
 
     return pushEvent;
@@ -305,14 +321,16 @@ class PhoenixChannel {
 
   List<StreamSubscription> _subscribeToSocketStreams(PhoenixSocket socket) {
     return [
-      socket.streamForTopic(topic).where(_isMember).listen(_controller.add),
+      socket.streamForTopic(topic).where(_isMember).listen(trigger),
       socket.errorStream.listen(
         (error) => _rejoinTimer?.cancel(),
       ),
       socket.openStream.listen(
         (event) {
           _rejoinTimer?.cancel();
-          if (_state == PhoenixChannelState.errored) {
+          if (!_disposed &&
+              _joinedOnce &&
+              _state == PhoenixChannelState.errored) {
             _attemptJoin();
           }
         },
@@ -333,17 +351,26 @@ class PhoenixChannel {
 
   void _bindJoinPush(Push push) {
     push
-      ..cleanUp()
       ..onReply('ok', (response) {
+        if (_disposed ||
+            !_joinedOnce ||
+            _state != PhoenixChannelState.joining) {
+          return;
+        }
         _logger.finer("Join message was ok'ed");
         _state = PhoenixChannelState.joined;
         _rejoinTimer?.cancel();
         for (final push in pushBuffer) {
-          push.sendExpectingReply();
+          if (_bufferExpectsReply.remove(push) ?? true) {
+            push.sendExpectingReply();
+          } else {
+            push.sendAndForget();
+          }
         }
         pushBuffer.clear();
       })
       ..onReply('error', (response) {
+        if (_disposed || !_joinedOnce) return;
         _logger.warning('Join message got error response: $response');
         _state = PhoenixChannelState.errored;
         if (socket.isConnected) {
@@ -351,6 +378,7 @@ class PhoenixChannel {
         }
       })
       ..onReply('timeout', (response) {
+        if (_disposed || !_joinedOnce) return;
         _logger.warning('Join message timed out');
 
         Push(
@@ -371,14 +399,13 @@ class PhoenixChannel {
   void _startRejoinTimer() {
     _rejoinTimer?.cancel();
     _rejoinTimer = Timer(_timeout, () {
-      if (socket.isConnected) _attemptJoin();
+      if (!_disposed && _joinedOnce && socket.isConnected) _attemptJoin();
     });
   }
 
   void _attemptJoin() {
-    if (_state != PhoenixChannelState.leaving) {
+    if (!_disposed && _joinedOnce && _state != PhoenixChannelState.leaving) {
       _state = PhoenixChannelState.joining;
-      _bindJoinPush(_joinPush);
       unawaited(
         _joinPush.resend(
           newTimeout: _timeout,
@@ -398,25 +425,19 @@ class PhoenixChannel {
   }
 
   void _onMessage(Message message) {
+    if (_disposed) return;
     if (message.event == PhoenixChannelEvent.close) {
       _logger.finer('Closing channel $topic');
       _rejoinTimer?.cancel();
       close();
     } else if (message.event == PhoenixChannelEvent.error) {
       _logger.finer('Erroring channel $topic');
-      if (_state == PhoenixChannelState.joining) {
-        _joinPush.reset();
-      }
-      _state = PhoenixChannelState.errored;
-      if (socket.isConnected) {
-        _rejoinTimer?.cancel();
-        _startRejoinTimer();
-      }
+      triggerError(ChannelClosedError(message: 'Channel received phx_error'));
     } else if (message.event == PhoenixChannelEvent.reply) {
       _controller.add(message.asReplyEvent());
     }
 
-    final waiter = _waiters[message.event];
+    final waiter = _waiters.remove(message.event);
     if (waiter != null) {
       _logger.finer(
         () => 'Notifying waiter for ${message.event}',
@@ -427,11 +448,12 @@ class PhoenixChannel {
     }
   }
 
-  void _onClose(PushResponse response) {
+  void _onLeaveReply(PushResponse response) {
     _logger.finer('Leave message has completed');
     trigger(Message(
       event: PhoenixChannelEvent.close,
       payload: const <String, String>{'ok': 'leave'},
     ));
+    close();
   }
 }

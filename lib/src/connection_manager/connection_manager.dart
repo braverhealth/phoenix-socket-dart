@@ -44,8 +44,8 @@ class ConnectionManager {
         _stateStreamController.stream.whereType<PhoenixSocketErrorEvent>();
 
     _eventSubject.stream.asyncMap(_handleEvent).listen((result) {
-      final (event, newState) = result;
-      if (newState == null) {
+      final (event, newState, generation) = result;
+      if (newState == null || !_isActive(generation)) {
         _logger.fine('Ignored event $event');
         return;
       }
@@ -62,9 +62,19 @@ class ConnectionManager {
   Uri get mountPoint => _lastConnectionUri ?? _uri;
 
   PhoenixSocketOptions? _options;
+  int _generation = 0;
+  bool _disposed = false;
+  final Set<Completer<dynamic>> _cancellations = {};
+  Completer<void>? _pendingConnection;
+  WebSocketChannel? _activeTransport;
+  final Map<WebSocketChannel, StreamSubscription<dynamic>> _subscriptions = {};
+  final Map<WebSocketChannel, Timer> _readyTimeouts = {};
+
+  bool _isActive(int generation) => !_disposed && generation == _generation;
 
   final WebSocketChannel Function(Uri uri) _webSocketChannelFactory;
-  final StreamController<ConnectionEvent> _eventSubject = StreamController();
+  final StreamController<(ConnectionEvent, int)> _eventSubject =
+      StreamController();
 
   final StreamController<Message> _receiveStreamController =
       StreamController.broadcast();
@@ -107,12 +117,21 @@ class ConnectionManager {
         _ => '0',
       };
 
-  Future<void> connect(PhoenixSocketOptions options) async {
-    late Completer returnedCompleter;
+  Future<void> connect(PhoenixSocketOptions options) {
+    if (_disposed) {
+      return Future.error(ConnectionManagerClosedError(
+        message: 'ConnectionManager was disposed',
+      ));
+    }
+    if (_pendingConnection case final pending?) {
+      return pending.future;
+    }
+    late Completer<void> returnedCompleter;
 
     switch (currentState) {
       case DisconnectedState():
-        returnedCompleter = Completer();
+        returnedCompleter = Completer<void>();
+        _pendingConnection = returnedCompleter;
         _add(
           Connect(
             options: options,
@@ -132,6 +151,11 @@ class ConnectionManager {
   }
 
   Future<Message> waitForMessage(Message message) {
+    if (_disposed) {
+      return Future.error(ConnectionManagerClosedError(
+        message: 'ConnectionManager was disposed',
+      ));
+    }
     final completer = Completer<Message>();
     _add(
       WaitFor(
@@ -173,7 +197,7 @@ class ConnectionManager {
               queuedMessages
                   .replaceRange(i, i + 1, [(queuedMessage, completer)]);
             }
-            break;
+            return null;
           }
         }
 
@@ -201,19 +225,34 @@ class ConnectionManager {
     required Completer<Message>? completer,
     ConnectionState? state,
   }) {
+    if (state != null && !identical(state, currentState)) {
+      if (completer != null && !completer.isCompleted) {
+        completer.completeError(SocketClosedError(
+          message: 'Socket closed before its queued message was sent',
+          socketClosed: PhoenixSocketCloseEvent(),
+        ));
+      }
+      return null;
+    }
     switch (state ?? currentState) {
       case ConnectedState(channel: final channel, :final pendingMessages):
-        channel.sink.add(
-          _options!.serializer.encode(message),
-        );
         if (completer != null) {
           pendingMessages[message.ref!] = completer;
+        }
+        try {
+          channel.sink.add(_options!.serializer.encode(message));
+        } catch (error, stackTrace) {
+          if (completer != null && !completer.isCompleted) {
+            pendingMessages.remove(message.ref);
+            completer.completeError(error, stackTrace);
+          }
+          _add(ChannelError(
+              channel: channel, error: error, stackTrace: stackTrace));
         }
         break;
 
       case ConnectingState(:final queuedMessages) ||
             ReconnectingState(:final queuedMessages):
-        final completer = Completer<Message>();
         queuedMessages.add((message, completer));
         break;
 
@@ -232,28 +271,31 @@ class ConnectionManager {
     int? code,
     String? reason,
   }) {
+    if (_disposed) return;
+    _generation++;
+    for (final cancellation in _cancellations) {
+      cancellation.complete();
+    }
+    _cancellations.clear();
     final oldState = currentState;
-    if (currentState case ConnectedState(channel: final channel)) {
-      onState(
-        ChannelClosed(
-          code: code,
-          reason: reason,
-          channel: channel,
-        ),
-        oldState,
-        DisconnectedState(),
-      );
-      channel.sink.close(code, reason);
-    } else {
-      onState(
-        ChannelClosed(
-          code: code,
-          reason: reason,
-          channel: null,
-        ),
-        oldState,
-        DisconnectedState(),
-      );
+    final channel = _activeTransport;
+    onState(
+      ChannelClosed(code: code, reason: reason, channel: channel),
+      oldState,
+      DisconnectedState(),
+    );
+    if (oldState case ConnectedState(:final heartbeatTimeout)) {
+      heartbeatTimeout?.cancel();
+    }
+    if (channel != null) _closeChannel(channel, code, reason);
+    final error = SocketClosedError(
+      message: 'ConnectionManager was closed',
+      socketClosed: PhoenixSocketCloseEvent(reason: reason, code: code),
+    );
+    final pendingConnection = _pendingConnection;
+    _pendingConnection = null;
+    if (pendingConnection != null && !pendingConnection.isCompleted) {
+      pendingConnection.completeError(error);
     }
 
     final pendingCompleters = switch (oldState) {
@@ -269,20 +311,21 @@ class ConnectionManager {
       if (completer?.isCompleted ?? true) {
         continue;
       }
-      completer?.completeError(
-        SocketClosedError(
-          message: 'ConnectionManager was closed',
-          socketClosed: PhoenixSocketCloseEvent(
-            reason: reason,
-            code: code,
-          ),
-        ),
-      );
+      completer?.completeError(error);
+    }
+    switch (oldState) {
+      case ConnectedState(:final pendingMessages):
+        pendingMessages.clear();
+      case ConnectingState(:final queuedMessages):
+        queuedMessages.clear();
+      case DisconnectedState():
     }
   }
 
   void dispose() {
+    if (_disposed) return;
     close();
+    _disposed = true;
 
     _receiveStreamController.close();
     _stateStreamController.close();
@@ -290,7 +333,7 @@ class ConnectionManager {
     _state.close();
   }
 
-  bool isDisposed() => _state.isClosed;
+  bool isDisposed() => _disposed;
 
   void onEvent(ConnectionEvent event) {
     _logger.fine(() => 'Handling event $event');
@@ -303,7 +346,7 @@ class ConnectionManager {
     ConnectionState next,
   ) {
     _logger.fine(() => 'Moving to state $next');
-    _state.add(next);
+    if (!_state.isClosed) _state.add(next);
 
     switch (next) {
       case ConnectedState():
@@ -336,16 +379,27 @@ class ConnectionManager {
     }
   }
 
-  Future<(ConnectionEvent, ConnectionState?)> _handleEvent(
-    ConnectionEvent event,
+  Future<(ConnectionEvent, ConnectionState?, int)> _handleEvent(
+    (ConnectionEvent, int) queuedEvent,
   ) async {
+    final (event, generation) = queuedEvent;
+    if (!_isActive(generation)) {
+      if (event case WaitFor(:final completer)) {
+        completer.completeError(SocketClosedError(
+          message:
+              'ConnectionManager was closed before waiting for the message',
+          socketClosed: PhoenixSocketCloseEvent(),
+        ));
+      }
+      return (event, null, generation);
+    }
     onEvent(event);
 
     return (
       event,
       switch (event) {
         Connect(options: final options, :final completer) =>
-          await _connect(options, completer),
+          await _connect(options, completer, generation),
         Disconnect(:final code, :final reason) => await _disconnect(
             PhoenixSocketCloseEvent(
               reason: reason,
@@ -362,34 +416,34 @@ class ConnectionManager {
         WaitFor(:final messageRef, :final completer) =>
           _waitForMessage(messageRef, completer: completer),
       },
+      generation,
     );
   }
 
   void _add(ConnectionEvent event) {
     if (!_eventSubject.isClosed) {
-      _eventSubject.add(event);
+      _eventSubject.add((event, _generation));
     }
   }
 
-  Future<WebSocketChannel> _createChannel(
-    PhoenixSocketOptions? newOptions,
-  ) async {
-    if (newOptions != null) {
-      _options = newOptions;
-    }
-
-    final mountPoint = await _buildMountPoint(_uri, _options!);
+  Future<WebSocketChannel?> _createChannel(int generation) async {
+    final mountPoint = await _untilCancelled(
+      _buildMountPoint(_uri, _options!),
+      generation,
+    );
+    if (!_isActive(generation) || mountPoint == null) return null;
     _lastConnectionUri = mountPoint;
 
     final channel = _webSocketChannelFactory(mountPoint);
+    _activeTransport = channel;
+    if (!_isActive(generation)) {
+      _closeChannel(channel);
+      return null;
+    }
     try {
-      channel.stream.where((message) {
-        if (message is WebSocketChannelException) {
-          return true;
-        }
-        return currentState is ConnectedState;
-      }).listen(
+      _subscriptions[channel] = channel.stream.listen(
         (message) {
+          if (!_isActive(generation)) return;
           _add(
             ReceiveMessage(
               channel: channel,
@@ -399,6 +453,7 @@ class ConnectionManager {
         },
         cancelOnError: false,
         onError: (error, stackTrace) {
+          if (!_isActive(generation)) return;
           _add(
             ChannelError(
               channel: channel,
@@ -408,6 +463,7 @@ class ConnectionManager {
           );
         },
         onDone: () {
+          if (!_isActive(generation)) return;
           _add(
             ChannelClosed(
               channel: channel,
@@ -417,54 +473,162 @@ class ConnectionManager {
           );
         },
       );
-    } catch (error, stackTrace) {
-      _add(
-        ChannelError(
+      final readyTimeout = Timer(_options!.timeout, () {
+        if (!_isActive(generation)) return;
+        _add(ChannelError(
           channel: channel,
-          error: error,
-          stackTrace: stackTrace,
-        ),
-      );
+          error: TimeoutException(
+              'WebSocket handshake timed out', _options!.timeout),
+          stackTrace: StackTrace.current,
+        ));
+      });
+      _readyTimeouts[channel] = readyTimeout;
+      channel.ready.then((_) {
+        readyTimeout.cancel();
+        if (_isActive(generation) && _readyTimeouts.remove(channel) != null) {
+          _add(ChannelReady(channel: channel));
+        }
+      }, onError: (Object error, StackTrace stackTrace) {
+        readyTimeout.cancel();
+        if (_isActive(generation) && _readyTimeouts.remove(channel) != null) {
+          _add(ChannelError(
+              channel: channel, error: error, stackTrace: stackTrace));
+        }
+      });
+    } catch (_) {
+      _closeChannel(channel);
+      rethrow;
     }
 
-    channel.ready.timeout(_options!.timeout).then((_) {
-      _add(
-        ChannelReady(channel: channel),
-      );
-    }).catchError((error, stackTrace) {
-      _add(
-        ChannelError(
-          channel: channel,
-          error: error,
-          stackTrace: stackTrace,
-        ),
-      );
-    });
-
     return channel;
+  }
+
+  void _closeChannel(WebSocketChannel channel, [int? code, String? reason]) {
+    if (identical(_activeTransport, channel)) _activeTransport = null;
+    _readyTimeouts.remove(channel)?.cancel();
+    _subscriptions.remove(channel)?.cancel();
+    Future.sync(() => channel.sink.close(code, reason)).then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {
+        _addStateEvent(
+            PhoenixSocketErrorEvent(error: error, stacktrace: stackTrace));
+      },
+    );
+  }
+
+  Future<bool> _waitForRetry(int attempt, int generation) async {
+    final delay = Completer<void>();
+    final timer = Timer(
+      _options!.getReconnectionDelay(attempt) ?? Duration.zero,
+      delay.complete,
+    );
+    await _untilCancelled(delay.future, generation);
+    timer.cancel();
+    return _isActive(generation);
+  }
+
+  Future<T?> _untilCancelled<T>(Future<T> future, int generation) async {
+    final cancellation = Completer<T?>();
+    if (_isActive(generation)) {
+      _cancellations.add(cancellation);
+    } else {
+      cancellation.complete();
+    }
+    try {
+      return await Future.any<T?>([future, cancellation.future]);
+    } finally {
+      _cancellations.remove(cancellation);
+    }
+  }
+
+  Future<ConnectionState?> _startConnection({
+    required int generation,
+    required Completer<void> completer,
+    int reconnectionAttempts = 0,
+    int startingRef = 0,
+    List<(Message, Completer<Message>?)>? queuedMessages,
+    bool reconnecting = false,
+  }) async {
+    while (_isActive(generation)) {
+      try {
+        final channel = await _createChannel(generation);
+        if (channel == null || !_isActive(generation)) return null;
+        return reconnecting
+            ? ReconnectingState(
+                channel: channel,
+                completer: completer,
+                startingRef: startingRef,
+                queuedMessages: queuedMessages,
+                reconnectionAttempts: reconnectionAttempts,
+              )
+            : ConnectingState(
+                channel: channel,
+                completer: completer,
+                startingRef: startingRef,
+                queuedMessages: queuedMessages,
+                reconnectionAttempts: reconnectionAttempts,
+              );
+      } catch (error, stackTrace) {
+        if (!_isActive(generation)) return null;
+        _addStateEvent(
+            PhoenixSocketErrorEvent(error: error, stacktrace: stackTrace));
+        if (!_options!.shouldAttemptReconnection(reconnectionAttempts)) {
+          onState(null, currentState, DisconnectedState());
+          _failConnection(completer, queuedMessages ?? [], error, stackTrace);
+          return null;
+        }
+        if (!await _waitForRetry(reconnectionAttempts++, generation)) {
+          return null;
+        }
+        reconnecting = true;
+      }
+    }
+    return null;
+  }
+
+  void _failConnection(
+    Completer<void> completer,
+    List<(Message, Completer<Message>?)> queuedMessages,
+    Object error, [
+    StackTrace? stackTrace,
+  ]) {
+    if (identical(_pendingConnection, completer)) _pendingConnection = null;
+    if (!completer.isCompleted) completer.completeError(error, stackTrace);
+    for (final (_, pending) in queuedMessages) {
+      if (pending != null && !pending.isCompleted) {
+        pending.completeError(error, stackTrace);
+      }
+    }
+    queuedMessages.clear();
   }
 
   Null _receiveMessage(WebSocketChannel channel, dynamic payload) {
     if (payload is String) {
       if (currentState case ConnectedState connectedState
           when connectedState.channel == channel) {
-        final message = _options!.serializer.decode(payload);
+        final Message message;
+        try {
+          message = _options!.serializer.decode(payload);
+        } catch (error, stackTrace) {
+          _add(ChannelError(
+              channel: channel, error: error, stackTrace: stackTrace));
+          return null;
+        }
 
         if (message.ref != null) {
           if (message.ref == connectedState.pendingHeartbeatRef) {
             connectedState.pendingHeartbeatRef = null;
           }
 
-          connectedState.pendingMessages
-            ..[message.ref]?.complete(message)
-            ..remove(message.ref);
+          final completer = connectedState.pendingMessages.remove(message.ref);
+          if (completer != null && !completer.isCompleted) {
+            completer.complete(message);
+          }
         }
 
         if (!_receiveStreamController.isClosed) {
           _receiveStreamController.add(message);
         }
-      } else {
-        throw ArgumentError('Received a non-string');
       }
     }
     return null;
@@ -473,32 +637,27 @@ class ConnectionManager {
   Future<ConnectionState?> _connect(
     PhoenixSocketOptions options,
     Completer<void> completer,
+    int generation,
   ) async {
+    if (!_isActive(generation)) return null;
     switch (currentState) {
       case DisconnectedState():
-        return ConnectingState(
-          channel: await _createChannel(options),
-          reconnectionAttempts: 0,
+        _options = options;
+        return _startConnection(
+          generation: generation,
           completer: completer,
         );
 
       case ConnectingState(completer: final existingCompleter) ||
             ReconnectingState(completer: final existingCompleter):
-        existingCompleter.future
-          ..then((_) {
-            if (!completer.isCompleted) {
-              completer.complete();
-            }
-          })
-          ..catchError((error, stackTrace) {
-            if (!completer.isCompleted) {
-              completer.completeError(error, stackTrace);
-            }
-          });
+        if (!identical(existingCompleter, completer) &&
+            !completer.isCompleted) {
+          completer.complete(existingCompleter.future);
+        }
         return null;
 
       case ConnectedState():
-        completer.complete();
+        if (!completer.isCompleted) completer.complete();
         _logger.warning(
           () => 'Tried to connect while not being in the DisconnectedState',
         );
@@ -540,11 +699,11 @@ class ConnectionManager {
           );
         }
 
-        completer.complete();
-        _scheduleHeartbeat(
-          state,
-          immediately: true,
-        );
+        if (identical(_pendingConnection, completer)) _pendingConnection = null;
+        if (!completer.isCompleted) completer.complete();
+        if (identical(currentState, state)) {
+          _scheduleHeartbeat(state, immediately: true);
+        }
 
         return null;
 
@@ -557,28 +716,52 @@ class ConnectionManager {
     PhoenixSocketCloseEvent closeEvent, [
     WebSocketChannel? channel,
   ]) async {
+    final generation = _generation;
     switch (currentState) {
-      case ConnectedState(channel: final currentChannel, :final pendingMessages)
+      case ConnectedState(
+            channel: final currentChannel,
+            :final pendingMessages,
+            :final heartbeatTimeout,
+            :final currentRef,
+          )
           when channel == null || channel == currentChannel:
-        currentChannel.sink.close();
+        heartbeatTimeout?.cancel();
+        _closeChannel(currentChannel);
         _addStateEvent(closeEvent);
 
         for (final completer in pendingMessages.values) {
-          completer.completeError(
-            SocketClosedError(
-              message: 'Socket was closed'
-                  ' (${currentChannel.closeReason}, ${currentChannel.closeCode})',
-              socketClosed: closeEvent,
-            ),
-          );
+          if (!completer.isCompleted) {
+            completer.completeError(
+              SocketClosedError(
+                message: 'Socket was closed'
+                    ' (${currentChannel.closeReason}, ${currentChannel.closeCode})',
+                socketClosed: closeEvent,
+              ),
+            );
+          }
         }
+        pendingMessages.clear();
 
         if (_options!.shouldAttemptReconnection(0)) {
-          final delay = _options!.getReconnectionDelay(0) ?? Duration.zero;
-          await Future.delayed(delay);
-          return ReconnectingState(
-            channel: await _createChannel(_options!),
-            completer: Completer(),
+          final completer = Completer<void>();
+          // Automatic reconnects do not necessarily have a public caller.
+          // Keep their terminal failure handled even when nobody calls connect.
+          completer.future
+              .then<void>((_) {}, onError: (Object _, StackTrace __) {});
+          _pendingConnection = completer;
+          final reconnecting = ReconnectingState(
+            channel: currentChannel,
+            completer: completer,
+            startingRef: currentRef,
+          );
+          onState(null, currentState, reconnecting);
+          if (!await _waitForRetry(0, generation)) return null;
+          return _startConnection(
+            generation: generation,
+            completer: completer,
+            startingRef: reconnecting.currentRef,
+            queuedMessages: reconnecting.queuedMessages,
+            reconnecting: true,
           );
         }
 
@@ -599,30 +782,41 @@ class ConnectionManager {
                 :final completer,
               )
           when channel == null || channel == currentChannel:
-        currentChannel.sink.close();
+        _closeChannel(currentChannel);
 
         if (_options!.shouldAttemptReconnection(reconnectionAttempts)) {
-          final delay = _options!.getReconnectionDelay(reconnectionAttempts) ??
-              Duration.zero;
-          await Future.delayed(delay);
-
-          return ReconnectingState(
-            channel: await _createChannel(_options!),
+          final reconnecting = ReconnectingState(
+            channel: currentChannel,
             startingRef: currentRef,
             queuedMessages: queuedMessages,
             reconnectionAttempts: reconnectionAttempts + 1,
             completer: completer,
           );
+          onState(null, currentState, reconnecting);
+          if (!await _waitForRetry(reconnectionAttempts, generation)) {
+            return null;
+          }
+          return _startConnection(
+            generation: generation,
+            completer: completer,
+            startingRef: reconnecting.currentRef,
+            queuedMessages: queuedMessages,
+            reconnectionAttempts: reconnectionAttempts + 1,
+            reconnecting: true,
+          );
         }
 
-        completer.completeError(
+        onState(null, currentState, DisconnectedState());
+        _failConnection(
+          completer,
+          queuedMessages,
           SocketClosedError(
             message: 'Maximum connection attempt reached without a'
                 ' successful connection',
             socketClosed: closeEvent,
           ),
         );
-        return DisconnectedState();
+        return null;
 
       case DisconnectedState():
         _logger.info(
@@ -664,15 +858,13 @@ class ConnectionManager {
           ),
         );
 
-        if (channel.closeCode != null) {
-          return _disconnect(
-            PhoenixSocketCloseEvent(
-              reason: channel.closeReason,
-              code: channel.closeCode,
-            ),
-            channel,
-          );
-        }
+        return _disconnect(
+          PhoenixSocketCloseEvent(
+            reason: channel.closeReason ?? error.toString(),
+            code: channel.closeCode,
+          ),
+          channel,
+        );
       case _:
     }
     return null;

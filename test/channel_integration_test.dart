@@ -1,3 +1,6 @@
+@Tags(['legacy-integration'])
+library;
+
 import 'dart:async';
 
 import 'package:phoenix_socket/phoenix_socket.dart';

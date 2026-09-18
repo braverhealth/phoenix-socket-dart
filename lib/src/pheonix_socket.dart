@@ -12,7 +12,6 @@ import 'message.dart';
 import 'pheonix_channel.dart';
 import 'push.dart';
 import 'socket_options.dart';
-import 'stream_router.dart';
 
 final Logger _logger = Logger('phoenix_socket.socket');
 
@@ -38,9 +37,6 @@ class PhoenixSocket {
         ) {
     _options = socketOptions ?? PhoenixSocketOptions();
 
-    _streamRouter =
-        PhoenixStreamRouter<Message>(_connectionManager.topicStream);
-
     _connectionManager
       ..closeStream.listen((closeEvent) {
         _triggerChannelExceptions(
@@ -61,8 +57,6 @@ class PhoenixSocket {
   }
 
   final ConnectionManager _connectionManager;
-  late final PhoenixStreamRouter<Message> _streamRouter;
-  final Map<String, Stream<Message>> _topicStreams = {};
 
   /// Stream of [PhoenixSocketOpenEvent] being produced whenever
   /// the connection is open.
@@ -99,8 +93,8 @@ class PhoenixSocket {
   /// The [PhoenixChannel] for this topic may not be open yet, it'll still
   /// eventually yield messages when the channel is open and it receives
   /// messages.
-  Stream<Message> streamForTopic(String topic) => _topicStreams.putIfAbsent(
-      topic, () => _streamRouter.route((event) => event.topic == topic));
+  Stream<Message> streamForTopic(String topic) =>
+      _connectionManager.topicStream.where((event) => event.topic == topic);
 
   /// The string URL of the remote Phoenix server.
   String get endpoint => _connectionManager.endpoint;
@@ -144,9 +138,9 @@ class PhoenixSocket {
     );
 
     if (reconnect) {
-      _connectionManager.connect(
-        _options,
-      );
+      // This void API has no caller to observe the reconnect future. Failures
+      // are still reported by errorStream.
+      _connectionManager.connect(_options).ignore();
     }
   }
 
@@ -168,8 +162,6 @@ class PhoenixSocket {
       channel.leavePush?.trigger(PushResponse(status: 'ok'));
       channel.close();
     }
-    _streamRouter.close();
-    _topicStreams.clear();
   }
 
   /// Wait for an expected message to arrive.
@@ -194,7 +186,7 @@ class PhoenixSocket {
   /// Used internally to send prepared message. If you need to send
   /// a message on a channel, you would usually use [PhoenixChannel.push]
   /// instead.
-  void sendMessage(Message message) async {
+  void sendMessage(Message message) {
     if (message.ref == null) {
       throw ArgumentError.value(
         message,
@@ -238,8 +230,8 @@ class PhoenixSocket {
   /// leaving the channel.
   void removeChannel(PhoenixChannel channel) {
     _logger.finer(() => 'Removing channel ${channel.topic}');
-    if (_channels.remove(channel.topic) is PhoenixChannel) {
-      _topicStreams.remove(channel.topic);
+    if (identical(_channels[channel.topic], channel)) {
+      _channels.remove(channel.topic);
     }
   }
 
@@ -247,7 +239,7 @@ class PhoenixSocket {
     _logger.fine(
       () => 'Trigger channel exceptions on ${_channels.length} channels',
     );
-    for (final channel in _channels.values) {
+    for (final channel in _channels.values.toList()) {
       _logger.finer(
         () => 'Trigger channel exceptions on ${channel.topic}',
       );

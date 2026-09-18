@@ -6,6 +6,7 @@ defmodule BackendWeb.UserSocket do
   channel("channel1:*", BackendWeb.Channel1)
   channel("channel2", BackendWeb.Channel2)
   channel("channel3", BackendWeb.Channel3)
+  channel("audit:*", BackendWeb.AuditChannel)
   channel("presence:lobby", BackendWeb.PresenceChannel)
 
 

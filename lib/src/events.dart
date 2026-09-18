@@ -135,12 +135,10 @@ class PhoenixChannelEvent {
   static Set<PhoenixChannelEvent> statuses = {close, error, join, reply, leave};
 
   /// Whether the event name is an 'reply' event
-  bool get isReply =>
-      value.startsWith(__chanReplyEventName) ||
-      value.startsWith(__replyEventName);
+  bool get isReply => isChannelReply || value == __replyEventName;
 
   /// Whether the event name is a 'channel reply' event
-  bool get isChannelReply => value.startsWith(__chanReplyEventName);
+  bool get isChannelReply => value.startsWith('${__chanReplyEventName}_');
 
   @override
   bool operator ==(Object other) =>

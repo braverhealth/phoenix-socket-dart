@@ -79,6 +79,8 @@ class ConnectedState extends ConnectionState {
   /// monotonically increasing.
   int get nextRef => _ref++;
 
+  int get currentRef => _ref;
+
   @override
   String toString() => 'ConnectedState()';
 }

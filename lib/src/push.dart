@@ -84,7 +84,12 @@ class Push {
     this.timeout,
   })  : _channel = channel,
         _logger = Logger('phoenix_socket.push.${channel.loggerName}'),
-        _responseCompleter = Completer<PushResponse>();
+        _responseCompleter = Completer<PushResponse>() {
+    // A push may be observed through onReply only. Its optional future must
+    // still report failures to callers without producing an unhandled error
+    // when no caller asks for it.
+    _responseCompleter.future.ignore();
+  }
 
   final Logger _logger;
   final Map<String, List<ReceiverCallback>> _receivers = {};
@@ -108,6 +113,8 @@ class Push {
   Timer? _timeoutTimer;
   String? _ref;
   PhoenixChannelEvent? _replyEvent;
+  Future<void>? _replyFuture;
+  int _attempt = 0;
 
   Completer<PushResponse> _responseCompleter;
 
@@ -140,10 +147,9 @@ class Push {
   bool hasReceived(String status) => _received?.status == status;
 
   /// Send the push message without expecting a reply.
-  void sendAndForget() async {
+  void sendAndForget() {
     _logger.finer('Sending out push for $ref');
     _sent = true;
-    _awaitingReply = false;
 
     final message = Message(
       event: event!,
@@ -153,7 +159,11 @@ class Push {
       joinRef: _channel.joinRef,
     );
 
-    _channel.socket.sendMessage(message);
+    try {
+      _channel.socket.sendMessage(message);
+    } catch (error) {
+      cancel(error);
+    }
   }
 
   /// Send the push message and expect a reply.
@@ -166,10 +176,9 @@ class Push {
     }
     _logger.finer('Sending out push for $ref');
     _sent = true;
-    _awaitingReply = false;
-
-    startTimeout();
+    final attempt = _attempt;
     try {
+      startTimeout();
       final message = Message(
         event: event!,
         topic: _channel.topic,
@@ -178,7 +187,9 @@ class Push {
         joinRef: _channel.joinRef,
       );
       _channel.socket.sendMessage(message);
-      await _channel.socket.waitForMessage(message);
+      // The channel waiter receives replies, timeouts, and connection errors.
+      // A second connection-manager waiter would outlive channel timeouts.
+      await _replyFuture;
       // ignore: avoid_catches_without_on_clauses
     } catch (err, stacktrace) {
       _logger.fine(
@@ -186,7 +197,9 @@ class Push {
         err,
         stacktrace,
       );
-      _receiveResponse(err);
+      if (attempt == _attempt) {
+        _receiveResponse(err);
+      }
     }
   }
 
@@ -199,7 +212,7 @@ class Push {
     required bool expectingReply,
   }) async {
     timeout = newTimeout ?? timeout;
-    if (_sent) {
+    if (_sent || _responseCompleter.isCompleted) {
       reset();
     }
 
@@ -212,6 +225,9 @@ class Push {
 
   /// Associate a callback to be called if and when a reply with the given
   /// status is received.
+  ///
+  /// Callbacks remain registered across retries until [clearReceivers] or
+  /// [cancel] is called.
   void onReply(String status, ReceiverCallback callback) {
     (_receivers[status] ??= []).add(callback);
   }
@@ -220,10 +236,15 @@ class Push {
   /// within the expected time frame.
   void startTimeout() {
     if (!_awaitingReply) {
-      _channel
-          .onPushReply(replyEvent)
-          .then<void>(_receiveResponse)
-          .catchError(_receiveResponse);
+      final attempt = _attempt;
+      _replyFuture = _channel.onPushReply(replyEvent).then<void>(
+        (message) {
+          if (attempt == _attempt) _receiveResponse(message);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (attempt == _attempt) _receiveResponse(error);
+        },
+      );
       _awaitingReply = true;
     }
 
@@ -242,10 +263,34 @@ class Push {
 
   /// Reset the scheduled timeout for this push.
   void reset() {
+    _attempt++;
     cancelTimeout();
+    if (_awaitingReply) {
+      _channel.cancelPushReply(replyEvent);
+    }
+    _awaitingReply = false;
+    _replyFuture = null;
     _received = null;
     _resetRef();
     _sent = false;
+    if (_responseCompleter.isCompleted) {
+      _responseCompleter = Completer<PushResponse>();
+      _responseCompleter.future.ignore();
+    }
+  }
+
+  /// Finish this push when its channel is permanently closed.
+  void cancel(Object error) {
+    _attempt++;
+    cancelTimeout();
+    if (_awaitingReply) {
+      _channel.cancelPushReply(replyEvent);
+    }
+    _awaitingReply = false;
+    if (!_responseCompleter.isCompleted) {
+      _responseCompleter.completeError(error);
+    }
+    clearReceivers();
   }
 
   /// Trigger the appropriate waiters and future associated for this push,
@@ -254,8 +299,6 @@ class Push {
   /// This will only trigger the waiters associated with the response's status,
   /// e.g. 'ok' or 'error'.
   void trigger(PushResponse response) {
-    _received = response;
-
     if (_responseCompleter.isCompleted) {
       _logger
         ..warning('Push being completed more than once')
@@ -268,6 +311,7 @@ class Push {
 
       return;
     } else {
+      _received = response;
       _logger.finer(
         () => 'Completing for $replyEvent with response ${response.response}',
       );
@@ -283,7 +327,6 @@ class Push {
     });
 
     final receivers = _receivers[response.status]?.toList() ?? const [];
-    clearReceivers();
     for (final cb in receivers) {
       cb(response);
     }
@@ -294,15 +337,17 @@ class Push {
 
   // Remove existing waiters and reset completer
   void cleanUp() {
-    if (_sent) {
-      _logger.fine('Cleaning up completer');
-      clearReceivers();
-      _responseCompleter = Completer();
-    }
+    _logger.fine('Cleaning up completer');
+    clearReceivers();
+    reset();
   }
 
   void _receiveResponse(dynamic response) {
     cancelTimeout();
+    if (_awaitingReply) {
+      _awaitingReply = false;
+      _channel.cancelPushReply(replyEvent);
+    }
     if (response is Message) {
       if (response.event == replyEvent) {
         trigger(PushResponse.fromMessage(response));
