@@ -5,12 +5,18 @@ on:
     paths:
       - "lib/**"
       - "test/**"
+      - "pubspec.yaml"
+      - "example/**/pubspec.yaml"
       - ".github/workflows/test.yaml"
 
 jobs:
   test:
     timeout-minutes: 10
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        dart: ["3.4.4", stable]
 
     services:
       backend:
@@ -31,7 +37,7 @@ jobs:
         uses: dart-lang/setup-dart@v1
         with:
           architecture: x64
-          sdk: "3.1.2"
+          sdk: ${{ matrix.dart }}
 
       - name: Fetch sources
         uses: actions/checkout@v2
