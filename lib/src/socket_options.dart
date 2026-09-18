@@ -23,6 +23,7 @@ class PhoenixSocketOptions {
     /// The list of delays between reconnection attempts.
     ///
     /// The last duration will be repeated until it works.
+    /// An empty list retries without a delay.
     this.reconnectDelays = const [
       Duration.zero,
       Duration(milliseconds: 1000),
@@ -90,13 +91,16 @@ class PhoenixSocketOptions {
     };
   }
 
-  Duration? getReconnectionDelay(int numberOfAttempts) => reconnectDelays[max(
-        0,
-        min(
-          numberOfAttempts,
-          reconnectDelays.length - 1,
-        ),
-      )];
+  Duration? getReconnectionDelay(int numberOfAttempts) =>
+      reconnectDelays.isEmpty
+          ? Duration.zero
+          : reconnectDelays[max(
+              0,
+              min(
+                numberOfAttempts,
+                reconnectDelays.length - 1,
+              ),
+            )];
 
   bool shouldAttemptReconnection(int numberOfAttempts) =>
       maxReconnectionAttempts == null ||

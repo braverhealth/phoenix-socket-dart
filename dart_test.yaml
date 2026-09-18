@@ -1,0 +1,10 @@
+tags:
+  legacy-integration:
+    skip: "Requires manually provisioned backend/Toxiproxy on fixed ports; use tool/run_e2e.dart for isolated E2E coverage."
+    presets:
+      legacy:
+        skip: false
+
+presets:
+  legacy:
+    include_tags: legacy-integration

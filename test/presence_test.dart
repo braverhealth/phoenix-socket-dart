@@ -6,6 +6,8 @@ import 'dart:async';
 import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:test/test.dart';
 
+import 'helpers/fake_transport.dart';
+
 typedef Json = Map<String, Object?>;
 
 Json entry(List<String> refs, {Json fields = const {}}) => {
@@ -713,15 +715,19 @@ void main() {
 
   test('real channel messages and closure work without a network connection',
       () async {
-    final socket = PhoenixSocket('ws://unused.invalid/socket');
+    final transport = FakeTransport(readyImmediately: true);
+    transport.onSend = transport.replyTo;
+    final socket = PhoenixSocket('ws://unused.invalid/socket',
+        webSocketChannelFactory: (_) => transport);
     final realChannel = socket.addChannel(topic: 'presence:lobby');
     final client = PhoenixPresence<Json>(channel: realChannel);
     addTearDown(() async {
       await client.dispose();
       socket.dispose();
     });
-    // The disconnected socket defers this join; no transport is opened.
-    realChannel.join().trigger(PushResponse(status: 'ok'));
+    // The transport is entirely in memory; exercise the real join lifecycle.
+    await socket.connect();
+    await realChannel.join().future;
     realChannel.trigger(Message(
       event: const PhoenixChannelEvent.custom('presence_state'),
       payload: {
@@ -741,9 +747,51 @@ void main() {
     expect(client.snapshot.status, PresenceSyncStatus.closed);
   });
 
+  test('real channel leave invalidates presence and settles pending pushes',
+      () async {
+    final transport = FakeTransport(readyImmediately: true);
+    transport.onSend = (message) {
+      if (message[3] == 'phx_join' || message[3] == 'phx_leave') {
+        transport.replyTo(message);
+      }
+    };
+    final socket = PhoenixSocket('ws://unused.invalid/socket',
+        webSocketChannelFactory: (_) => transport);
+    final realChannel = socket.addChannel(topic: 'presence:lobby');
+    final client = PhoenixPresence<Json>(channel: realChannel);
+    addTearDown(() async {
+      await client.dispose();
+      socket.dispose();
+    });
+    await socket.connect();
+    await realChannel.join().future;
+    realChannel.trigger(Message(
+      event: const PhoenixChannelEvent.custom('presence_state'),
+      payload: {
+        'a': entry(['a1'])
+      },
+    ));
+    await flush();
+    expect(client.snapshot.isSynchronized, isTrue);
+
+    final pending = realChannel.push('request', {}, expectingReply: true);
+    final requestFailure =
+        expectLater(pending.future, throwsA(isA<ChannelClosedError>()));
+    final leave = realChannel.leave();
+    expect(client.snapshot.status, PresenceSyncStatus.stale);
+    expect(client.state.keys, ['a']);
+    expect((await leave.future).isOk, isTrue);
+    await requestFailure;
+    expect(client.snapshot.status, PresenceSyncStatus.closed);
+    expect(socket.channels, isEmpty);
+  });
+
   test('deferred initial join preserves awaiting state for late subscribers',
       () async {
-    final socket = PhoenixSocket('ws://unused.invalid/socket');
+    final transport = FakeTransport(readyImmediately: true);
+    transport.onSend = transport.replyTo;
+    final socket = PhoenixSocket('ws://unused.invalid/socket',
+        webSocketChannelFactory: (_) => transport);
     final realChannel = socket.addChannel(topic: 'presence:lobby');
     final client = PhoenixPresence<Json>(channel: realChannel);
     addTearDown(() async {
@@ -751,14 +799,17 @@ void main() {
       socket.dispose();
     });
 
-    // This is the documented pre-connect join sequence. No transport is opened.
+    // This is the documented pre-connect join sequence. The later connection
+    // uses the in-memory transport rather than a network backend.
     final join = realChannel.join();
     expect(realChannel.state, PhoenixChannelState.errored);
     expect(client.snapshot.status, PresenceSyncStatus.awaitingState);
     expect((await client.snapshots.first).status,
         PresenceSyncStatus.awaitingState);
 
-    join.trigger(PushResponse(status: 'ok'));
+    await socket.connect();
+    await join.future;
+    expect(realChannel.state, PhoenixChannelState.joined);
     expect(client.snapshot.status, PresenceSyncStatus.awaitingState);
     realChannel.trigger(Message(
       event: const PhoenixChannelEvent.custom('presence_state'),

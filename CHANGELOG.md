@@ -1,3 +1,12 @@
+## [1.0.0-rc1]
+
+- Cancel in-flight connection work on close/dispose and recover consistently from handshake and setup failures.
+- Fix channel rejoining, leave cleanup, pending push completion, and buffered fire-and-forget delivery.
+- Preserve topic subscriptions across channel replacement and deliver custom reply-prefix events.
+- Define empty reconnect delays as immediate retries.
+- Add lifecycle regression tests and isolated E2E coverage using the embedded Elixir backend.
+- Require Dart 3.4 and align CI and example SDK constraints.
+
 ## [1.0.0-rc.1]
 
 - Fix presence diffs dropping all but the first join/leave key, join callbacks

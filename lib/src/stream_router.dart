@@ -40,32 +40,37 @@ class PhoenixStreamRouter<T> {
   late StreamSubscription<T> _subscription;
 
   final List<Route<T>> _routes = <Route<T>>[];
+  bool _closed = false;
+  Future<void>? _closeFuture;
   final StreamController<T> _defaultController =
       StreamController<T>.broadcast();
 
   /// Events that match [predicate] are sent to the stream created by this
   /// method, and not sent to any other router streams.
   Stream<T> route(Predicate<T> predicate) {
-    Route<T>? route;
-    // ignore: close_sinks
-    final controller = StreamController<T>.broadcast(onCancel: () {
-      _routes.remove(route);
-    });
-    route = Route<T>(predicate, controller);
+    if (_closed) throw StateError('Cannot route a closed stream');
+    final controller = StreamController<T>.broadcast();
+    final route = Route<T>(predicate, controller);
     _routes.add(route);
     return controller.stream;
   }
 
   Stream<T> get defaultStream => _defaultController.stream;
 
-  Future close() async {
-    await _defaultController.close();
-    return Future.wait(_routes.map((r) => r.controller.close())).then((_) {
-      _subscription.cancel();
-    });
+  Future<void> close() => _closeFuture ??= _close();
+
+  Future<void> _close() async {
+    _closed = true;
+    await _subscription.cancel();
+    await Future.wait([
+      _defaultController.close(),
+      ..._routes.map((route) => route.controller.close()),
+    ]);
+    _routes.clear();
   }
 
   void _handle(T event) {
+    if (_closed) return;
     final route = _routes.firstWhereOrNull((r) => r.predicate(event));
     ((route != null) ? route.controller : _defaultController).add(event);
   }
