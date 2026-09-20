@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:msgpack_dart/msgpack_dart.dart';
 import 'package:logging/logging.dart';
 import 'package:phoenix_socket/src/message_serializer.dart';
@@ -73,7 +74,7 @@ class MessagePackCodec {
       final bytes = base64.decode(rawData);
 
       // Deserialize from MessagePack
-      final decoded = deserialize(bytes);
+      final decoded = _normalizeDecodedValue(deserialize(bytes));
 
       _logger.finest('Decoded MessagePack: $decoded');
       return decoded;
@@ -115,13 +116,29 @@ class MessagePackCodec {
         return [];
       }
 
-      final decoded = deserialize(bytes);
+      final decoded = _normalizeDecodedValue(deserialize(bytes));
       _logger.finest('Decoded MessagePack binary: $decoded');
       return decoded;
     } catch (e, stackTrace) {
       _logger.severe('MessagePack binary decoding error', e, stackTrace);
       rethrow;
     }
+  }
+
+  static dynamic _normalizeDecodedValue(dynamic value) {
+    if (value is Uint8List) {
+      return value;
+    }
+    if (value is Map) {
+      return value.map<String, dynamic>(
+        (key, nestedValue) =>
+            MapEntry(key.toString(), _normalizeDecodedValue(nestedValue)),
+      );
+    }
+    if (value is List) {
+      return value.map(_normalizeDecodedValue).toList();
+    }
+    return value;
   }
 }
 

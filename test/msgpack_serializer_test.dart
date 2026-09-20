@@ -1,7 +1,7 @@
 import 'dart:typed_data';
+
 import 'package:test/test.dart';
 import 'package:phoenix_socket/phoenix_socket.dart';
-import 'package:msgpack_dart/msgpack_dart.dart';
 
 void main() {
   group('MessagePackCodec', () {
@@ -116,6 +116,34 @@ void main() {
         expect(payload['list'], equals([1, 2, 3]));
         expect(payload['map']['nested'], equals('value'));
       });
+
+      test('normalizes presence payload maps and preserves binary values', () {
+        final binaryValue = Uint8List.fromList([0, 127, 255]);
+        final message = [
+          'join1',
+          null,
+          'room:lobby',
+          'presence_state',
+          {
+            'user-1': {
+              'metas': [
+                {'phx_ref': 'ref-1', 'data': binaryValue},
+              ],
+            },
+          },
+        ];
+
+        final decoded = createMessagePackSerializer().decode(
+          MessagePackCodec.encodeBinary(message),
+        );
+        final payload = decoded.payload as Map<String, dynamic>;
+        final presence = payload['user-1'] as Map<String, dynamic>;
+        final meta = (presence['metas'] as List).single as Map<String, dynamic>;
+
+        expect(meta['phx_ref'], equals('ref-1'));
+        expect(meta['data'], isA<Uint8List>());
+        expect(meta['data'], equals(binaryValue));
+      });
     });
 
     group('encodeBinary/decodeBinary', () {
@@ -174,7 +202,7 @@ void main() {
 
       test('throws on invalid MessagePack data', () {
         expect(
-          () => MessagePackCodec.decodeBinary(Uint8List.fromList([0xFF, 0xFF, 0xFF])),
+          () => MessagePackCodec.decodeBinary(Uint8List.fromList([0xD9])),
           throwsA(anything),
         );
       });

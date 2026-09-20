@@ -150,7 +150,7 @@ class ChatClient {
         // Enable MessagePack for bandwidth savings
         serializer: createMessagePackSerializer(),
         // Tune heartbeat for battery savings
-        heartbeatInterval: Duration(seconds: 60),
+        heartbeat: Duration(seconds: 60),
       ),
     );
   }
