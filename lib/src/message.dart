@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:logging/logging.dart';
 
 import 'pheonix_channel.dart';
@@ -12,7 +14,14 @@ class Message {
   /// Given a parsed JSON coming from the backend, yield
   /// a [Message] instance.
   factory Message.fromJson(List<dynamic> parts) {
-    _logger.finest('Message decoded from $parts');
+    if (parts.length != 5 ||
+        parts[0] != null && parts[0] is! String ||
+        parts[1] != null && parts[1] is! String ||
+        parts[2] != null && parts[2] is! String ||
+        parts[3] is! String) {
+      throw const FormatException('Invalid Phoenix message array');
+    }
+    _logger.finest(() => 'Message decoded from $parts');
     return Message(
       joinRef: parts[0],
       ref: parts[1],
@@ -53,6 +62,21 @@ class Message {
     this.payload,
   });
 
+  /// Build a message carrying raw binary bytes.
+  factory Message.binary({
+    String? joinRef,
+    String? ref,
+    String? topic,
+    required PhoenixChannelEvent event,
+    required Uint8List payload,
+  }) =>
+      Message(
+          joinRef: joinRef,
+          ref: ref,
+          topic: topic,
+          event: event,
+          payload: payload);
+
   /// Reference of the channel on which the message is received.
   ///
   /// Used by the [PhoenixSocket] to route the message on the proper
@@ -73,8 +97,24 @@ class Message {
 
   /// The payload of this message.
   ///
-  /// This needs to be a JSON-encodable object.
-  final Map<String, dynamic>? payload;
+  /// JSON data, binary bytes, or a value handled by an application codec.
+  final Object? payload;
+
+  /// Read a JSON object without rebuilding it. Throws for non-map payloads.
+  Map<String, dynamic>? get payloadMap {
+    final value = payload;
+    if (value == null) return null;
+    if (value is Map<String, dynamic>) return value;
+    throw StateError('Message payload is not a string-keyed map');
+  }
+
+  /// Read binary bytes without copying them. Throws for non-binary payloads.
+  Uint8List? get payloadBytes {
+    final value = payload;
+    if (value == null) return null;
+    if (value is Uint8List) return value;
+    throw StateError('Message payload is not binary');
+  }
 
   /// Encode a message to a JSON-encodable list of values.
   Object encode() {
@@ -85,7 +125,7 @@ class Message {
       event.value,
       payload,
     ];
-    _logger.finest('Message encoded to $parts');
+    _logger.finest(() => 'Message encoded to $parts');
     return parts;
   }
 

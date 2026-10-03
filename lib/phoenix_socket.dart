@@ -20,6 +20,7 @@ export 'src/pheonix_channel.dart';
 export 'src/events.dart';
 export 'src/exceptions.dart';
 export 'src/message.dart';
+export 'src/message_codec.dart';
 export 'src/message_serializer.dart';
 export 'src/presence.dart';
 export 'src/push.dart';

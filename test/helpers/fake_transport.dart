@@ -7,24 +7,33 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 /// An in-memory transport with independently controlled handshake and frames.
 class FakeTransport extends StreamChannelMixin<dynamic>
     implements WebSocketChannel {
-  FakeTransport({bool readyImmediately = false}) {
+  FakeTransport({
+    bool readyImmediately = false,
+    this.decodeFrame,
+    this.encodeFrame,
+  }) {
     sink = FakeTransportSink(this);
     if (readyImmediately) readyCompleter.complete();
   }
 
   final incoming = StreamController<dynamic>();
   final sent = <List<dynamic>>[];
+  final frames = <Object>[];
+  final List<dynamic> Function(Object frame)? decodeFrame;
+  final Object Function(List<dynamic> parts)? encodeFrame;
   final readyCompleter = Completer<void>();
   void Function(List<dynamic>)? onSend;
+  void Function(Object)? onFrame;
 
   void replyTo(List<dynamic> message) {
-    incoming.add(jsonEncode([
+    final parts = <dynamic>[
       message[0],
       message[1],
       message[2],
       'phx_reply',
       {'status': 'ok', 'response': <String, dynamic>{}},
-    ]));
+    ];
+    incoming.add(encodeFrame == null ? jsonEncode(parts) : encodeFrame!(parts));
   }
 
   @override
@@ -51,7 +60,11 @@ class FakeTransportSink implements WebSocketSink {
   @override
   void add(dynamic data) {
     if (_done.isCompleted) throw StateError('Transport is closed');
-    final message = jsonDecode(data as String) as List<dynamic>;
+    transport.frames.add(data as Object);
+    transport.onFrame?.call(data);
+    final message = transport.decodeFrame == null
+        ? jsonDecode(data as String) as List<dynamic>
+        : transport.decodeFrame!(data);
     transport.sent.add(message);
     if (message[3] == 'heartbeat') {
       transport.replyTo(message);

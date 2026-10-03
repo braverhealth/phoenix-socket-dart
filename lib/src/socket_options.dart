@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'message_serializer.dart';
+import 'message_codec.dart';
 
 /// Options for the open Phoenix socket.
 ///
@@ -44,7 +45,7 @@ class PhoenixSocketOptions {
     ///
     /// Either this or [params] car to be provided, but not both.
     this.dynamicParams,
-    MessageSerializer? serializer,
+    MessageCodec? serializer,
   })  : _timeout = timeout ?? const Duration(seconds: 10),
         serializer = serializer ?? const MessageSerializer(),
         _heartbeat = heartbeat ?? const Duration(seconds: 30),
@@ -54,7 +55,7 @@ class PhoenixSocketOptions {
 
   /// The serializer used to serialize and deserialize messages on
   /// applicable sockets.
-  final MessageSerializer serializer;
+  final MessageCodec serializer;
   final int? maxReconnectionAttempts;
 
   final Duration _timeout;

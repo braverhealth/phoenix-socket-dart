@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Phoenix codec benchmark</title>
+<pre id="results"></pre>
+<script>
+console.log = (message) => {
+  document.getElementById('results').appendChild(
+    document.createTextNode(String(message) + '\n'));
+};
+</script>
+<script src="codec_benchmark.js"></script>
+</html>

@@ -1,0 +1,24 @@
+syntax = "proto3";
+package phoenix_example;
+
+message EchoRequest {
+  string text = 1;
+}
+
+message EchoReply {
+  string text = 1;
+}
+
+// An application-defined envelope, not Phoenix's standard binary framing.
+message Envelope {
+  optional string join_ref = 1;
+  optional string ref = 2;
+  optional string topic = 3;
+  string event = 4;
+  oneof payload {
+    string json_payload = 5;
+    bytes binary_payload = 6;
+    bytes binary_response = 7;
+  }
+  optional string reply_status = 8;
+}

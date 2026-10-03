@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 
@@ -31,10 +32,13 @@ class PushResponse {
   /// }
   /// ```
   factory PushResponse.fromMessage(Message message) {
-    final data = message.payload;
+    final data = message.payloadMap;
+    if (data == null || data['status'] is! String) {
+      throw const FormatException('Phoenix reply requires a string status');
+    }
     return PushResponse(
-      status: data?['status'] as String?,
-      response: data?['response'],
+      status: data['status'] as String,
+      response: data['response'],
     );
   }
 
@@ -43,8 +47,22 @@ class PushResponse {
   /// Value is usually either 'ok' or 'error'.
   final String? status;
 
-  /// Arbitrary JSON content provided by the backend.
-  final dynamic response;
+  /// JSON, bytes, or an application value provided by the backend.
+  final Object? response;
+
+  Map<String, dynamic>? get responseMap {
+    final value = response;
+    if (value == null) return null;
+    if (value is Map<String, dynamic>) return value;
+    throw StateError('Push response is not a string-keyed map');
+  }
+
+  Uint8List? get responseBytes {
+    final value = response;
+    if (value == null) return null;
+    if (value is Uint8List) return value;
+    throw StateError('Push response is not binary');
+  }
 
   /// Whether the response as a 'ok' status.
   bool get isOk => status == 'ok';
@@ -69,7 +87,7 @@ class PushResponse {
 }
 
 /// Type of function that should return a push payload
-typedef PayloadGetter = Map<String, dynamic> Function();
+typedef PayloadGetter = Object? Function();
 
 /// Object produced by [PhoenixChannel.push] to encapsulate
 /// the message sent and its lifecycle.
@@ -350,7 +368,17 @@ class Push {
     }
     if (response is Message) {
       if (response.event == replyEvent) {
-        trigger(PushResponse.fromMessage(response));
+        final PushResponse parsed;
+        try {
+          parsed = PushResponse.fromMessage(response);
+        } catch (error) {
+          if (!_responseCompleter.isCompleted) {
+            _responseCompleter.completeError(error);
+          }
+          clearReceivers();
+          return;
+        }
+        trigger(parsed);
       }
     } else if (event != PhoenixChannelEvent.join) {
       _logger.finest(

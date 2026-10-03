@@ -49,6 +49,53 @@ Look at the [example project][5] for an example on how to use this library. The 
 look like javascript's as much as possible, but leveraging Dart's unique native advantages like Streams
 and Futures.
 
+## Binary payloads and codecs
+
+The default `MessageSerializer` supports Phoenix v2 JSON and binary framing.
+Maps use JSON text frames; `Uint8List` payloads use binary frames. JSON control
+messages and binary application messages can share one socket.
+
+```dart
+final reply = await channel.push(
+  'echo', request.writeToBuffer(), expectingReply: true,
+).future;
+final result = YourReply.fromBuffer(reply.responseBytes!);
+```
+
+The server must accept Phoenix binary payloads and reply with a binary body.
+In Elixir those payloads are `{:binary, bytes}`. The reply status remains
+available through `reply.status`; decoding protobuf is an application concern.
+
+For schema-aware conversion, supply `MessageSerializer(payloadCodec: ...)`.
+Payload codecs receive topic, event, references and reply status. They transform
+the reply **body**, preserving the status envelope. Leave control/Presence
+payloads unchanged unless your adapter restores their expected map structure.
+Replies carry `phx_reply`, not the original request event; select the reply
+schema using application request context when a topic has multiple schemas.
+
+For a completely different envelope protocol, implement `MessageCodec` and
+pass it through `PhoenixSocketOptions(serializer: codec)`. Codecs return only
+`String` or `Uint8List` frames and preserve routing metadata and reply envelopes.
+No format detection or extra asynchronous stage is inserted into the transport.
+
+See [the codec guide](docs/binary-codecs.md), the runnable
+[protobuf example](example/protobuf), and the optional
+[MessagePack package](packages/phoenix_socket_msgpack). The core has no protobuf
+or MessagePack dependency.
+
+### Migrating message consumers
+
+`Message.payload`, `PushResponse.response`, `PayloadGetter`, and channel push
+payloads now support `Object?`. Replace map indexing such as `message.payload?['x']`
+with `message.payloadMap?['x']`; use `payloadBytes`, `responseMap`, or
+`responseBytes` for typed access. These accessors return null for a null value
+and throw on a mismatched type. Existing map pushes and JSON encoder/decoder
+callbacks continue to work. `MessageSerializer.encode()` now returns `Object`
+(`String` or `Uint8List`) rather than only `String`.
+
+Use `loggerName:` on `PhoenixSocket` to distinguish socket instances; connection
+manager records use the same prefix. Requires `rxdart ^0.28.0`.
+
 ## Presence
 
 Attach presence **before joining** the channel so it receives the initial

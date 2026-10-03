@@ -78,7 +78,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 }
                 // only modify widget with events from the `sum` channel
                 if (snapshot.data?.event.value == 'sum') {
-                  var times = snapshot.data?.payload?['times'];
+                  var times = snapshot.data?.payloadMap?['times'];
                   if (times != null) {
                     _counter = times;
                   }

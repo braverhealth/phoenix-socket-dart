@@ -281,8 +281,8 @@ class PhoenixChannel {
 
     /// The message payload.
     ///
-    /// This needs to be a JSON encodable object.
-    Map<String, dynamic> payload, {
+    /// JSON data, binary bytes, or a value handled by the configured codec.
+    Object? payload, {
     /// Manually set timeout value for this push.
     ///
     /// If not provided, the default timeout will be used.
@@ -302,7 +302,7 @@ class PhoenixChannel {
   /// using [push] instead.
   Push pushEvent(
     PhoenixChannelEvent event,
-    Map<String, dynamic> payload, {
+    Object? payload, {
     Duration? newTimeout,
     required bool expectingReply,
   }) {

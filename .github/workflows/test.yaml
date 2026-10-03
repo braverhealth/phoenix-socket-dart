@@ -7,6 +7,7 @@ on:
       - "test/**"
       - "tool/**"
       - "example/**"
+      - "packages/**"
       - "pubspec.yaml"
       - "dart_test.yaml"
       - "analysis_options.yaml"
@@ -44,6 +45,10 @@ jobs:
           cd example/backend
           MIX_ENV=test mix deps.get
 
+      - name: Fetch browser comparison dependencies
+        working-directory: tool/browser_comparison
+        run: dart pub get
+
       - name: Run analysis
         run: |
           dart analyze --fatal-infos lib/
@@ -52,6 +57,33 @@ jobs:
 
       - name: Run unit tests
         run: dart test
+
+      - name: Validate browser comparison workloads
+        working-directory: tool/browser_comparison
+        run: |
+          dart analyze --fatal-infos
+          dart test
+
+      - name: Run codec and transport tests in Chrome
+        run: dart test --platform chrome test/message_codec_test.dart test/binary_transport_test.dart
+
+      - name: Validate MessagePack adapter
+        working-directory: packages/phoenix_socket_msgpack
+        run: |
+          dart pub get
+          dart analyze --fatal-infos
+          dart test
+          dart test --platform chrome
+          dart run example/main.dart
+
+      - name: Validate protobuf examples
+        working-directory: example/protobuf
+        run: |
+          dart pub get
+          dart analyze --fatal-infos
+          dart test
+          dart test --platform chrome
+          dart run bin/main.dart
 
       - name: Run E2E tests against the embedded backend
         run: dart run tool/run_e2e.dart

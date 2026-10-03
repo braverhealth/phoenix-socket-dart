@@ -3,6 +3,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:test/test.dart';
@@ -52,6 +53,45 @@ void main() {
       expect(socket.channels, isEmpty);
     });
 
+    test(
+        'binary requests, replies and server pushes coexist with JSON control messages',
+        () async {
+      final channel = socket.addChannel(topic: topic);
+      await channel.join().future;
+      final bytes = Uint8List.fromList([0, 128, 255]);
+      final reply =
+          await channel.push('echo', bytes, expectingReply: true).future;
+      expect(reply.isOk, isTrue);
+      expect(reply.responseBytes, bytes);
+      final received =
+          channel.messages.firstWhere((m) => m.event.value == 'observed');
+      channel.push('no_reply', bytes, expectingReply: false);
+      expect((await received).payloadBytes, bytes);
+      expect(
+          (await channel
+                  .push('echo', {'json': true}, expectingReply: true)
+                  .future)
+              .responseMap,
+          {'json': true});
+    });
+
+    test('binary broadcasts reach two real connections', () async {
+      final other = PhoenixSocket(endpoint!);
+      addTearDown(other.dispose);
+      await other.connect();
+      final first = socket.addChannel(topic: topic);
+      final second = other.addChannel(topic: topic);
+      await Future.wait([first.join().future, second.join().future]);
+      final firstUpdate =
+          first.messages.firstWhere((m) => m.event.value == 'binary_update');
+      final secondUpdate =
+          second.messages.firstWhere((m) => m.event.value == 'binary_update');
+      final bytes = Uint8List.fromList([0, 128, 255]);
+      await first.push('binary_broadcast', bytes, expectingReply: true).future;
+      expect((await firstUpdate).payloadBytes, bytes);
+      expect((await secondUpdate).payloadBytes, bytes);
+    });
+
     test('a timed-out join recovers when its next attempt succeeds', () async {
       final channel =
           socket.addChannel(topic: topic, parameters: {'join_delay_ms': 450});
@@ -98,9 +138,9 @@ void main() {
           message.ref == leave.ref);
       expect((await leave.future).isOk, isTrue);
       await joinFailure;
-      expect((await serverJoin).payload?['status'], 'ok');
+      expect((await serverJoin).payloadMap?['status'], 'ok');
       final leaveReply = await serverLeave;
-      expect(leaveReply.payload?['status'], 'ok');
+      expect(leaveReply.payloadMap?['status'], 'ok');
       expect(leaveReply.joinRef, joinRef);
       await serverClose;
       expect(channel.state, PhoenixChannelState.closed);

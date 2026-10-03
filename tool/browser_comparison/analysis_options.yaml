@@ -1,0 +1,4 @@
+include: package:lints/recommended.yaml
+analyzer:
+  exclude:
+    - lib/adapter_master.dart # Compiled separately against the pinned master snapshot.

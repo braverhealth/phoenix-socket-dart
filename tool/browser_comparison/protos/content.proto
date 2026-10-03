@@ -1,0 +1,29 @@
+syntax = "proto3";
+package benchmark;
+
+message Content {
+  string text = 1;
+  repeated Record records = 2;
+  repeated sint32 numbers = 3;
+  bytes bytes = 4;
+}
+
+message Record {
+  uint32 id = 1;
+  string name = 2;
+  bool active = 3;
+  double score = 4;
+  repeated string tags = 5;
+  Detail detail = 6;
+}
+
+message Detail {
+  string note = 1;
+  repeated sint32 values = 2;
+  repeated Attribute attributes = 3;
+}
+
+message Attribute {
+  string key = 1;
+  string value = 2;
+}

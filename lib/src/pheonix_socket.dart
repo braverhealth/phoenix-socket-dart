@@ -13,8 +13,6 @@ import 'pheonix_channel.dart';
 import 'push.dart';
 import 'socket_options.dart';
 
-final Logger _logger = Logger('phoenix_socket.socket');
-
 /// Main class to use when wishing to establish a persistent connection
 /// with a Phoenix backend using WebSockets.
 class PhoenixSocket {
@@ -29,10 +27,15 @@ class PhoenixSocket {
     /// websocket connection.
     PhoenixSocketOptions? socketOptions,
 
+    /// Logger name for this socket and its connection manager.
+    String loggerName = 'phoenix_socket.socket',
+
     /// The factory to use to create the WebSocketChannel.
     WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
-  }) : _connectionManager = ConnectionManager(
+  })  : _logger = Logger(loggerName),
+        _connectionManager = ConnectionManager(
           serverUri: endpoint,
+          loggerName: '$loggerName.connection_manager',
           webSocketChannelFactory: webSocketChannelFactory,
         ) {
     _options = socketOptions ?? PhoenixSocketOptions();
@@ -57,6 +60,7 @@ class PhoenixSocket {
   }
 
   final ConnectionManager _connectionManager;
+  final Logger _logger;
 
   /// Stream of [PhoenixSocketOpenEvent] being produced whenever
   /// the connection is open.

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
@@ -12,8 +13,6 @@ import '../message.dart';
 import '../socket_options.dart';
 import 'event.dart';
 import 'state.dart';
-
-final Logger _logger = Logger('phoenix_socket.ConnectionManager');
 
 Future<Uri> _buildMountPoint(
   Uri serverUri,
@@ -30,8 +29,10 @@ Future<Uri> _buildMountPoint(
 class ConnectionManager {
   ConnectionManager({
     required String serverUri,
+    String loggerName = 'phoenix_socket.ConnectionManager',
     WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
-  })  : _uri = Uri.parse(serverUri),
+  })  : _logger = Logger(loggerName),
+        _uri = Uri.parse(serverUri),
         _webSocketChannelFactory =
             webSocketChannelFactory ?? WebSocketChannel.connect {
     _openStream =
@@ -55,6 +56,7 @@ class ConnectionManager {
     });
   }
 
+  final Logger _logger;
   final Uri _uri;
   Uri? _lastConnectionUri;
 
@@ -240,7 +242,12 @@ class ConnectionManager {
           pendingMessages[message.ref!] = completer;
         }
         try {
-          channel.sink.add(_options!.serializer.encode(message));
+          final frame = _options!.serializer.encode(message);
+          if (frame is! String && frame is! Uint8List) {
+            throw const FormatException(
+                'Codec must encode String or Uint8List');
+          }
+          channel.sink.add(frame);
         } catch (error, stackTrace) {
           if (completer != null && !completer.isCompleted) {
             pendingMessages.remove(message.ref);
@@ -603,32 +610,37 @@ class ConnectionManager {
   }
 
   Null _receiveMessage(WebSocketChannel channel, dynamic payload) {
-    if (payload is String) {
-      if (currentState case ConnectedState connectedState
-          when connectedState.channel == channel) {
-        final Message message;
-        try {
-          message = _options!.serializer.decode(payload);
-        } catch (error, stackTrace) {
-          _add(ChannelError(
-              channel: channel, error: error, stackTrace: stackTrace));
-          return null;
+    if (currentState case ConnectedState connectedState
+        when connectedState.channel == channel) {
+      final Message message;
+      try {
+        final Object frame = switch (payload) {
+          String value => value,
+          Uint8List value => value,
+          ByteBuffer value => value.asUint8List(),
+          List<int> value => Uint8List.fromList(value),
+          _ => throw const FormatException('Unsupported WebSocket frame'),
+        };
+        message = _options!.serializer.decode(frame);
+      } catch (error, stackTrace) {
+        _add(ChannelError(
+            channel: channel, error: error, stackTrace: stackTrace));
+        return null;
+      }
+
+      if (message.ref != null) {
+        if (message.ref == connectedState.pendingHeartbeatRef) {
+          connectedState.pendingHeartbeatRef = null;
         }
 
-        if (message.ref != null) {
-          if (message.ref == connectedState.pendingHeartbeatRef) {
-            connectedState.pendingHeartbeatRef = null;
-          }
-
-          final completer = connectedState.pendingMessages.remove(message.ref);
-          if (completer != null && !completer.isCompleted) {
-            completer.complete(message);
-          }
+        final completer = connectedState.pendingMessages.remove(message.ref);
+        if (completer != null && !completer.isCompleted) {
+          completer.complete(message);
         }
+      }
 
-        if (!_receiveStreamController.isClosed) {
-          _receiveStreamController.add(message);
-        }
+      if (!_receiveStreamController.isClosed) {
+        _receiveStreamController.add(message);
       }
     }
     return null;

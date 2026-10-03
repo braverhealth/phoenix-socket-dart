@@ -1,0 +1,16 @@
+name: phoenix_socket_msgpack
+description: Optional MessagePack message codecs for phoenix_socket.
+version: 1.0.0-rc2
+repository: https://github.com/braverhealth/phoenix-socket-dart
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+dependencies:
+  phoenix_socket: ^1.0.0-rc2
+  msgpack_dart: ^1.0.1
+dev_dependencies:
+  lints: ^3.0.0
+  test: ^1.25.2
+  stream_channel: ^2.1.2
+dependency_overrides:
+  phoenix_socket:
+    path: ../..
