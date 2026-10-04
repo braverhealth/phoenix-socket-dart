@@ -2,9 +2,9 @@
 
 Two working examples use generated classes from `protos/exchange.proto`:
 
-- `EchoPayloadCodec` converts an echo request/reply body while standard Phoenix
-  framing carries topic, event and references. Maps for control messages pass
-  through unchanged. It assumes one response schema for this example channel.
+- The optional `phoenix_socket_protobuf` package automatically encodes generated
+  requests and decodes response bodies using `EchoReply.fromBuffer`. Standard
+  Phoenix framing carries topic, event and references; control maps pass through.
 - `ProtobufEnvelopeCodec` defines a complete protobuf envelope. Both peers must
   implement that schema, including control messages. Binary reply bodies retain
   their status and empty bytes remain distinguishable from a missing body.
@@ -20,7 +20,7 @@ To use generated requests directly with a matching server:
 
 ```dart
 final options = PhoenixSocketOptions(
-  serializer: MessageSerializer(payloadCodec: EchoPayloadCodec()),
+  serializer: createProtobufSerializer(decoder: EchoReply.fromBuffer),
 );
 final reply = await channel.push(
   'echo', EchoRequest(text: 'hello'), expectingReply: true,
@@ -28,8 +28,9 @@ final reply = await channel.push(
 final body = reply.response as EchoReply;
 ```
 
-For multiple response schemas, use application request context and the reply
-reference to choose a decoder, or keep `responseBytes` and decode at the caller.
+For multiple response schemas, use `ProtobufPayloadCodec.select` with application
+request context and the reply reference to choose a generated decoder. See the
+[adapter package](../../packages/phoenix_socket_protobuf) for routing examples.
 Actual Braver requests currently include a base64 JSON wrapper with payload-name
 and metadata fields; these examples do not replace that production contract.
 

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:phoenix_socket/phoenix_socket.dart';
+import 'package:phoenix_socket_protobuf/phoenix_socket_protobuf.dart';
 import 'package:phoenix_protobuf_example/protobuf_codecs.dart';
 import 'package:test/test.dart';
 
@@ -10,7 +11,7 @@ import '../../../test/helpers/fake_transport.dart';
 void main() {
   test('protobuf payloads traverse channel pushes and binary replies',
       () async {
-    const codec = MessageSerializer(payloadCodec: EchoPayloadCodec());
+    final codec = createProtobufSerializer(decoder: EchoReply.fromBuffer);
     final transport =
         FakeTransport(readyImmediately: true, decodeFrame: clientFrameParts);
     transport.onSend = (parts) {
@@ -23,8 +24,8 @@ void main() {
       }
     };
     final socket = PhoenixSocket('ws://unused.invalid/socket',
-        socketOptions: const PhoenixSocketOptions(
-            serializer: codec, heartbeat: Duration(days: 1)),
+        socketOptions: PhoenixSocketOptions(
+            serializer: codec, heartbeat: const Duration(days: 1)),
         webSocketChannelFactory: (_) => transport);
     addTearDown(socket.dispose);
     await socket.connect();

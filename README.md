@@ -64,7 +64,20 @@ final result = YourReply.fromBuffer(reply.responseBytes!);
 
 The server must accept Phoenix binary payloads and reply with a binary body.
 In Elixir those payloads are `{:binary, bytes}`. The reply status remains
-available through `reply.status`; decoding protobuf is an application concern.
+available through `reply.status`. The optional
+[protobuf package](packages/phoenix_socket_protobuf) accepts your generated
+decoder and automatically encodes generated requests:
+
+```dart
+import 'package:phoenix_socket_protobuf/phoenix_socket_protobuf.dart';
+
+final options = PhoenixSocketOptions(
+  serializer: createProtobufSerializer(decoder: YourReply.fromBuffer),
+);
+```
+
+Use `ProtobufPayloadCodec.select` when different events or replies use different
+schemas. JSON control messages pass through and reply status remains separate.
 
 For schema-aware conversion, supply `MessageSerializer(payloadCodec: ...)`.
 Payload codecs receive topic, event, references and reply status. They transform

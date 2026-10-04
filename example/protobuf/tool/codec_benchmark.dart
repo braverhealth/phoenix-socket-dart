@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:phoenix_socket/phoenix_socket.dart';
+import 'package:phoenix_socket_protobuf/phoenix_socket_protobuf.dart';
 import 'package:phoenix_protobuf_example/protobuf_codecs.dart';
 
 import '../../../test/helpers/binary_frames.dart';
@@ -11,7 +12,8 @@ void main() {
     final text = List.filled(size, 'x').join();
     final request = EchoRequest(text: text);
     final response = EchoReply(text: text).writeToBuffer();
-    const payloadCodec = MessageSerializer(payloadCodec: EchoPayloadCodec());
+    final payloadCodec =
+        createProtobufSerializer(decoder: EchoReply.fromBuffer);
     final message = Message(
         joinRef: '1',
         ref: '2',

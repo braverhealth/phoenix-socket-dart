@@ -114,6 +114,8 @@ No cases crossed that threshold in this run.
 - Raw binary measures opaque-byte framing. Binary JSON and protobuf additionally parse application content.
 - The master protobuf adapter manually serializes on send and uses its legacy payload decoder on receive;
   the new adapter uses PayloadCodec in both directions. Both use exactly the same generated protobuf schema/runtime.
+- Recorded protobuf timings use the benchmark payload codec. The optional protobuf convenience package
+  was added afterward and its overhead is not measured separately.
 - Original eager logging remains in both historical baselines; new lazy logging is part of the measured change.
 - JSON rows use the same JSON encoding and content; binary support is inactive for those rows. The JSON
   optimization is lazy payload logging, not a replacement or tuning of jsonEncode/jsonDecode. This comparison

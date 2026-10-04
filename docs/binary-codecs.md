@@ -47,6 +47,12 @@ measure codec cost separately from network/server latency. See
 
 ## Protobuf and Braver compatibility
 
+The optional `phoenix_socket_protobuf` package replaces custom payload adapters
+with `createProtobufSerializer(decoder: YourReply.fromBuffer)`. It encodes
+generated requests automatically and decodes binary response bodies, preserving
+JSON control messages and reply status. `ProtobufPayloadCodec.select` selects
+schemas using routing context and retains unknown binary payloads by identity.
+
 The checked-in protobuf example demonstrates both generated application messages
 inside standard Phoenix framing and an application-defined protobuf envelope.
 Its schemas are examples, not Braver's production schema.
@@ -63,8 +69,8 @@ matching server/client migration is made.
 
 Native and Chrome tests exercise binary framing, views, malformed input, mixed
 control/application traffic, buffered sends, replies, reconnection, disposal and
-Presence through fake transports. Both optional examples test actual generated
-protobuf/MessagePack data through the socket, not only isolated codecs.
+Presence through fake transports. Both optional adapter packages test actual
+generated protobuf/MessagePack data through the socket, not only isolated codecs.
 
 CI additionally runs the embedded backend E2E suite. Its new cases exercise
 binary requests/replies, server pushes and broadcasts against the repository's

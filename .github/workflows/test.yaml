@@ -76,6 +76,14 @@ jobs:
           dart test --platform chrome
           dart run example/main.dart
 
+      - name: Validate protobuf adapter
+        working-directory: packages/phoenix_socket_protobuf
+        run: |
+          dart pub get
+          dart analyze --fatal-infos
+          dart test
+          dart test --platform chrome
+
       - name: Validate protobuf examples
         working-directory: example/protobuf
         run: |
@@ -84,6 +92,21 @@ jobs:
           dart test
           dart test --platform chrome
           dart run bin/main.dart
+
+      - name: Validate protobuf 3.1 compatibility
+        working-directory: packages/phoenix_socket_protobuf
+        run: |
+          trap 'rm -f pubspec_overrides.yaml' EXIT
+          cat > pubspec_overrides.yaml <<'YAML'
+          dependency_overrides:
+            phoenix_socket:
+              path: ../..
+            protobuf: 3.1.0
+          YAML
+          dart pub get
+          dart analyze --fatal-infos
+          dart test
+          dart test --platform chrome
 
       - name: Run E2E tests against the embedded backend
         run: dart run tool/run_e2e.dart

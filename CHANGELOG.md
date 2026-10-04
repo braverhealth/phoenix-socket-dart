@@ -3,7 +3,7 @@
 - Add generic message and payload codec contracts while retaining the serializer option.
 - Support Phoenix binary pushes, replies and broadcasts through the transport and channel APIs.
 - Validate framing, respect buffer offsets, avoid payload copies on receive, and preserve reply status.
-- Add optional MessagePack/base64 adapters and generated protobuf payload/envelope examples.
+- Add optional MessagePack/base64 and generated protobuf payload adapters, plus protobuf payload/envelope examples.
 - Widen payload/response types to Object? with explicit map and byte accessors; see the README migration notes.
 - Preserve canonical decoded maps by identity and avoid eager logging of entire payloads.
 - Add configurable socket/connection-manager loggers and update rxdart to ^0.28.0.

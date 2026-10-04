@@ -7,26 +7,6 @@ import 'src/generated/exchange.pb.dart';
 
 export 'src/generated/exchange.pb.dart';
 
-/// Example adapter for an echo channel using Phoenix binary framing.
-/// Real applications select reply schemas using their request context.
-class EchoPayloadCodec implements PayloadCodec {
-  const EchoPayloadCodec();
-
-  @override
-  Object? encode(Object? value, PayloadContext context) =>
-      context.event == 'echo' && value is EchoRequest
-          ? value.writeToBuffer()
-          : value;
-
-  @override
-  Object? decode(Object? value, PayloadContext context) {
-    if (value is! Uint8List) return value;
-    if (context.isReply) return EchoReply.fromBuffer(value);
-    if (context.event == 'echo') return EchoRequest.fromBuffer(value);
-    return value;
-  }
-}
-
 /// A complete protobuf envelope for a server implementing exchange.proto.
 /// Control maps remain JSON inside the envelope. Binary application payloads
 /// and reply bodies stay bytes, including empty bodies.
