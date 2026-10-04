@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
 import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:test/test.dart';
 
@@ -8,6 +9,39 @@ import 'helpers/binary_frames.dart';
 
 void main() {
   const serializer = MessageSerializer();
+
+  for (final enabled in [false, true]) {
+    test('payload logging only formats values when enabled ($enabled)', () {
+      final oldLevel = Logger.root.level;
+      Logger.root.level = enabled ? Level.FINEST : Level.INFO;
+      addTearDown(() => Logger.root.level = oldLevel);
+      final records = <LogRecord>[];
+      final subscription = Logger.root.onRecord.listen(records.add);
+      addTearDown(subscription.cancel);
+      final probe = _PayloadStringificationProbe();
+      final message = Message(
+          topic: 'room',
+          event: PhoenixChannelEvent.custom('echo'),
+          payload: {'value': probe});
+
+      final parts = message.encode() as List<dynamic>;
+      final decoded = Message.fromJson(parts);
+
+      expect(identical(decoded.payload, message.payload), isTrue);
+      expect(probe.stringifications, enabled ? 2 : 0);
+      final messageLogs = records
+          .where((record) => record.loggerName == 'phoenix_socket.message')
+          .map((record) => record.message);
+      if (enabled) {
+        expect(messageLogs, [
+          allOf(startsWith('Message encoded'), contains('payload probe')),
+          allOf(startsWith('Message decoded'), contains('payload probe')),
+        ]);
+      } else {
+        expect(messageLogs, isEmpty);
+      }
+    });
+  }
 
   test('JSON configuration and round trips remain compatible', () {
     final message = Message(
@@ -218,4 +252,14 @@ void main() {
     expect(() => PushResponse(response: Uint8List(0)).responseMap,
         throwsStateError);
   });
+}
+
+class _PayloadStringificationProbe {
+  int stringifications = 0;
+
+  @override
+  String toString() {
+    stringifications++;
+    return 'payload probe';
+  }
 }

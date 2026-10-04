@@ -171,6 +171,44 @@ void main() {
     expect(transport.frames, isEmpty);
   });
 
+  for (final encoding in [true, false]) {
+    test('payload ${encoding ? 'encoder' : 'decoder'} failures settle pushes',
+        () async {
+      final failure = StateError('application codec failed');
+      final codec = MessageSerializer(
+          payloadCodec: CallbackPayloadCodec(
+        encoder: (value, context) {
+          if (encoding && context.event == 'echo') throw failure;
+          return value;
+        },
+        decoder: (value, context) {
+          if (!encoding && context.isReply && value is Uint8List) {
+            throw failure;
+          }
+          return value;
+        },
+      ));
+      final transport = binaryTransport();
+      final socket = socketFor(transport, codec: codec);
+      await socket.connect();
+      final channel = socket.addChannel(topic: 'room');
+      await channel.join().future;
+      transport.onSend = (parts) => transport.incoming.add(
+          serverReply(parts[0], parts[1], 'room', 'ok', parts[4] as Uint8List));
+      final error = socket.errorStream.first;
+      final push =
+          channel.push('echo', Uint8List.fromList([42]), expectingReply: true);
+      final failedPush =
+          expectLater(push.future, throwsA(isA<ChannelClosedError>()));
+
+      expect((await error).error, same(failure));
+      await failedPush;
+      expect(channel.state, PhoenixChannelState.errored);
+      expect(transport.sent.any((parts) => parts[3] == 'echo'), !encoding);
+      await Future<void>.delayed(Duration.zero);
+    });
+  }
+
   test('malformed reply envelopes fail their push without an unhandled future',
       () async {
     final transport = binaryTransport();
