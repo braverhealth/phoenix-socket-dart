@@ -25,7 +25,7 @@ Decoded maps are recursively normalized to string-keyed maps for replies and
 Presence. Raw `Uint8List` values stay binary. Keys that collide after string
 conversion fail decoding. Malformed/empty envelopes fail decoding as well.
 
-For a checkout, the development override uses the root package. Publication
+For a checkout, the development override uses the sibling core package. Publication
 must ship the matching core release first. From this directory:
 
 ```sh

@@ -1,5 +1,6 @@
 ## [1.0.0-rc2]
 
+- Move the core package to packages/phoenix_socket; Git dependencies must set that package path.
 - Add generic message and payload codec contracts while retaining the serializer option.
 - Support Phoenix binary pushes, replies and broadcasts through the transport and channel APIs.
 - Validate framing, respect buffer offsets, avoid payload copies on receive, and preserve reply status.

@@ -80,17 +80,18 @@ without an extra asynchronous decoding stage. It does not predict remote RTT.
 
 ## Reproduction
 
-From the root, then the protobuf example and MessagePack package respectively:
+From the repository root, enter the core package, then the protobuf example and MessagePack package respectively:
 
 ```sh
+cd packages/phoenix_socket
 dart run tool/codec_benchmark.dart
-cd example/protobuf
+cd ../../example/protobuf
 dart run tool/codec_benchmark.dart
 cd ../../packages/phoenix_socket_msgpack
 dart run tool/codec_benchmark.dart
 ```
 
-Run allocation tracing from the root with the VM service enabled:
+Run allocation tracing from `packages/phoenix_socket` with the VM service enabled:
 
 ```sh
 dart --observe=0 --no-pause-isolates-on-exit \
@@ -102,7 +103,7 @@ Use `--json-only` when comparing the allocation tool against a baseline that
 lacks binary framing. Do not interpret deprecated VM accumulated-size fields
 as allocation totals; this tool uses allocation traces instead.
 
-For Chrome, compile the root benchmark to JavaScript, place
+For Chrome, compile the core benchmark from `packages/phoenix_socket` to JavaScript, place
 `tool/codec_benchmark.html` beside it, and open the HTML:
 
 ```sh

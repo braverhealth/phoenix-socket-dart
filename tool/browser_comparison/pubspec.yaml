@@ -12,6 +12,6 @@ dev_dependencies:
   test: ^1.25.2
 dependency_overrides:
   phoenix_socket:
-    path: ../..
+    path: ../../packages/phoenix_socket
   phoenix_socket_msgpack:
     path: ../../packages/phoenix_socket_msgpack

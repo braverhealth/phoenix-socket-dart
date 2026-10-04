@@ -41,7 +41,8 @@ Default JSON traffic uses the existing JSON callbacks, with no payload-codec
 context objects or transformations when no payload codec is configured. Payload
 logging is lazy so disabled logging does not stringify large messages.
 
-The tools in `tool/codec_benchmark.dart` and `tool/allocation_benchmark.dart`
+The tools in `packages/phoenix_socket/tool/codec_benchmark.dart` and
+`packages/phoenix_socket/tool/allocation_benchmark.dart`
 measure codec cost separately from network/server latency. See
 [performance notes](codec-performance.md) for measurements and limitations.
 

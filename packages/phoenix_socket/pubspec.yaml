@@ -4,8 +4,8 @@ description: >-
   of Phoenix Sockets, using a single API based on StreamChannels
   compatible with any deployment of Flutter.
 version: 1.0.0-rc2
-repository: https://www.github.com/matehat/phoenix-socket-dart
-homepage: https://www.github.com/matehat/phoenix-socket-dart
+repository: https://github.com/braverhealth/phoenix-socket-dart
+homepage: https://github.com/braverhealth/phoenix-socket-dart
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

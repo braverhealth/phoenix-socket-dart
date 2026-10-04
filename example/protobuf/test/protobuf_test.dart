@@ -5,8 +5,8 @@ import 'package:phoenix_socket_protobuf/phoenix_socket_protobuf.dart';
 import 'package:phoenix_protobuf_example/protobuf_codecs.dart';
 import 'package:test/test.dart';
 
-import '../../../test/helpers/binary_frames.dart';
-import '../../../test/helpers/fake_transport.dart';
+import '../../../packages/phoenix_socket/test/helpers/binary_frames.dart';
+import '../../../packages/phoenix_socket/test/helpers/fake_transport.dart';
 
 void main() {
   test('protobuf payloads traverse channel pushes and binary replies',

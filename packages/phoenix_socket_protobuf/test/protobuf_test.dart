@@ -6,8 +6,8 @@ import 'package:protobuf/protobuf.dart' show InvalidProtocolBufferException;
 import 'package:test/test.dart';
 
 import 'helpers/messages.dart';
-import '../../../test/helpers/binary_frames.dart';
-import '../../../test/helpers/fake_transport.dart';
+import '../../phoenix_socket/test/helpers/binary_frames.dart';
+import '../../phoenix_socket/test/helpers/fake_transport.dart';
 
 const context = PayloadContext(topic: 'echo:room', event: 'echo');
 

@@ -27,7 +27,12 @@ node tool/run_chrome_comparison.mjs --rounds 9 --output docs/benchmarks/chrome-c
 node tool/summarize_chrome_comparison.mjs docs/benchmarks/chrome-comparison-isolated-2026-10-03.json
 ```
 
-`--chrome /path/to/chrome` overrides the executable. The runner owns a temporary
+`--chrome /path/to/chrome` overrides the browser executable.
+`--dart /path/to/dart` pins the compiler used for all three snapshots. Current
+source is read from `packages/phoenix_socket`; historical baseline revisions
+retain their original root package layout.
+
+The runner owns a temporary
 Chrome profile and an ephemeral loopback static-file server; it does not use an
 existing browser session or development backend. It closes its browser/server
 and removes its snapshots at completion. No virtual-time budget is used.

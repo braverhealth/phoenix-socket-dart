@@ -12,6 +12,7 @@ const smoke = args.includes('--smoke');
 const rounds = Number(option('--rounds', smoke ? '3' : '9'));
 if (!Number.isInteger(rounds) || rounds < 3 || rounds > 31) throw Error('Rounds must be 3..31');
 const output = path.resolve(option('--output', path.join(root, 'docs/benchmarks/chrome-comparison.json')));
+const dart = option('--dart', 'dart');
 const chrome = option('--chrome', process.env.CHROME_EXECUTABLE ?? (process.platform === 'darwin'
   ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : '/usr/bin/google-chrome'));
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'phoenix-chrome-comparison-'));
@@ -40,16 +41,23 @@ async function sourceHash(directories) {
   return hash.digest('hex');
 }
 
-async function command(command, commandArgs, cwd = root) {
+async function command(command, commandArgs, cwd = root, includeStderr = false) {
   return new Promise((resolve, reject) => {
     const child = spawn('rtk', [command, ...commandArgs], {cwd, stdio: ['ignore', 'pipe', 'pipe']});
     let stdout = '', stderr = '';
     child.stdout.on('data', chunk => stdout += chunk);
     child.stderr.on('data', chunk => stderr += chunk);
     child.on('error', reject);
-    child.on('exit', code => code === 0 ? resolve(stdout.trim())
+    child.on('exit', code => code === 0 ? resolve((stdout + (includeStderr ? stderr : '')).trim())
       : reject(Error(`${command} failed (${code}): ${stderr || stdout}`)));
   });
+}
+
+async function dartVersion(cwd = root) {
+  const output = await command(dart, ['--version'], cwd, true);
+  const match = output.match(/Dart SDK version:[^\r\n]+/);
+  if (!match) throw Error(`Dart did not report a compiler version: ${output}`);
+  return match[0];
 }
 
 class CDP {
@@ -107,8 +115,9 @@ try {
     const program = path.join(temp, version.name, 'benchmark');
     await fs.mkdir(snapshot, {recursive: true});
     if (version.name === 'new') {
-      await fs.cp(path.join(root, 'lib'), path.join(snapshot, 'lib'), {recursive: true});
-      await fs.copyFile(path.join(root, 'pubspec.yaml'), path.join(snapshot, 'pubspec.yaml'));
+      const core = path.join(root, 'packages/phoenix_socket');
+      await fs.cp(path.join(core, 'lib'), path.join(snapshot, 'lib'), {recursive: true});
+      await fs.copyFile(path.join(core, 'pubspec.yaml'), path.join(snapshot, 'pubspec.yaml'));
     } else {
       const archive = path.join(temp, `${version.name}.tar`);
       await command('git', ['archive', version.revision, 'lib', 'pubspec.yaml', '--output=' + archive]);
@@ -123,16 +132,18 @@ try {
     for (const other of versions.filter(other => other.name !== version.name)) {
       await fs.rm(path.join(program, `lib/adapter_${other.name}.dart`));
     }
-    await command('dart', ['pub', 'get'], program);
-    version.dartCompiler = await command('dart', ['--version'], program);
-    await command('dart', ['compile', 'js', '-O2', 'lib/runner.dart', '-o', path.join(temp, `${version.name}.js`)], program);
+    await command(dart, ['pub', 'get'], program);
+    version.dartCompiler = await dartVersion(program);
+    await command(dart, ['compile', 'js', '-O2', 'lib/runner.dart', '-o', path.join(temp, `${version.name}.js`)], program);
     version.compiledBytes = (await fs.stat(path.join(temp, `${version.name}.js`))).size;
     version.resolvedPackages = (JSON.parse(await fs.readFile(path.join(program, '.dart_tool/package_config.json'), 'utf8')))
       .packages.filter(p => ['logging', 'rxdart', 'protobuf', 'msgpack_dart', 'web_socket_channel'].includes(p.name))
       .map(p => ({name:p.name, location:p.rootUri.split('/').at(-1) || p.rootUri.split('/').at(-2)}));
     console.log(`Compiled ${version.name} (${version.revision})`);
   }
-  if (new Set(versions.map(v => v.dartCompiler)).size !== 1) throw Error('Compiler versions differ');
+  if (new Set(versions.map(v => v.dartCompiler)).size !== 1) {
+    throw Error(`Compiler versions differ: ${JSON.stringify(versions.map(v => ({name:v.name, dart:v.dartCompiler})))}`);
+  }
   server = createServer(async (request, response) => {
     response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
     response.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');

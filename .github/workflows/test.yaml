@@ -17,6 +17,9 @@ jobs:
   test:
     timeout-minutes: 10
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/phoenix_socket
 
     strategy:
       matrix:
@@ -42,7 +45,7 @@ jobs:
       - name: Fetch dependencies
         run: |
           dart pub get
-          cd example/backend
+          cd ../../example/backend
           MIX_ENV=test mix deps.get
 
       - name: Fetch browser comparison dependencies
@@ -100,7 +103,7 @@ jobs:
           cat > pubspec_overrides.yaml <<'YAML'
           dependency_overrides:
             phoenix_socket:
-              path: ../..
+              path: ../phoenix_socket
             protobuf: 3.1.0
           YAML
           dart pub get

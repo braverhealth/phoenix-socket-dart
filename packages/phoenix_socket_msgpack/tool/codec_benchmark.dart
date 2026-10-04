@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:phoenix_socket_msgpack/phoenix_socket_msgpack.dart';
 
-import '../../../tool/benchmark_utils.dart';
+import '../../phoenix_socket/tool/benchmark_utils.dart';
 
 void main() {
   for (final size in [1024, 100 * 1024, 2 * 1024 * 1024]) {

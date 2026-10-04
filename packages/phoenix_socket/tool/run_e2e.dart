@@ -4,12 +4,13 @@ import 'dart:io';
 
 /// Starts only this checkout's backend, on an OS-assigned loopback port.
 Future<void> main(List<String> arguments) async {
-  final root = File.fromUri(Platform.script).parent.parent;
+  final packageRoot = File.fromUri(Platform.script).parent.parent;
+  final repositoryRoot = packageRoot.parent.parent;
   final scratch = await Directory.systemTemp.createTemp('phoenix-socket-e2e-');
   final backend = await Process.start(
     'mix',
     ['run', 'test/e2e_server.exs'],
-    workingDirectory: '${root.path}/example/backend',
+    workingDirectory: '${repositoryRoot.path}/example/backend',
     environment: {
       'MIX_ENV': 'test',
       'PHOENIX_E2E': '1',
@@ -59,7 +60,7 @@ Future<void> main(List<String> arguments) async {
     tests = await Process.start(
       Platform.resolvedExecutable,
       ['test', 'test/e2e', '--reporter', 'expanded', ...arguments],
-      workingDirectory: root.path,
+      workingDirectory: packageRoot.path,
       environment: {'PHOENIX_E2E_URL': 'ws://127.0.0.1:$port/socket/websocket'},
     );
     await Future.wait([

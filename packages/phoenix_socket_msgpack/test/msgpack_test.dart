@@ -5,7 +5,7 @@ import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:phoenix_socket_msgpack/phoenix_socket_msgpack.dart';
 import 'package:test/test.dart';
 
-import '../../../test/helpers/fake_transport.dart';
+import '../../phoenix_socket/test/helpers/fake_transport.dart';
 
 void main() {
   for (final base64 in [false, true]) {
