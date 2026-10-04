@@ -6,6 +6,10 @@ Git without checking out or modifying another worktree. Separate pub resolutions
 retain each baseline's dependency constraints; resolved dependency versions,
 source hashes, compiler flags and browser version are recorded.
 
+Raw JSON measurements are generated locally and ignored by Git. The repository
+keeps the Markdown report and comparison CSV; regenerate them from a completed
+local JSON run using the summarizer below.
+
 Requirements: Dart >=3.4, Node >=22 with a global WebSocket implementation, Git,
 tar, Chrome and the repository's `rtk` command wrapper. There are no npm dependencies.
 

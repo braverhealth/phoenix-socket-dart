@@ -128,5 +128,5 @@ node tool/run_chrome_comparison.mjs --rounds 9 --output docs/benchmarks/chrome-c
 node tool/summarize_chrome_comparison.mjs docs/benchmarks/chrome-comparison-isolated-2026-10-03.json
 ```
 
-Raw results: [chrome-comparison-isolated-2026-10-03.json](benchmarks/chrome-comparison-isolated-2026-10-03.json).
+Raw JSON measurements are generated locally and ignored by Git. The commands above regenerate them.
 Full size/content comparisons: [CSV](benchmarks/chrome-comparison.csv).

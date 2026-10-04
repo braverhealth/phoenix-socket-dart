@@ -91,7 +91,7 @@ lines.push('', '## Interpretation and reproduction', '',
   '  the main-thread codec work that can contribute to UI stalls. Other host activity/JIT/GC can cause variance.', '',
   '```sh', 'node tool/run_chrome_comparison.mjs --rounds 9 --output docs/benchmarks/chrome-comparison-isolated-2026-10-03.json',
   'node tool/summarize_chrome_comparison.mjs docs/benchmarks/chrome-comparison-isolated-2026-10-03.json', '```', '',
-  `Raw results: [${path.basename(input)}](benchmarks/${path.basename(input)}).`,
+  'Raw JSON measurements are generated locally and ignored by Git. The commands above regenerate them.',
   'Full size/content comparisons: [CSV](benchmarks/chrome-comparison.csv).', '');
 await fs.writeFile(output, lines.join('\n'));
 const columns = ['baseline','family','mode','target_bytes','json_payload_bytes','frame_bytes','iterations',

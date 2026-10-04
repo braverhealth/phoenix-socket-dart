@@ -87,3 +87,6 @@ backend-*.tar
 /example/backend/config/*.secret.exs
 /example/**/pubspec.lock
 /pubspec.lock
+
+# Generated raw benchmark measurements; reports and CSV summaries are tracked.
+/docs/benchmarks/*.json
