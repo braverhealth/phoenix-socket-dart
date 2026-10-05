@@ -1,0 +1,17 @@
+name: phoenix_browser_comparison
+description: Controlled Chrome comparisons of Phoenix socket codec versions.
+publish_to: none
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+dependencies:
+  phoenix_socket: any
+  phoenix_socket_msgpack: any
+  protobuf: ^3.1.0
+dev_dependencies:
+  lints: ^3.0.0
+  test: ^1.25.2
+dependency_overrides:
+  phoenix_socket:
+    path: ../../packages/phoenix_socket
+  phoenix_socket_msgpack:
+    path: ../../packages/phoenix_socket_msgpack

@@ -21,8 +21,8 @@ to the 15 findings in the September 17, 2026 audit of `1.0.0-alpha` at `791d2ac`
 | 14. Examples cannot resolve an SDK | All example SDK constraints accept the library's Dart 3 range. | Dart example dependency resolution/analysis; Flutter example dependency resolution/source analysis. |
 | 15. Empty retry delays throw | Empty delay lists explicitly mean immediate retries; retry count remains separately configurable. | `socket_options_test.dart`. |
 
-Tests are in [`test/`](../test/); backend fixtures are in
-[`example/backend/`](../example/backend/). See the [README](../README.md#testing)
+Tests are in [`packages/phoenix_socket/test/`](../packages/phoenix_socket/test/); backend fixtures are in
+[`example/backend/`](../example/backend/). See the [core README](../packages/phoenix_socket/README.md#testing)
 for commands and prerequisites.
 
 The default test command runs in-memory tests. The E2E runner starts the embedded

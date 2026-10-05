@@ -1,0 +1,392 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:logging/logging.dart';
+
+import 'events.dart';
+import 'exceptions.dart';
+import 'message.dart';
+import 'pheonix_channel.dart';
+
+typedef ReceiverCallback = void Function(PushResponse response);
+
+/// Encapsulates the response to a [Push].
+class PushResponse {
+  /// Builds a PushResponse from a status and response.
+  const PushResponse({
+    this.status,
+    this.response,
+  });
+
+  /// Builds a PushResponse from a Map payload.
+  ///
+  /// Standard is such that the message payload should
+  /// be something like
+  ///
+  /// ```
+  /// {
+  ///   status: "ok",
+  ///   response: {
+  ///     foo: "bar"
+  ///   }
+  /// }
+  /// ```
+  factory PushResponse.fromMessage(Message message) {
+    final data = message.payloadMap;
+    if (data == null || data['status'] is! String) {
+      throw const FormatException('Phoenix reply requires a string status');
+    }
+    return PushResponse(
+      status: data['status'] as String,
+      response: data['response'],
+    );
+  }
+
+  /// Status provided by the backend.
+  ///
+  /// Value is usually either 'ok' or 'error'.
+  final String? status;
+
+  /// JSON, bytes, or an application value provided by the backend.
+  final Object? response;
+
+  Map<String, dynamic>? get responseMap {
+    final value = response;
+    if (value == null) return null;
+    if (value is Map<String, dynamic>) return value;
+    throw StateError('Push response is not a string-keyed map');
+  }
+
+  Uint8List? get responseBytes {
+    final value = response;
+    if (value == null) return null;
+    if (value is Uint8List) return value;
+    throw StateError('Push response is not binary');
+  }
+
+  /// Whether the response as a 'ok' status.
+  bool get isOk => status == 'ok';
+
+  /// Whether the response as a 'error' status.
+  bool get isError => status == 'error';
+
+  /// Whether the response as a 'error' status.
+  bool get isTimeout => status == 'timeout';
+
+  @override
+  bool operator ==(Object other) =>
+      other is PushResponse &&
+      other.status == status &&
+      other.response == response;
+
+  @override
+  int get hashCode => Object.hash(status, response);
+
+  @override
+  String toString() => 'PushResponse(status: $status, response: $response)';
+}
+
+/// Type of function that should return a push payload
+typedef PayloadGetter = Object? Function();
+
+/// Object produced by [PhoenixChannel.push] to encapsulate
+/// the message sent and its lifecycle.
+class Push {
+  /// Build a Push message from its content and associated channel.
+  ///
+  /// Prefer using [PhoenixChannel.push] instead of using this.
+  Push(
+    PhoenixChannel channel, {
+    this.event,
+    this.payload,
+    this.timeout,
+  })  : _channel = channel,
+        _logger = Logger('phoenix_socket.push.${channel.loggerName}'),
+        _responseCompleter = Completer<PushResponse>() {
+    // A push may be observed through onReply only. Its optional future must
+    // still report failures to callers without producing an unhandled error
+    // when no caller asks for it.
+    _responseCompleter.future.ignore();
+  }
+
+  final Logger _logger;
+  final Map<String, List<ReceiverCallback>> _receivers = {};
+
+  /// The event name associated with the pushed message
+  final PhoenixChannelEvent? event;
+
+  /// A getter function that yields the payload of the pushed message,
+  /// usually a JSON object.
+  final PayloadGetter? payload;
+
+  /// Channel through which the message was sent.
+  final PhoenixChannel _channel;
+
+  /// The expected timeout, after which the push is considered failed.
+  Duration? timeout;
+
+  PushResponse? _received;
+  bool _sent = false;
+  bool _awaitingReply = false;
+  Timer? _timeoutTimer;
+  String? _ref;
+  PhoenixChannelEvent? _replyEvent;
+  Future<void>? _replyFuture;
+  int _attempt = 0;
+
+  Completer<PushResponse> _responseCompleter;
+
+  /// A future that will yield the response to the original message.
+  Future<PushResponse> get future async {
+    final response = await _responseCompleter.future;
+    if (response.isTimeout) {
+      throw ChannelTimeoutException(response);
+    }
+    return response;
+  }
+
+  /// Indicates whether the push has been sent.
+  bool get sent => _sent;
+
+  /// The unique identifier of the message used throughout its lifecycle.
+  String get ref => _ref ??= _channel.socket.nextRef;
+
+  void _resetRef() {
+    _ref = null;
+    _replyEvent = null;
+  }
+
+  /// The event name of the expected reply coming from the Phoenix backend.
+  PhoenixChannelEvent get replyEvent =>
+      _replyEvent ??= PhoenixChannelEvent.replyFor(ref);
+
+  /// Returns whether the given status was received from the backend as
+  /// a reply.
+  bool hasReceived(String status) => _received?.status == status;
+
+  /// Send the push message without expecting a reply.
+  void sendAndForget() {
+    _logger.finer('Sending out push for $ref');
+    _sent = true;
+
+    final message = Message(
+      event: event!,
+      topic: _channel.topic,
+      payload: payload!(),
+      ref: ref,
+      joinRef: _channel.joinRef,
+    );
+
+    try {
+      _channel.socket.sendMessage(message);
+    } catch (error) {
+      cancel(error);
+    }
+  }
+
+  /// Send the push message and expect a reply.
+  ///
+  /// This also schedules the timeout to be triggered in the future.
+  Future<void> sendExpectingReply() async {
+    if (_received is PushResponse && _received!.isTimeout) {
+      _logger.warning('Trying to send push $ref after timeout');
+      return;
+    }
+    _logger.finer('Sending out push for $ref');
+    _sent = true;
+    final attempt = _attempt;
+    try {
+      startTimeout();
+      final message = Message(
+        event: event!,
+        topic: _channel.topic,
+        payload: payload!(),
+        ref: ref,
+        joinRef: _channel.joinRef,
+      );
+      _channel.socket.sendMessage(message);
+      // The channel waiter receives replies, timeouts, and connection errors.
+      // A second connection-manager waiter would outlive channel timeouts.
+      await _replyFuture;
+      // ignore: avoid_catches_without_on_clauses
+    } catch (err, stacktrace) {
+      _logger.fine(
+        'Caught error for push $ref',
+        err,
+        stacktrace,
+      );
+      if (attempt == _attempt) {
+        _receiveResponse(err);
+      }
+    }
+  }
+
+  /// Retry to send the push message.
+  ///
+  /// This is usually done automatically by the managing [PhoenixChannel]
+  /// after a reconnection.
+  Future<void> resend({
+    Duration? newTimeout,
+    required bool expectingReply,
+  }) async {
+    timeout = newTimeout ?? timeout;
+    if (_sent || _responseCompleter.isCompleted) {
+      reset();
+    }
+
+    if (expectingReply) {
+      await sendExpectingReply();
+    } else {
+      sendAndForget();
+    }
+  }
+
+  /// Associate a callback to be called if and when a reply with the given
+  /// status is received.
+  ///
+  /// Callbacks remain registered across retries until [clearReceivers] or
+  /// [cancel] is called.
+  void onReply(String status, ReceiverCallback callback) {
+    (_receivers[status] ??= []).add(callback);
+  }
+
+  /// Schedule a timeout to be triggered if no reply occurs
+  /// within the expected time frame.
+  void startTimeout() {
+    if (!_awaitingReply) {
+      final attempt = _attempt;
+      _replyFuture = _channel.onPushReply(replyEvent).then<void>(
+        (message) {
+          if (attempt == _attempt) _receiveResponse(message);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (attempt == _attempt) _receiveResponse(error);
+        },
+      );
+      _awaitingReply = true;
+    }
+
+    _timeoutTimer ??= Timer(timeout!, () {
+      _timeoutTimer = null;
+      _logger.warning(() => 'Push $ref timed out');
+      _channel.trigger(Message.timeoutFor(ref));
+    });
+  }
+
+  /// Cancel the scheduled timeout for this push.
+  void cancelTimeout() {
+    _timeoutTimer?.cancel();
+    _timeoutTimer = null;
+  }
+
+  /// Reset the scheduled timeout for this push.
+  void reset() {
+    _attempt++;
+    cancelTimeout();
+    if (_awaitingReply) {
+      _channel.cancelPushReply(replyEvent);
+    }
+    _awaitingReply = false;
+    _replyFuture = null;
+    _received = null;
+    _resetRef();
+    _sent = false;
+    if (_responseCompleter.isCompleted) {
+      _responseCompleter = Completer<PushResponse>();
+      _responseCompleter.future.ignore();
+    }
+  }
+
+  /// Finish this push when its channel is permanently closed.
+  void cancel(Object error) {
+    _attempt++;
+    cancelTimeout();
+    if (_awaitingReply) {
+      _channel.cancelPushReply(replyEvent);
+    }
+    _awaitingReply = false;
+    if (!_responseCompleter.isCompleted) {
+      _responseCompleter.completeError(error);
+    }
+    clearReceivers();
+  }
+
+  /// Trigger the appropriate waiters and future associated for this push,
+  /// given the provided response.
+  ///
+  /// This will only trigger the waiters associated with the response's status,
+  /// e.g. 'ok' or 'error'.
+  void trigger(PushResponse response) {
+    if (_responseCompleter.isCompleted) {
+      _logger
+        ..warning('Push being completed more than once')
+        ..warning(
+          () => '  event: $replyEvent, status: ${response.status}',
+        )
+        ..finer(
+          () => '  response: ${response.response}',
+        );
+
+      return;
+    } else {
+      _received = response;
+      _logger.finer(
+        () => 'Completing for $replyEvent with response ${response.response}',
+      );
+      _responseCompleter.complete(response);
+    }
+
+    _logger.finer(() {
+      if (_receivers[response.status] case final receiver?
+          when receiver.isNotEmpty) {
+        return 'Triggering ${receiver.length} callbacks';
+      }
+      return 'Not triggering any callbacks';
+    });
+
+    final receivers = _receivers[response.status]?.toList() ?? const [];
+    for (final cb in receivers) {
+      cb(response);
+    }
+  }
+
+  /// Dispose the set of waiters associated with this push.
+  void clearReceivers() => _receivers.clear();
+
+  // Remove existing waiters and reset completer
+  void cleanUp() {
+    _logger.fine('Cleaning up completer');
+    clearReceivers();
+    reset();
+  }
+
+  void _receiveResponse(dynamic response) {
+    cancelTimeout();
+    if (_awaitingReply) {
+      _awaitingReply = false;
+      _channel.cancelPushReply(replyEvent);
+    }
+    if (response is Message) {
+      if (response.event == replyEvent) {
+        final PushResponse parsed;
+        try {
+          parsed = PushResponse.fromMessage(response);
+        } catch (error) {
+          if (!_responseCompleter.isCompleted) {
+            _responseCompleter.completeError(error);
+          }
+          clearReceivers();
+          return;
+        }
+        trigger(parsed);
+      }
+    } else if (event != PhoenixChannelEvent.join) {
+      _logger.finest(
+          () => "Completing with error: ${_responseCompleter.hashCode}");
+      if (!_responseCompleter.isCompleted) {
+        _responseCompleter.completeError(response);
+        clearReceivers();
+      }
+    }
+  }
+}

@@ -21,6 +21,11 @@ defmodule BackendWeb.AuditChannel do
     {:noreply, assign(socket, :observed, socket.assigns.observed + 1)}
   end
 
+  def handle_in("binary_broadcast", {:binary, _data} = payload, socket) do
+    broadcast!(socket, "binary_update", payload)
+    {:reply, {:ok, %{}}, socket}
+  end
+
   def handle_in("stats", _payload, socket) do
     {:reply, {:ok, %{observed: socket.assigns.observed}}, socket}
   end

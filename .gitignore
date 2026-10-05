@@ -64,6 +64,7 @@ build/
 **/ios/Flutter/app.zip
 **/ios/Flutter/flutter_assets/
 **/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/ephemeral/
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
 
@@ -87,3 +88,6 @@ backend-*.tar
 /example/backend/config/*.secret.exs
 /example/**/pubspec.lock
 /pubspec.lock
+
+# Generated raw benchmark measurements; reports and CSV summaries are tracked.
+/docs/benchmarks/*.json
