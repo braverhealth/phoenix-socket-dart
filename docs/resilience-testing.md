@@ -6,6 +6,18 @@ The tests use bounded inputs and fixed seeds; a failure reports the seed, case
 and input bytes. Xorshift32 has a fixed expected sequence so both runtimes use
 the same corpus.
 
+## CI jobs
+
+The test workflow has independent jobs for core tests, adapter tests, protobuf
+3.1 compatibility, examples, benchmark workload correctness and Phoenix E2E.
+Core, adapters, compatibility and examples each have separate native and Chrome
+matrix entries. Every group runs on Dart 3.4.4 and stable, for 24 checks in total.
+Matrix fail-fast is disabled so a failed check does not cancel the others.
+Only E2E jobs install Elixir and start the embedded backend on the CI runner.
+
+The full performance comparison and wire-vector regeneration are manual tools;
+CI checks workload correctness and the checked-in vectors without timing gates.
+
 ## Coverage
 
 | Area | Checks per suite run |
