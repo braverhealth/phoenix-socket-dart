@@ -1,6 +1,6 @@
 # Controlled headless Chrome codec comparison
 
-Run: 2026-10-03T19:37:10.325Z. Chrome/154.0.8037.97, Dart SDK version: 3.9.2 (stable) (Wed Aug 27 03:49:40 2025 -0700) on "macos_arm64".
+Run: 2026-10-05T10:50:39.622Z. Chrome/154.0.8037.97, Dart SDK version: 3.9.0 (stable) (Mon Aug 11 07:58:10 2025 -0700) on "macos_arm64".
 
 All 395 version/workload measurements and 215 old/new pairs completed.
 
@@ -12,7 +12,7 @@ and at least three warmup batches totaling 200 ms per version before nine timed 
 Background-tab throttling is disabled and the measured target is activated before each batch.
 
 Baselines: alpha `86d4f1175345d082f67a9f571adb857d9080785a`, master `6dc4b429f6bafda907af8a5da94dafa055c2c06f`.
-New implementation source SHA-256: `a24520a7f41df5dfd04fe1e76414e4f3b3c091734b3117d624207b9e43cd56e3`.
+New implementation source SHA-256: `8af8d69173cc0d6893bb11bef4030acce73bc85f73df054760922f304bef66e7`.
 Harness SHA-256: `dd96001a2162b9884ae9aad46515a05400962d9f015969485d2d2bbfddb0615e`.
 
 The benchmark uses seven content families and five target sizes: 256 B, 4 KiB, 64 KiB, 1 MiB and 4 MiB.
@@ -26,59 +26,59 @@ Geometric means summarize ratios across varied sizes; they are not production tr
 
 | Baseline | Mechanism | Pairs | Geometric mean speedup |
 |---|---|---:|---:|
-| alpha | json | 35 | 1.56× |
-| master | json | 35 | 1.56× |
-| master | binary_json | 35 | 1.05× |
-| master | binary_protobuf | 35 | 1.08× |
-| master | msgpack_binary | 35 | 2.32× |
-| master | msgpack_base64 | 35 | 1.63× |
-| master | binary_raw | 5 | 1.70× |
+| alpha | json | 35 | 1.54× |
+| master | json | 35 | 1.54× |
+| master | binary_json | 35 | 1.04× |
+| master | binary_protobuf | 35 | 1.07× |
+| master | msgpack_binary | 35 | 2.17× |
+| master | msgpack_base64 | 35 | 1.57× |
+| master | binary_raw | 5 | 1.77× |
 
 ## JSON at the largest target
 
 | Content | Actual JSON MiB | Alpha ms | Master ms | New ms |
 |---|---:|---:|---:|---:|
-| ascii | 4.000 | 5.43 | 4.78 | 4.19 |
-| unicode | 4.000 | 8.77 | 6.85 | 6.79 |
-| escaped | 4.000 | 42.99 | 42.68 | 42.20 |
-| flat_records | 4.000 | 77.60 | 72.40 | 39.99 |
-| nested_records | 4.000 | 92.42 | 88.06 | 47.53 |
-| numbers | 4.000 | 80.66 | 87.16 | 32.67 |
-| bytes | 14.281 | 555.41 | 575.49 | 218.98 |
+| ascii | 4.000 | 5.62 | 5.08 | 4.58 |
+| unicode | 4.000 | 9.43 | 7.34 | 7.19 |
+| escaped | 4.000 | 46.84 | 47.26 | 47.64 |
+| flat_records | 4.000 | 85.93 | 82.90 | 43.48 |
+| nested_records | 4.000 | 98.14 | 94.61 | 50.99 |
+| numbers | 4.000 | 98.44 | 103.40 | 37.88 |
+| bytes | 14.281 | 664.63 | 639.15 | 256.55 |
 
 ## Binary and format comparisons at the largest target
 
 | Content | Mechanism | Master ms | New ms | Speedup |
 |---|---|---:|---:|---:|
-| ascii | binary_json | 10.75 | 10.44 | 1.03× |
-| ascii | binary_protobuf | 7.36 | 7.44 | 0.99× |
-| ascii | msgpack_binary | 14.71 | 13.18 | 1.12× |
-| ascii | msgpack_base64 | 36.20 | 35.14 | 1.03× |
-| unicode | binary_json | 15.99 | 15.61 | 1.02× |
-| unicode | binary_protobuf | 11.08 | 10.76 | 1.03× |
-| unicode | msgpack_binary | 8.80 | 8.13 | 1.08× |
-| unicode | msgpack_base64 | 37.14 | 37.04 | 1.00× |
-| escaped | binary_json | 50.68 | 50.16 | 1.01× |
-| escaped | binary_protobuf | 4.82 | 4.70 | 1.03× |
-| escaped | msgpack_binary | 10.14 | 9.36 | 1.08× |
-| escaped | msgpack_base64 | 25.43 | 24.60 | 1.03× |
-| flat_records | binary_json | 45.24 | 46.23 | 0.98× |
-| flat_records | binary_protobuf | 100.01 | 99.23 | 1.01× |
-| flat_records | msgpack_binary | 230.12 | 181.71 | 1.27× |
-| flat_records | msgpack_base64 | 248.95 | 207.35 | 1.20× |
-| nested_records | binary_json | 50.88 | 51.76 | 0.98× |
-| nested_records | binary_protobuf | 124.92 | 123.28 | 1.01× |
-| nested_records | msgpack_binary | 245.35 | 196.17 | 1.25× |
-| nested_records | msgpack_base64 | 273.76 | 225.51 | 1.21× |
-| numbers | binary_json | 39.73 | 38.32 | 1.04× |
-| numbers | binary_protobuf | 21.55 | 21.47 | 1.00× |
-| numbers | msgpack_binary | 114.32 | 32.34 | 3.53× |
-| numbers | msgpack_base64 | 121.89 | 45.62 | 2.67× |
-| bytes | binary_raw | 0.54 | 0.27 | 1.95× |
-| bytes | binary_json | 247.35 | 240.13 | 1.03× |
-| bytes | binary_protobuf | 3.31 | 2.97 | 1.12× |
-| bytes | msgpack_binary | 575.22 | 0.40 | 1438.04× |
-| bytes | msgpack_base64 | 605.55 | 24.99 | 24.23× |
+| ascii | binary_json | 12.37 | 12.47 | 0.99× |
+| ascii | binary_protobuf | 9.15 | 8.59 | 1.07× |
+| ascii | msgpack_binary | 17.54 | 15.65 | 1.12× |
+| ascii | msgpack_base64 | 43.64 | 42.30 | 1.03× |
+| unicode | binary_json | 17.49 | 16.88 | 1.04× |
+| unicode | binary_protobuf | 12.24 | 11.90 | 1.03× |
+| unicode | msgpack_binary | 9.93 | 8.93 | 1.11× |
+| unicode | msgpack_base64 | 40.38 | 38.14 | 1.06× |
+| escaped | binary_json | 53.13 | 55.13 | 0.96× |
+| escaped | binary_protobuf | 5.59 | 5.36 | 1.04× |
+| escaped | msgpack_binary | 11.76 | 10.24 | 1.15× |
+| escaped | msgpack_base64 | 28.40 | 27.34 | 1.04× |
+| flat_records | binary_json | 51.11 | 54.03 | 0.95× |
+| flat_records | binary_protobuf | 110.58 | 111.51 | 0.99× |
+| flat_records | msgpack_binary | 231.45 | 205.07 | 1.13× |
+| flat_records | msgpack_base64 | 261.25 | 222.71 | 1.17× |
+| nested_records | binary_json | 53.67 | 54.69 | 0.98× |
+| nested_records | binary_protobuf | 123.28 | 125.16 | 0.99× |
+| nested_records | msgpack_binary | 256.91 | 218.65 | 1.18× |
+| nested_records | msgpack_base64 | 280.07 | 242.97 | 1.15× |
+| numbers | binary_json | 44.85 | 44.92 | 1.00× |
+| numbers | binary_protobuf | 24.01 | 24.63 | 0.97× |
+| numbers | msgpack_binary | 127.85 | 45.16 | 2.83× |
+| numbers | msgpack_base64 | 134.18 | 60.32 | 2.22× |
+| bytes | binary_raw | 0.64 | 0.32 | 2.00× |
+| bytes | binary_json | 299.08 | 288.30 | 1.04× |
+| bytes | binary_protobuf | 3.66 | 3.45 | 1.06× |
+| bytes | msgpack_binary | 678.69 | 0.46 | 1475.41× |
+| bytes | msgpack_base64 | 683.40 | 26.94 | 25.37× |
 
 ## Main-thread stalls
 
@@ -88,25 +88,28 @@ message counts. Calibration and content verification are excluded from the recor
 
 | Baseline | Content | Target MiB | Mechanism | Old max ms | New max ms | Old operations >50 ms | New operations >50 ms |
 |---|---|---:|---|---:|---:|---:|---:|
-| master | bytes | 4.000 | msgpack_base64 | 686.69 | 26.49 | 9 | 0 |
-| master | bytes | 4.000 | msgpack_binary | 626.49 | 0.70 | 9 | 0 |
-| master | bytes | 4.000 | json | 621.89 | 220.98 | 9 | 9 |
-| alpha | bytes | 4.000 | json | 601.36 | 220.98 | 9 | 9 |
-| master | nested_records | 4.000 | msgpack_base64 | 333.02 | 254.16 | 9 | 9 |
-| master | flat_records | 4.000 | msgpack_base64 | 289.40 | 241.68 | 9 | 9 |
-| master | nested_records | 4.000 | msgpack_binary | 284.22 | 227.82 | 9 | 9 |
-| master | flat_records | 4.000 | msgpack_binary | 269.24 | 210.66 | 9 | 9 |
-| master | bytes | 4.000 | binary_json | 246.44 | 246.39 | 9 | 9 |
-| master | numbers | 4.000 | msgpack_base64 | 154.19 | 53.23 | 9 | 2 |
-| master | nested_records | 4.000 | binary_protobuf | 149.92 | 150.70 | 9 | 9 |
-| master | bytes | 1.000 | msgpack_binary | 146.00 | 0.27 | 9 | 0 |
+| alpha | bytes | 4.000 | json | 740.61 | 252.74 | 9 | 9 |
+| master | bytes | 4.000 | json | 726.14 | 252.74 | 9 | 9 |
+| master | bytes | 4.000 | msgpack_base64 | 710.24 | 28.20 | 9 | 0 |
+| master | bytes | 4.000 | msgpack_binary | 699.62 | 0.59 | 9 | 0 |
+| master | nested_records | 4.000 | msgpack_base64 | 342.39 | 274.29 | 9 | 9 |
+| master | flat_records | 4.000 | msgpack_base64 | 313.66 | 271.86 | 9 | 9 |
+| master | bytes | 4.000 | binary_json | 311.01 | 306.01 | 9 | 9 |
+| master | nested_records | 4.000 | msgpack_binary | 296.94 | 242.41 | 9 | 9 |
+| master | flat_records | 4.000 | msgpack_binary | 294.13 | 264.41 | 9 | 9 |
+| master | numbers | 4.000 | msgpack_base64 | 173.33 | 72.27 | 9 | 9 |
+| master | bytes | 1.000 | msgpack_base64 | 163.09 | 7.34 | 9 | 0 |
+| master | bytes | 1.000 | msgpack_binary | 159.00 | 0.27 | 9 | 0 |
 
 ## Slower cases requiring attention
 
 This list uses a 10% median increase and a baseline of at least 20 µs to avoid emphasizing tiny absolute differences.
 One run does not establish significance; raw per-round samples are available for reruns.
 
-No cases crossed that threshold in this run.
+| Baseline | Content | Target bytes | Mechanism | Old µs | New µs |
+|---|---|---:|---|---:|---:|
+| master | flat_records | 1048576 | binary_json | 8210.00 | 9535.00 |
+| master | numbers | 1048576 | binary_json | 6190.00 | 8175.00 |
 
 ## Interpretation and reproduction
 
@@ -126,8 +129,8 @@ No cases crossed that threshold in this run.
   the main-thread codec work that can contribute to UI stalls. Other host activity/JIT/GC can cause variance.
 
 ```sh
-node tool/run_chrome_comparison.mjs --rounds 9 --output docs/benchmarks/chrome-comparison-isolated-2026-10-03.json
-node tool/summarize_chrome_comparison.mjs docs/benchmarks/chrome-comparison-isolated-2026-10-03.json
+node tool/run_chrome_comparison.mjs --rounds 9 --output docs/benchmarks/chrome-comparison-isolated-2026-10-05.json
+node tool/summarize_chrome_comparison.mjs docs/benchmarks/chrome-comparison-isolated-2026-10-05.json
 ```
 
 Raw JSON measurements are generated locally and ignored by Git. The commands above regenerate them.

@@ -7,6 +7,7 @@ const data = JSON.parse(await fs.readFile(input, 'utf8'));
 if (!data.complete) throw Error('Comparison is incomplete; do not publish partial results');
 const root = path.resolve(path.dirname(input), '../..');
 const output = process.argv[3] ?? path.join(root, 'docs/chrome-codec-comparison.md');
+const relativeInput = path.relative(root, path.resolve(input)).replaceAll('\\', '/');
 const key = r => [r.family, r.target_bytes, r.mode].join('/');
 const newer = new Map(data.runs.filter(r => r.version === 'new').map(r => [key(r), r]));
 const pairs = data.runs.filter(r => r.version !== 'new').map(old => {
@@ -91,8 +92,8 @@ lines.push('', '## Interpretation and reproduction', '',
   '  total allocated bytes or peak memory. GC is forced before timing, not between timed rounds.',
   '- No network RTT, TLS, compression, Flutter rendering or real Braver records are included. These results isolate',
   '  the main-thread codec work that can contribute to UI stalls. Other host activity/JIT/GC can cause variance.', '',
-  '```sh', 'node tool/run_chrome_comparison.mjs --rounds 9 --output docs/benchmarks/chrome-comparison-isolated-2026-10-03.json',
-  'node tool/summarize_chrome_comparison.mjs docs/benchmarks/chrome-comparison-isolated-2026-10-03.json', '```', '',
+  '```sh', `node tool/run_chrome_comparison.mjs --rounds ${data.metadata.rounds} --output ${relativeInput}`,
+  `node tool/summarize_chrome_comparison.mjs ${relativeInput}`, '```', '',
   'Raw JSON measurements are generated locally and ignored by Git. The commands above regenerate them.',
   'Full size/content comparisons: [CSV](benchmarks/chrome-comparison.csv).', '');
 await fs.writeFile(output, lines.join('\n'));

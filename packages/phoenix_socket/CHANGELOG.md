@@ -1,5 +1,7 @@
 ## [1.0.0-rc2]
 
+- Add seeded fuzz/property, independent wire-vector and concurrency/resource stress coverage across all packages.
+- Validate MessagePack frame bounds before container allocation and decoding; reject trailing data and nesting beyond 64 containers.
 - Move the core package to packages/phoenix_socket; Git dependencies must set that package path.
 - Add generic message and payload codec contracts while retaining the serializer option.
 - Support Phoenix binary pushes, replies and broadcasts through the transport and channel APIs.

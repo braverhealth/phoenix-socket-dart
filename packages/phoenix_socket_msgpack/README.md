@@ -3,6 +3,11 @@
 Optional complete-message MessagePack codecs for `phoenix_socket` 1.0.0-rc2.
 The core socket package does not depend on MessagePack.
 
+Received frames must contain exactly one complete MessagePack value. Lengths are
+checked against the received byte view before decoding or allocating containers;
+nesting is limited to 64 containers, including the envelope. Malformed/trailing
+data and excess nesting produce FormatException. Payload bytes remain views.
+
 ```dart
 import 'package:phoenix_socket/phoenix_socket.dart';
 import 'package:phoenix_socket_msgpack/phoenix_socket_msgpack.dart';

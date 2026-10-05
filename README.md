@@ -49,5 +49,6 @@ Published package names and Dart imports such as
 older revisions continue using those revisions' original layout.
 
 See [binary APIs and migration](docs/binary-codecs.md), the
+[resilience and stress coverage](docs/resilience-testing.md), the
 [release changelog](packages/phoenix_socket/CHANGELOG.md) and the
 [headless Chrome comparison](docs/chrome-codec-comparison.md).

@@ -68,7 +68,7 @@ jobs:
           dart test
 
       - name: Run codec and transport tests in Chrome
-        run: dart test --platform chrome test/message_codec_test.dart test/binary_transport_test.dart
+        run: dart test --platform chrome test/message_codec_test.dart test/binary_transport_test.dart test/codec_resilience_test.dart test/socket_stress_test.dart
 
       - name: Validate MessagePack adapter
         working-directory: packages/phoenix_socket_msgpack
