@@ -3,18 +3,41 @@ name: ci-test
 on:
   pull_request:
     paths:
-      - "lib/**"
-      - "test/**"
       - "tool/**"
       - "example/**"
       - "packages/**"
-      - "pubspec.yaml"
-      - "dart_test.yaml"
-      - "analysis_options.yaml"
       - ".github/workflows/test.yaml"
+      - ".github/test-paths.yaml"
 
 jobs:
+  changes:
+    name: Detect affected test suites
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      workflow: ${{ steps.paths.outputs.workflow }}
+      core: ${{ steps.paths.outputs.core }}
+      messagepack: ${{ steps.paths.outputs.messagepack }}
+      protobuf: ${{ steps.paths.outputs.protobuf }}
+      dart_example: ${{ steps.paths.outputs.dart_example }}
+      protobuf_examples: ${{ steps.paths.outputs.protobuf_examples }}
+      benchmarks: ${{ steps.paths.outputs.benchmarks }}
+      backend: ${{ steps.paths.outputs.backend }}
+    steps:
+      - name: Fetch sources
+        uses: actions/checkout@v4
+      - name: Detect changes against the pull request base
+        id: paths
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        with:
+          filters: .github/test-paths.yaml
+
   core:
+    needs: changes
+    if: needs.changes.outputs.workflow == 'true' || needs.changes.outputs.core == 'true'
     name: Core (${{ matrix.platform }}, Dart ${{ matrix.dart }})
     timeout-minutes: 10
     runs-on: ubuntu-latest
@@ -57,19 +80,20 @@ jobs:
         if: matrix.platform == 'chrome'
         run: dart test --platform chrome test/message_codec_test.dart test/binary_transport_test.dart test/codec_resilience_test.dart test/socket_stress_test.dart
 
-  adapters:
-    name: ${{ matrix.package }} (${{ matrix.platform }}, Dart ${{ matrix.dart }})
+  messagepack:
+    needs: changes
+    if: needs.changes.outputs.workflow == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.messagepack == 'true'
+    name: phoenix_socket_msgpack (${{ matrix.platform }}, Dart ${{ matrix.dart }})
     timeout-minutes: 10
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: packages/${{ matrix.package }}
+        working-directory: packages/phoenix_socket_msgpack
     strategy:
       fail-fast: false
       matrix:
         dart: ["3.4.4", stable]
         platform: [vm, chrome]
-        package: [phoenix_socket_msgpack, phoenix_socket_protobuf]
     steps:
       - name: Fetch sources
         uses: actions/checkout@v4
@@ -86,10 +110,42 @@ jobs:
       - name: Run adapter tests
         run: dart test --platform ${{ matrix.platform }}
       - name: Validate MessagePack example
-        if: matrix.package == 'phoenix_socket_msgpack' && matrix.platform == 'vm'
+        if: matrix.platform == 'vm'
         run: dart run example/main.dart
 
+  protobuf:
+    needs: changes
+    if: needs.changes.outputs.workflow == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.protobuf == 'true'
+    name: phoenix_socket_protobuf (${{ matrix.platform }}, Dart ${{ matrix.dart }})
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/phoenix_socket_protobuf
+    strategy:
+      fail-fast: false
+      matrix:
+        dart: ["3.4.4", stable]
+        platform: [vm, chrome]
+    steps:
+      - name: Fetch sources
+        uses: actions/checkout@v4
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          architecture: x64
+          sdk: ${{ matrix.dart }}
+      - name: Fetch dependencies
+        run: dart pub get
+      - name: Run analysis
+        if: matrix.platform == 'vm'
+        run: dart analyze --fatal-infos
+      - name: Run adapter tests
+        run: dart test --platform ${{ matrix.platform }}
+
   protobuf-compatibility:
+    needs: changes
+    if: needs.changes.outputs.workflow == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.protobuf == 'true'
     name: Protobuf 3.1 (${{ matrix.platform }}, Dart ${{ matrix.dart }})
     timeout-minutes: 10
     runs-on: ubuntu-latest
@@ -122,8 +178,10 @@ jobs:
           dart analyze --fatal-infos
           dart test --platform ${{ matrix.platform }}
 
-  examples:
-    name: Examples (${{ matrix.platform }}, Dart ${{ matrix.dart }})
+  protobuf-examples:
+    needs: changes
+    if: needs.changes.outputs.workflow == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.protobuf == 'true' || needs.changes.outputs.protobuf_examples == 'true'
+    name: Protobuf examples (${{ matrix.platform }}, Dart ${{ matrix.dart }})
     timeout-minutes: 10
     runs-on: ubuntu-latest
     defaults:
@@ -152,14 +210,36 @@ jobs:
       - name: Run protobuf example
         if: matrix.platform == 'vm'
         run: dart run bin/main.dart
-      - name: Validate the Dart example
-        if: matrix.platform == 'vm'
+
+  dart-example:
+    needs: changes
+    if: needs.changes.outputs.workflow == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.dart_example == 'true'
+    name: Dart example (Dart ${{ matrix.dart }})
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    defaults:
+      run:
         working-directory: example
+    strategy:
+      fail-fast: false
+      matrix:
+        dart: ["3.4.4", stable]
+    steps:
+      - name: Fetch sources
+        uses: actions/checkout@v4
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          architecture: x64
+          sdk: ${{ matrix.dart }}
+      - name: Validate the Dart example
         run: |
           dart pub get
           dart analyze lib/
 
   benchmark-workloads:
+    needs: changes
+    if: needs.changes.outputs.workflow == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.messagepack == 'true' || needs.changes.outputs.benchmarks == 'true'
     name: Benchmark correctness (Dart ${{ matrix.dart }})
     timeout-minutes: 10
     runs-on: ubuntu-latest
@@ -186,6 +266,8 @@ jobs:
         run: dart test
 
   e2e:
+    needs: changes
+    if: needs.changes.outputs.workflow == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.backend == 'true'
     name: Phoenix E2E (Dart ${{ matrix.dart }})
     timeout-minutes: 10
     runs-on: ubuntu-latest

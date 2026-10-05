@@ -1,0 +1,19 @@
+workflow:
+  - '.github/workflows/test.yaml'
+  - '.github/test-paths.yaml'
+core:
+  - 'packages/phoenix_socket/**'
+messagepack:
+  - 'packages/phoenix_socket_msgpack/**'
+protobuf:
+  - 'packages/phoenix_socket_protobuf/**'
+dart_example:
+  - 'example/lib/**'
+  - 'example/pubspec*'
+  - 'example/analysis_options.yaml'
+protobuf_examples:
+  - 'example/protobuf/**'
+benchmarks:
+  - 'tool/**'
+backend:
+  - 'example/backend/**'

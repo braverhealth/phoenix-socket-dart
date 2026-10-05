@@ -8,12 +8,29 @@ the same corpus.
 
 ## CI jobs
 
-The test workflow has independent jobs for core tests, adapter tests, protobuf
-3.1 compatibility, examples, benchmark workload correctness and Phoenix E2E.
-Core, adapters, compatibility and examples each have separate native and Chrome
-matrix entries. Every group runs on Dart 3.4.4 and stable, for 24 checks in total.
+The test workflow has independent jobs for core tests, each adapter, protobuf
+3.1 compatibility, each example package, benchmark workload correctness and
+Phoenix E2E. Core, adapters, compatibility and protobuf examples each have
+separate native and Chrome matrix entries. Every group runs on Dart 3.4.4 and
+stable, for up to 26 validation checks plus a change-detection job.
 Matrix fail-fast is disabled so a failed check does not cancel the others.
 Only E2E jobs install Elixir and start the embedded backend on the CI runner.
+
+Jobs are selected from the full pull request diff against its base branch.
+The paths are defined in `.github/test-paths.yaml`; deletions and both sides
+of renames count as changes. Earlier changes in the PR remain covered after
+later pushes.
+
+| Changed area | Selected suites |
+|---|---|
+| Core package, including shared test helpers | All validation suites |
+| MessagePack package | MessagePack, benchmark correctness |
+| Protobuf package | Protobuf, protobuf 3.1 compatibility, protobuf examples |
+| Dart example | Dart example |
+| Protobuf examples | Protobuf examples |
+| Root tools | Benchmark correctness |
+| Embedded backend | Phoenix E2E |
+| Test workflow or path filters | All validation suites |
 
 The full performance comparison and wire-vector regeneration are manual tools;
 CI checks workload correctness and the checked-in vectors without timing gates.
