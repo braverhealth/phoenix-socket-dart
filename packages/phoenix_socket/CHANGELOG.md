@@ -1,3 +1,10 @@
+## Unreleased
+
+- Add Phoenix JavaScript v1.8.15-compatible HTTP long polling, NDJSON batching and binary uploads.
+- Add optional WebSocket fallback with health checks, session history, transport auth tokens and poll-specific timeouts.
+- Reuse channel/reconnect lifecycles, skip long-poll heartbeats and cancel owned HTTP requests on close.
+- Add upstream JavaScript reference fixtures, VM/Chrome lifecycle tests, and real HTTP/CORS E2E jobs.
+
 ## [1.0.0-rc2]
 
 - Add seeded fuzz/property, independent wire-vector and concurrency/resource stress coverage across all packages.

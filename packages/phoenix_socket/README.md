@@ -11,6 +11,15 @@ environments.
 
 Requires Dart 3.4 or newer.
 
+## HTTP long polling
+
+Select `PhoenixSocketOptions(transport: PhoenixSocketTransport.longPolling)`
+to use long polling, or set `longPollFallbackAfter: Duration(milliseconds: 2500)`
+to fall back from WebSocket. The implementation follows Phoenix JavaScript
+v1.8.15, including batching, session recovery and heartbeat suppression.
+See the [long-polling guide](../../docs/long-polling.md) for server requirements,
+authentication, codec behavior and native/browser tests.
+
 ## Testing
 
 Run commands from `packages/phoenix_socket`. Run the unit and regression tests with:

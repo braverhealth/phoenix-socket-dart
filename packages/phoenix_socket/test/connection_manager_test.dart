@@ -6,6 +6,7 @@ import 'package:phoenix_socket/src/events.dart';
 import 'package:phoenix_socket/src/exceptions.dart';
 import 'package:phoenix_socket/src/message.dart';
 import 'package:phoenix_socket/src/socket_options.dart';
+import 'package:phoenix_socket/src/transport/transport.dart';
 import 'package:test/test.dart';
 
 import 'helpers/fake_transport.dart';
@@ -232,7 +233,11 @@ void main() {
       await flushEvents();
       expect(creations, 2);
       expect(first.sink.closeCalls, 1);
-      expect((manager.currentState as ConnectedState).channel, same(second));
+      expect(
+          ((manager.currentState as ConnectedState).channel
+                  as WebSocketTransport)
+              .channel,
+          same(second));
     });
 
     for (final failParams in [true, false]) {

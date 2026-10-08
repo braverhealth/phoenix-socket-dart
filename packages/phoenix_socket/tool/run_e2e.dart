@@ -4,6 +4,10 @@ import 'dart:io';
 
 /// Starts only this checkout's backend, on an OS-assigned loopback port.
 Future<void> main(List<String> arguments) async {
+  final longPoll = arguments.contains('--long-poll');
+  final testArguments = arguments.where((arg) => arg != '--long-poll').toList();
+  final chrome =
+      testArguments.any((arg) => arg.split(RegExp('[=,]')).contains('chrome'));
   final packageRoot = File.fromUri(Platform.script).parent.parent;
   final repositoryRoot = packageRoot.parent.parent;
   final scratch = await Directory.systemTemp.createTemp('phoenix-socket-e2e-');
@@ -59,7 +63,17 @@ Future<void> main(List<String> arguments) async {
         'Embedded Phoenix backend: 127.0.0.1:$port (pid ${backend.pid})');
     tests = await Process.start(
       Platform.resolvedExecutable,
-      ['test', 'test/e2e', '--reporter', 'expanded', ...arguments],
+      [
+        'test',
+        longPoll
+            ? 'test/e2e/long_poll_e2e_test.dart'
+            : 'test/e2e/socket_e2e_test.dart',
+        '--reporter',
+        'expanded',
+        if (chrome)
+          '--dart2js-args=-DPHOENIX_E2E_URL=ws://127.0.0.1:$port/socket/websocket',
+        ...testArguments
+      ],
       workingDirectory: packageRoot.path,
       environment: {'PHOENIX_E2E_URL': 'ws://127.0.0.1:$port/socket/websocket'},
     );

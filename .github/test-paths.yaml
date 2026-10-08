@@ -3,6 +3,7 @@ workflow:
   - '.github/test-paths.yaml'
 core:
   - 'packages/phoenix_socket/**'
+  - '.gitattributes'
 messagepack:
   - 'packages/phoenix_socket_msgpack/**'
 protobuf:

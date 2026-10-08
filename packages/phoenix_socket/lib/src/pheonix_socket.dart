@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:core';
 
+import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -12,19 +13,20 @@ import 'message.dart';
 import 'pheonix_channel.dart';
 import 'push.dart';
 import 'socket_options.dart';
+import 'transport/transport.dart';
 
 /// Main class to use when wishing to establish a persistent connection
-/// with a Phoenix backend using WebSockets.
+/// with a Phoenix backend using WebSockets or HTTP long polling.
 class PhoenixSocket {
   /// Creates an instance of PhoenixSocket
   ///
   /// endpoint is the full url to which you wish to connect
-  /// e.g. `ws://localhost:4000/websocket/socket`
+  /// e.g. `ws://localhost:4000/socket/websocket`
   PhoenixSocket(
     /// The URL of the Phoenix server.
     String endpoint, {
     /// The options used when initiating and maintaining the
-    /// websocket connection.
+    /// connection.
     PhoenixSocketOptions? socketOptions,
 
     /// Logger name for this socket and its connection manager.
@@ -32,11 +34,16 @@ class PhoenixSocket {
 
     /// The factory to use to create the WebSocketChannel.
     WebSocketChannel Function(Uri uri)? webSocketChannelFactory,
+
+    /// Creates a dedicated HTTP client for each long-poll session. The socket
+    /// closes it when that session ends. Avoid clients that retry POSTs.
+    http.Client Function()? httpClientFactory,
   })  : _logger = Logger(loggerName),
         _connectionManager = ConnectionManager(
           serverUri: endpoint,
           loggerName: '$loggerName.connection_manager',
           webSocketChannelFactory: webSocketChannelFactory,
+          httpClientFactory: httpClientFactory,
         ) {
     _options = socketOptions ?? PhoenixSocketOptions();
 
@@ -52,7 +59,7 @@ class PhoenixSocket {
       ..errorStream.listen((errorEvent) {
         _triggerChannelExceptions(
           PhoenixException(
-            message: 'An error occurred on the websocket',
+            message: 'An error occurred on the connection',
             socketError: errorEvent,
           ),
         );
@@ -107,6 +114,9 @@ class PhoenixSocket {
   /// remote connection to occur.
   Uri get mountPoint => _connectionManager.mountPoint;
 
+  /// The selected transport, including any automatic switch to long polling.
+  PhoenixSocketTransport get transport => _connectionManager.transport;
+
   /// Whether the underlying socket is connected of not.
   bool get isConnected => _connectionManager.currentState is ConnectedState;
   bool get isDisonnected =>
@@ -114,7 +124,7 @@ class PhoenixSocket {
 
   String get nextRef => _connectionManager.nextRef;
 
-  /// Attempts to make a WebSocket connection to the Phoenix backend.
+  /// Attempts to connect to the Phoenix backend using the selected transport.
   ///
   /// If the attempt fails, retries will be triggered at intervals specified
   /// by retryAfterIntervalMS

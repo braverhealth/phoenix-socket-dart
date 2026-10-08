@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:web_socket_channel/web_socket_channel.dart';
+import '../transport/transport.dart';
 
 import '../message.dart';
 
@@ -29,7 +29,7 @@ class ConnectingState extends ConnectionState {
   })  : _ref = startingRef,
         queuedMessages = queuedMessages ?? [];
 
-  final WebSocketChannel channel;
+  final PhoenixTransport channel;
   final int reconnectionAttempts;
   final List<(Message, Completer<Message>?)> queuedMessages;
   final Completer<void> completer;
@@ -65,7 +65,7 @@ class ConnectedState extends ConnectionState {
     required int startingRef,
   }) : _ref = startingRef;
 
-  final WebSocketChannel channel;
+  final PhoenixTransport channel;
   final Map<String, Completer<Message>> pendingMessages = {};
 
   String? pendingHeartbeatRef;

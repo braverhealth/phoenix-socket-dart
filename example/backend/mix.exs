@@ -32,7 +32,7 @@ defmodule Backend.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:phoenix, "~> 1.6.12"},
+      {:phoenix, "~> 1.8.15"},
       {:phoenix_pubsub, "~> 2.0"},
       {:phoenix_html, "~> 2.14.2"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
