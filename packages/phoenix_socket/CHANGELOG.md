@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Return temporary outage fallback to WebSocket when the first HTTP session fails to open, preserving retry counts, backoff and queued traffic across transport changes.
 - Re-enable timed fallback after three consecutive failed openings of a previously healthy WebSocket, without memorizing outage-driven fallback.
 - Automatically use HTTP for default-factory auth tokens whose standard Base64 cannot form a valid Phoenix WebSocket subprotocol, preserving their original bytes.
 - Gate the first fallback-enabled WebSocket open and queued sends on its health probe, and use normal timeout/backoff after WebSocket has proved healthy.

@@ -24,6 +24,9 @@ WebSocket to be retried on the next connection attempt.
 Three consecutive failed openings re-enable timed fallback without recording
 history. Auth tokens that cannot fit Phoenix's WebSocket subprotocol select HTTP
 automatically; see the guide for the Phoenix 1.8.15 encoding constraint.
+If the temporary HTTP fallback also fails before opening, retry the previously
+working WebSocket with continued backoff. A working HTTP session stays selected
+until it ends.
 See the [long-polling guide](../../docs/long-polling.md) for server requirements,
 authentication, codec behavior and native/browser tests.
 

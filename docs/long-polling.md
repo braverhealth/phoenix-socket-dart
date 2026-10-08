@@ -50,6 +50,12 @@ attempt receives the opening deadline and probe. A successful opening or explici
 close resets the failure count. HTTP reached through these repeated failures is
 not memorized, and a new attempt after its session closes retries WebSocket even
 without readable history. The configured maximum retry count still applies.
+If this temporary HTTP fallback fails with a network/request timeout or server
+error before opening, the next attempt returns to the previously proven
+WebSocket for another normal retry window. Backoff and retry counts continue
+across transport changes. HTTP that opens successfully remains selected until
+that session ends. Forbidden responses, forced polling, auth-token compatibility
+selection and other fallback reasons do not trigger this outage recovery.
 The optional stability policy still applies to repeated short-lived connections.
 Replacing an app-visible open transport fails its pending replies and makes
 channels rejoin.
@@ -203,8 +209,8 @@ From `packages/phoenix_socket`:
 
 ```sh
 node tool/long_poll_reference.mjs --check
-dart test test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/websocket_stability_test.dart test/long_poll_review_test.dart
-dart test --platform chrome test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/long_poll_browser_test.dart test/websocket_stability_test.dart test/long_poll_review_test.dart
+dart test test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/websocket_stability_test.dart test/long_poll_review_test.dart test/long_poll_outage_test.dart
+dart test --platform chrome test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/long_poll_browser_test.dart test/websocket_stability_test.dart test/long_poll_review_test.dart test/long_poll_outage_test.dart
 dart run tool/run_e2e.dart --long-poll --platform vm
 dart run tool/run_e2e.dart --long-poll --platform chrome
 ```
@@ -220,6 +226,8 @@ healthy-uptime boundaries, failure budgets and timer cleanup. Real-server E2E
 also repeatedly opens, joins, receives heartbeat replies, disconnects and
 verifies the eventual HTTP session and channel recovery. Authenticated query-token
 tests check resumed request privacy and refreshed credentials after session expiry.
+Outage tests check recovery through the original WebSocket after both transports
+fail to open, accumulated backoff/retry limits, queued sends, and cancellation.
 
 E2E runs start only a test-owned Phoenix process on an OS-assigned loopback port
 and stop that exact process. Chrome uses real cross-origin HTTP requests and

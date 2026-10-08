@@ -10,6 +10,9 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'endpoint.dart';
 
 class TrackingClient extends http.BaseClient {
+  TrackingClient({this.pathOverride});
+
+  final String? pathOverride;
   final http.Client inner = http.Client();
   final requests = <http.Request>[];
   int closeCalls = 0;
@@ -17,6 +20,14 @@ class TrackingClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {
     requests.add(request as http.Request);
+    if (pathOverride != null) {
+      final forwarded = http.AbortableRequest(
+          request.method, request.url.replace(path: pathOverride),
+          abortTrigger: (request as http.Abortable).abortTrigger)
+        ..headers.addAll(request.headers)
+        ..bodyBytes = request.bodyBytes;
+      return inner.send(forwarded);
+    }
     return inner.send(request);
   }
 
@@ -419,6 +430,55 @@ void main() {
                   .future)
               .responseMap,
           {'restored': true});
+    });
+
+    test('failed initial HTTP fallback returns outage recovery to WebSocket',
+        () async {
+      var attempts = 0;
+      var opens = 0;
+      final history = NoSessionHistory();
+      final httpClients = <TrackingClient>[];
+      final recovering = PhoenixSocket(endpoint!,
+          socketOptions: PhoenixSocketOptions(
+            params: {'user_id': '$topic-both-unavailable'},
+            longPollFallbackAfter: const Duration(seconds: 2),
+            reconnectDelays: const [Duration(milliseconds: 20)],
+            sessionStorage: history,
+          ), webSocketChannelFactory: (uri) {
+        final attempt = attempts++;
+        return WebSocketChannel.connect(attempt == 0 || attempt >= 5
+            ? uri
+            : uri.replace(path: '/unavailable-websocket'));
+      }, httpClientFactory: () {
+        final client = TrackingClient(pathOverride: '/unavailable-longpoll');
+        httpClients.add(client);
+        return client;
+      });
+      addTearDown(recovering.dispose);
+      final observer = recovering.openStream.listen((_) => opens++);
+      addTearDown(observer.cancel);
+      await recovering.connect();
+      final channel = recovering.addChannel(topic: '$topic-both-unavailable');
+      await channel.join().future;
+      final oldRef = channel.joinRef;
+      final closed = recovering.closeStream.first;
+      channel.push('disconnect', {}, expectingReply: false);
+      await closed;
+      await eventually(
+          () => attempts == 6 && channel.canPush && channel.joinRef != oldRef);
+      expect(recovering.transport, PhoenixSocketTransport.webSocket);
+      expect(opens, 2);
+      expect(httpClients, hasLength(1));
+      expect(httpClients.single.closeCalls, 1);
+      expect(httpClients.single.requests.map((r) => r.method), ['GET']);
+      expect(history.writes, 0);
+      expect(
+          (await channel
+                  .push('echo', {'recovered': 'websocket'},
+                      expectingReply: true)
+                  .future)
+              .responseMap,
+          {'recovered': 'websocket'});
     });
 
     test(

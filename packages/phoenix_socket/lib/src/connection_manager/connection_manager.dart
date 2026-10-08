@@ -727,11 +727,13 @@ class ConnectionManager {
     final oldState = currentState;
     final Completer<void> completer;
     final int startingRef;
+    final int reconnectionAttempts;
     final List<(Message, Completer<Message>?)> queuedMessages;
     switch (oldState) {
       case ConnectingState():
         completer = oldState.completer;
         startingRef = oldState.currentRef;
+        reconnectionAttempts = oldState.reconnectionAttempts;
         queuedMessages = oldState.queuedMessages;
       case ConnectedState():
         oldState.heartbeatTimeout?.cancel();
@@ -749,6 +751,7 @@ class ConnectionManager {
         completer.future.ignore();
         _pendingConnection = completer;
         startingRef = oldState.currentRef;
+        reconnectionAttempts = 0;
         queuedMessages = [];
       case DisconnectedState():
         return null;
@@ -770,8 +773,26 @@ class ConnectionManager {
         generation: generation,
         completer: completer,
         startingRef: startingRef,
+        reconnectionAttempts: reconnectionAttempts,
         queuedMessages: queuedMessages,
         reconnecting: true);
+  }
+
+  void _retryWebSocketAfterFailedPoll(PhoenixSocketCloseEvent closeEvent) {
+    if (!_fellBack ||
+        !_fallbackFromOpeningFailures ||
+        _fallbackEstablished ||
+        _options!.transport != PhoenixSocketTransport.webSocket ||
+        (closeEvent.code != 1005 && closeEvent.code != 1011)) {
+      return;
+    }
+    // Neither transport opened. Prefer the previously working WebSocket for
+    // another normal retry window, preserving the overall attempt/backoff count.
+    _transport = PhoenixSocketTransport.webSocket;
+    _fellBack = false;
+    _fallbackFromOpeningFailures = false;
+    _primaryPassedHealthCheck = true;
+    _consecutiveWebSocketOpeningFailures = 0;
   }
 
   Future<bool> _waitForRetry(int attempt, int generation) async {
@@ -1148,7 +1169,10 @@ class ConnectionManager {
           _recordWebSocketOpeningFailure();
         }
         _closeChannel(currentChannel);
-        if (currentChannel.skipHeartbeat) _addStateEvent(closeEvent);
+        if (currentChannel.skipHeartbeat) {
+          _addStateEvent(closeEvent);
+          _retryWebSocketAfterFailedPoll(closeEvent);
+        }
 
         if (_options!.shouldAttemptReconnection(reconnectionAttempts)) {
           final reconnecting = ReconnectingState(
