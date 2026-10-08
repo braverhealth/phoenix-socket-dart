@@ -44,11 +44,46 @@ deadline for a heartbeat round trip; a valid reply cancels fallback. Replacing
 an already open transport fails its pending replies and makes channels rejoin.
 Once selected, long polling remains selected for that socket's lifetime.
 
+### Repeated short-lived connections
+
+Enable the optional stability policy to handle a WebSocket that successfully
+opens and answers heartbeats but repeatedly disconnects a few seconds later:
+
+```dart
+final options = PhoenixSocketOptions(
+  longPollFallbackAfter: const Duration(milliseconds: 2500),
+  webSocketStability: const WebSocketStabilityPolicy(
+    maxUnstableConnections: 3,
+    minimumUptime: Duration(seconds: 30),
+  ),
+);
+```
+
+This policy is an opt-in extension to the reference client's opening/probe
+fallback. Its default budget is three unstable connection losses, and its
+default healthy-uptime window is 30 seconds. Both values must be positive.
+Opening and a single successful heartbeat leave the failure count intact until
+the connection has sustained the configured uptime. Uptime without a successful
+heartbeat also leaves the count intact. The existing reconnect-delay sequence
+progresses across unstable connections; sustained healthy uptime resets it.
+
+The policy counts remote transport errors/closes, including a normal server
+close, and excludes explicit client close/dispose. Explicit client close also
+resets the budget. The existing limit on failed opening/reconnection attempts
+still applies. The stability policy can be used independently of timed opening
+fallback. A policy-triggered switch remains on long polling and records browser
+fallback history only after the HTTP session opens successfully.
+
+With timed fallback enabled, an error or close before the opening/health probe
+completes selects HTTP immediately. This also handles proxies that accept the
+WebSocket handshake and terminate traffic before the probe can finish.
+
 Fallback history uses the same `phx:fallback:LongPoll` key as Phoenix JavaScript.
 Browser `sessionStorage` is the default; native applications can supply a
 `PhoenixSocketSessionStore` through `sessionStorage`. History is recorded only
-after fallback opens and only if WebSocket has never passed its health check.
-Stored history is consulted only when fallback is enabled.
+after fallback opens and only if WebSocket has never passed its health check, or
+the stability budget selected HTTP despite successful probes. Stored history is
+consulted when timed fallback or a stability policy is enabled.
 
 ## Protocol behavior
 
@@ -135,8 +170,8 @@ From `packages/phoenix_socket`:
 
 ```sh
 node tool/long_poll_reference.mjs --check
-dart test test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart
-dart test --platform chrome test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart
+dart test test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/websocket_stability_test.dart
+dart test --platform chrome test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/long_poll_browser_test.dart test/websocket_stability_test.dart
 dart run tool/run_e2e.dart --long-poll --platform vm
 dart run tool/run_e2e.dart --long-poll --platform chrome
 ```
@@ -146,6 +181,10 @@ implementation to generate portable expectations. VM and Chrome compare session
 requests, status/close behavior, batching, endpoint conversion and binary uploads
 to those expectations. Lifecycle tests cover fallback health, history, late
 callbacks, reconnect/rejoin, pending replies and repeated client cleanup.
+Stability tests use a controlled clock on VM and Chrome for retry progression,
+healthy-uptime boundaries, failure budgets and timer cleanup. Real-server E2E
+also repeatedly opens, joins, receives heartbeat replies, disconnects and
+verifies the eventual HTTP session and channel recovery.
 
 E2E runs start only a test-owned Phoenix process on an OS-assigned loopback port
 and stop that exact process. Chrome uses real cross-origin HTTP requests and

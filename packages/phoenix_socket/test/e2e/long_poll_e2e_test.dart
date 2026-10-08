@@ -258,6 +258,59 @@ void main() {
               .responseMap,
           {'fallback': true});
     });
+    test(
+        'repeated successful WebSocket joins and heartbeats followed by disconnect select HTTP',
+        () async {
+      var webSockets = 0;
+      var heartbeatReplies = 0;
+      final httpClients = <TrackingClient>[];
+      final unstable = PhoenixSocket(endpoint!,
+          socketOptions: PhoenixSocketOptions(
+            params: {'user_id': '$topic-unstable'},
+            longPollFallbackAfter: const Duration(seconds: 2),
+            webSocketStability: const WebSocketStabilityPolicy(),
+            reconnectDelays: const [Duration(milliseconds: 20)],
+            sessionStorage: NoSessionHistory(),
+          ), webSocketChannelFactory: (uri) {
+        webSockets++;
+        return WebSocketChannel.connect(uri);
+      }, httpClientFactory: () {
+        final client = TrackingClient();
+        httpClients.add(client);
+        return client;
+      });
+      addTearDown(unstable.dispose);
+      final observer = unstable.messageStream
+          .where((message) => message.topic == 'phoenix')
+          .listen((_) => heartbeatReplies++);
+      addTearDown(observer.cancel);
+      await unstable.connect();
+      final channel = unstable.addChannel(topic: '$topic-unstable');
+      await channel.join().future;
+      for (var loss = 0; loss < 3; loss++) {
+        await eventually(() => channel.canPush && heartbeatReplies >= loss + 1);
+        expect(unstable.transport, PhoenixSocketTransport.webSocket);
+        final oldJoinRef = channel.joinRef;
+        final closed = unstable.closeStream.first;
+        channel.push('disconnect', {}, expectingReply: false);
+        await closed;
+        if (loss < 2) {
+          await eventually(
+              () => channel.canPush && channel.joinRef != oldJoinRef);
+        }
+      }
+      await eventually(() =>
+          unstable.transport == PhoenixSocketTransport.longPolling &&
+          channel.canPush);
+      expect(webSockets, 3);
+      expect(httpClients, hasLength(1));
+      expect(
+          (await channel
+                  .push('echo', {'recovered': 'http'}, expectingReply: true)
+                  .future)
+              .responseMap,
+          {'recovered': 'http'});
+    });
   },
       skip: endpoint == null
           ? 'Run dart run tool/run_e2e.dart --long-poll.'

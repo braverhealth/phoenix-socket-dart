@@ -4,6 +4,7 @@ import 'message_serializer.dart';
 import 'message_codec.dart';
 import 'transport/session_store.dart';
 import 'transport/transport.dart';
+import 'transport/websocket_stability_policy.dart';
 
 /// Options for the open Phoenix socket.
 ///
@@ -51,6 +52,7 @@ class PhoenixSocketOptions {
     this.transport = PhoenixSocketTransport.webSocket,
     this.longPollTimeout = const Duration(seconds: 20),
     this.longPollFallbackAfter,
+    this.webSocketStability,
     this.sessionStorage,
     this.authToken,
     this.dynamicAuthToken,
@@ -79,6 +81,11 @@ class PhoenixSocketOptions {
   /// long polling. This replaces the opening timeout while fallback is enabled.
   /// Null or zero disables fallback, matching Phoenix JavaScript.
   final Duration? longPollFallbackAfter;
+
+  /// Optional fallback after repeated short-lived WebSocket connections, even
+  /// when they answer their health probes. Can be used with or without timed
+  /// opening fallback. Null preserves the reference client's retry behavior.
+  final WebSocketStabilityPolicy? webSocketStability;
 
   /// Optional fallback history. Defaults to browser sessionStorage on the web
   /// and no persistent history on native platforms.

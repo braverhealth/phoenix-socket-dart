@@ -20,6 +20,11 @@ v1.8.15, including batching, session recovery and heartbeat suppression.
 See the [long-polling guide](../../docs/long-polling.md) for server requirements,
 authentication, codec behavior and native/browser tests.
 
+Set `webSocketStability: WebSocketStabilityPolicy()` to switch after repeated
+short-lived connections, even when opening and heartbeat probes succeed. The
+optional policy defaults to three unstable losses and 30 seconds of healthy
+uptime before resetting its budget.
+
 ## Testing
 
 Run commands from `packages/phoenix_socket`. Run the unit and regression tests with:

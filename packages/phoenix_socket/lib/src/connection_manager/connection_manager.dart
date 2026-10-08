@@ -92,6 +92,12 @@ class ConnectionManager {
   PhoenixSocketSessionStore? _sessionStorage;
   bool _primaryPassedHealthCheck = false;
   bool _fellBack = false;
+  bool _fallbackFromInstability = false;
+  int _unstableWebSocketConnections = 0;
+  Timer? _stabilityTimer;
+  bool _stabilityWindowElapsed = false;
+  bool _webSocketHealthy = false;
+  bool _webSocketStable = false;
   static const _fallbackSessionKey = 'phx:fallback:LongPoll';
 
   bool _isActive(int generation) => !_disposed && generation == _generation;
@@ -150,6 +156,13 @@ class ConnectionManager {
     }
     if (_pendingConnection case final pending?) {
       return pending.future;
+    }
+    final stability = options.webSocketStability;
+    if (stability != null &&
+        (stability.maxUnstableConnections <= 0 ||
+            stability.minimumUptime <= Duration.zero)) {
+      return Future.error(ArgumentError(
+          'WebSocket stability requires a positive failure budget and minimum uptime'));
     }
     late Completer<void> returnedCompleter;
 
@@ -302,6 +315,8 @@ class ConnectionManager {
     String? reason,
   }) {
     if (_disposed) return;
+    _unstableWebSocketConnections = 0;
+    _stopStabilityTracking();
     _generation++;
     for (final cancellation in _cancellations) {
       cancellation.complete();
@@ -564,7 +579,10 @@ class ConnectionManager {
   void _closeChannel(PhoenixTransport channel, [int? code, String? reason]) {
     final generation = _generation;
     final epoch = _transportEpoch;
-    if (identical(_activeTransport, channel)) _activeTransport = null;
+    if (identical(_activeTransport, channel)) {
+      _activeTransport = null;
+      _stopStabilityTracking();
+    }
     _readyTimeouts.remove(channel)?.cancel();
     _fallbackTimers.remove(channel)?.cancel();
     _healthChecks.remove(channel);
@@ -612,8 +630,48 @@ class ConnectionManager {
     });
   }
 
-  Future<ConnectionState?> _fallback(
-      PhoenixTransport channel, int generation) async {
+  void _stopStabilityTracking() {
+    _stabilityTimer?.cancel();
+    _stabilityTimer = null;
+    _stabilityWindowElapsed = false;
+    _webSocketHealthy = false;
+    _webSocketStable = false;
+  }
+
+  void _startStabilityTracking(PhoenixTransport channel, int generation) {
+    _stopStabilityTracking();
+    final policy = _options!.webSocketStability;
+    if (channel.skipHeartbeat || policy == null) return;
+    _stabilityTimer = Timer(policy.minimumUptime, () {
+      _stabilityTimer = null;
+      if (!_isActive(generation) || !identical(_activeTransport, channel)) {
+        return;
+      }
+      _stabilityWindowElapsed = true;
+      _confirmWebSocketStability(channel);
+    });
+  }
+
+  void _confirmWebSocketStability(PhoenixTransport channel) {
+    if (!identical(_activeTransport, channel) || channel.skipHeartbeat) return;
+    if (_stabilityWindowElapsed && _webSocketHealthy) {
+      _webSocketStable = true;
+      _unstableWebSocketConnections = 0;
+    }
+  }
+
+  bool _fallbackBeforeHealthCheck(PhoenixTransport channel) {
+    if (!_fallbackEnabled ||
+        channel.skipHeartbeat ||
+        !identical(_activeTransport, channel)) {
+      return false;
+    }
+    return currentState is ConnectingState ||
+        _healthChecks.containsKey(channel);
+  }
+
+  Future<ConnectionState?> _fallback(PhoenixTransport channel, int generation,
+      {bool unstable = false}) async {
     if (!_isActive(generation) ||
         !identical(_activeTransport, channel) ||
         channel.skipHeartbeat) {
@@ -651,6 +709,7 @@ class ConnectionManager {
     _closeChannel(channel);
     _transport = PhoenixSocketTransport.longPolling;
     _fellBack = true;
+    _fallbackFromInstability = _fallbackFromInstability || unstable;
     onState(
         null,
         oldState,
@@ -777,9 +836,13 @@ class ConnectionManager {
           _healthChecks.remove(channel);
           _primaryPassedHealthCheck = true;
           _fallbackTimers.remove(channel)?.cancel();
+          _webSocketHealthy = true;
+          _confirmWebSocketStability(channel);
         }
         if (message.ref == connectedState.pendingHeartbeatRef) {
           connectedState.pendingHeartbeatRef = null;
+          _webSocketHealthy = true;
+          _confirmWebSocketStability(channel);
         }
 
         final completer = connectedState.pendingMessages.remove(message.ref);
@@ -821,7 +884,7 @@ class ConnectionManager {
             ? const MessageSerializer()
             : options.serializer;
         if (_transport == PhoenixSocketTransport.webSocket &&
-            _fallbackEnabled &&
+            (_fallbackEnabled || options.webSocketStability != null) &&
             _getSession()?.isNotEmpty == true) {
           _transport = PhoenixSocketTransport.longPolling;
           _fellBack = true;
@@ -886,7 +949,9 @@ class ConnectionManager {
         if (!completer.isCompleted) completer.complete();
         if (identical(currentState, state)) {
           _scheduleFallback(channel, _generation);
-          if (_fellBack && !_primaryPassedHealthCheck) {
+          _startStabilityTracking(channel, _generation);
+          if (_fellBack &&
+              (!_primaryPassedHealthCheck || _fallbackFromInstability)) {
             _storeSession();
           }
           if (!channel.skipHeartbeat && _fallbackEnabled) {
@@ -915,6 +980,18 @@ class ConnectionManager {
             :final currentRef,
           )
           when channel == null || channel == currentChannel:
+        final stability = _options!.webSocketStability;
+        var retryDelayAttempt = 0;
+        if (!currentChannel.skipHeartbeat && stability != null) {
+          if (!_webSocketStable) {
+            _unstableWebSocketConnections++;
+            if (_unstableWebSocketConnections >=
+                stability.maxUnstableConnections) {
+              return _fallback(currentChannel, generation, unstable: true);
+            }
+            retryDelayAttempt = _unstableWebSocketConnections - 1;
+          }
+        }
         heartbeatTimeout?.cancel();
         _closeChannel(currentChannel);
         _addStateEvent(closeEvent);
@@ -945,7 +1022,7 @@ class ConnectionManager {
             startingRef: currentRef,
           );
           onState(null, currentState, reconnecting);
-          if (!await _waitForRetry(0, generation)) return null;
+          if (!await _waitForRetry(retryDelayAttempt, generation)) return null;
           return _startConnection(
             generation: generation,
             completer: completer,
@@ -1023,6 +1100,9 @@ class ConnectionManager {
   Future<ConnectionState?> _channelClosed(
     PhoenixTransport? channel,
   ) async {
+    if (channel != null && _fallbackBeforeHealthCheck(channel)) {
+      return _fallback(channel, _generation);
+    }
     return _disconnect(
       PhoenixSocketCloseEvent(
         reason: channel?.closeReason,
@@ -1049,9 +1129,7 @@ class ConnectionManager {
           ),
         );
 
-        if (currentState is ConnectingState &&
-            !channel.skipHeartbeat &&
-            _fallbackEnabled) {
+        if (_fallbackBeforeHealthCheck(channel)) {
           return _fallback(channel, _generation);
         }
 

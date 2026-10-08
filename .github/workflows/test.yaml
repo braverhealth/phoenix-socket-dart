@@ -83,7 +83,7 @@ jobs:
 
       - name: Run codec, transport, resilience and stress tests in Chrome
         if: matrix.platform == 'chrome'
-        run: dart test --platform chrome test/message_codec_test.dart test/binary_transport_test.dart test/codec_resilience_test.dart test/socket_stress_test.dart test/connection_manager_test.dart test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/long_poll_browser_test.dart
+        run: dart test --platform chrome test/message_codec_test.dart test/binary_transport_test.dart test/codec_resilience_test.dart test/socket_stress_test.dart test/connection_manager_test.dart test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/long_poll_browser_test.dart test/websocket_stability_test.dart
 
   messagepack:
     needs: changes

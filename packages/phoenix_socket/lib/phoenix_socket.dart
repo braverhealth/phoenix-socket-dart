@@ -29,3 +29,4 @@ export 'src/socket_options.dart';
 export 'src/transport/long_poll.dart';
 export 'src/transport/session_store.dart';
 export 'src/transport/transport.dart';
+export 'src/transport/websocket_stability_policy.dart';

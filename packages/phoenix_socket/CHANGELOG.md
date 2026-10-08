@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Add optional WebSocket stability budgets to select HTTP after repeated short-lived connections, with healthy-uptime reset and progressive retry delays.
+- Fall back on transport errors/closes before the WebSocket health probe completes, including after opening.
 - Add Phoenix JavaScript v1.8.15-compatible HTTP long polling, NDJSON batching and binary uploads.
 - Add optional WebSocket fallback with health checks, session history, transport auth tokens and poll-specific timeouts.
 - Reuse channel/reconnect lifecycles, skip long-poll heartbeats and cancel owned HTTP requests on close.
