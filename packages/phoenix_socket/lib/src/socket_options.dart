@@ -78,7 +78,9 @@ class PhoenixSocketOptions {
   final Duration longPollTimeout;
 
   /// Optional WebSocket opening and health-check deadline before switching to
-  /// long polling. This replaces the opening timeout while fallback is enabled.
+  /// long polling. This replaces the opening timeout until WebSocket is proven.
+  /// Three consecutive failed openings after that re-enable this deadline;
+  /// fallback reached through those failures is not memorized.
   /// Null or zero disables fallback, matching Phoenix JavaScript.
   final Duration? longPollFallbackAfter;
 
@@ -93,6 +95,8 @@ class PhoenixSocketOptions {
 
   /// Phoenix's optional auth token. Sent through the WebSocket subprotocol or
   /// the X-Phoenix-AuthToken header on long-poll GETs, as in the reference client.
+  /// The default factory selects HTTP if standard Base64 contains '/', which
+  /// cannot form a valid WebSocket subprotocol with Phoenix 1.8.15's decoder.
   final String? authToken;
 
   /// Lazily refresh the auth token for each transport connection.

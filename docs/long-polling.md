@@ -45,6 +45,11 @@ WebSocket starts a fresh deadline for a heartbeat round trip. Until its reply,
 messages and channel joins stay queued. A failed probe therefore sends them only
 through the selected HTTP session. After WebSocket has passed its first probe,
 later reconnects use normal WebSocket timeout/backoff without timed fallback.
+Three consecutive failures to open make WebSocket unproven again, so the next
+attempt receives the opening deadline and probe. A successful opening or explicit
+close resets the failure count. HTTP reached through these repeated failures is
+not memorized, and a new attempt after its session closes retries WebSocket even
+without readable history. The configured maximum retry count still applies.
 The optional stability policy still applies to repeated short-lived connections.
 Replacing an app-visible open transport fails its pending replies and makes
 channels rejoin.
@@ -133,6 +138,14 @@ asynchronous callback. Requests and queued deliveries are cancelled on close.
 
 `authToken` or `dynamicAuthToken` supplies Phoenix's optional transport auth token.
 The default WebSocket factory sends it using the Phoenix bearer subprotocol.
+Phoenix 1.8.15 uses standard Base64 despite the `base64url.bearer.phx.` prefix.
+If that encoding contains `/` (for example, token `00?`), it cannot be a valid
+WebSocket subprotocol. The default factory selects HTTP automatically and sends
+the original token in `X-Phoenix-AuthToken`, requiring long polling on the server.
+This selection does not write fallback history. Token refresh can restore
+WebSocket on a later attempt. `+` is a valid subprotocol character and stays
+unchanged; changing it or `/` to the URL-safe alphabet would break the pinned
+server decoder. A custom WebSocket factory owns its authentication mechanism.
 Long-poll GETs send `X-Phoenix-AuthToken`; POSTs send only their content type,
 matching the reference. Existing `params`/`dynamicParams` are also supported.
 Only the initial GET includes connection query parameters, including any

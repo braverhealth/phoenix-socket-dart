@@ -94,6 +94,9 @@ class ConnectionManager {
   bool _fellBack = false;
   bool _fallbackEstablished = false;
   bool _fallbackFromInstability = false;
+  bool _fallbackFromOpeningFailures = false;
+  int _consecutiveWebSocketOpeningFailures = 0;
+  static const _openingFailureLimit = 3;
   int _unstableWebSocketConnections = 0;
   Timer? _stabilityTimer;
   bool _stabilityWindowElapsed = false;
@@ -312,6 +315,7 @@ class ConnectionManager {
   }) {
     if (_disposed) return;
     _unstableWebSocketConnections = 0;
+    _consecutiveWebSocketOpeningFailures = 0;
     _stopStabilityTracking();
     _generation++;
     for (final cancellation in _cancellations) {
@@ -478,25 +482,44 @@ class ConnectionManager {
     _refreshTransport();
     final authToken = _options!.dynamicAuthToken?.call() ?? _options!.authToken;
     if (!_isActive(generation)) return null;
-    final PhoenixTransport channel;
+    String? encodedAuthToken;
+    if (_transport == PhoenixSocketTransport.webSocket &&
+        _webSocketChannelFactory == null &&
+        authToken != null &&
+        authToken.isNotEmpty) {
+      encodedAuthToken =
+          base64Encode(latin1.encode(authToken)).replaceAll('=', '');
+      // Phoenix 1.8.15 decodes standard Base64 despite its base64url prefix.
+      // '/' is forbidden in a WebSocket subprotocol; HTTP preserves the token.
+      if (encodedAuthToken.contains('/')) {
+        _transport = PhoenixSocketTransport.longPolling;
+        _consecutiveWebSocketOpeningFailures = 0;
+      }
+    }
+    PhoenixTransport channel;
     if (_transport == PhoenixSocketTransport.longPolling) {
-      channel = PhoenixLongPoll(mountPoint,
-          timeout: _options!.longPollTimeout == Duration.zero
-              ? const Duration(seconds: 20)
-              : _options!.longPollTimeout,
-          authToken: authToken,
-          client: _httpClientFactory());
-      _lastConnectionUri = (channel as PhoenixLongPoll).endpoint;
+      channel = _createLongPoll(mountPoint, authToken);
     } else {
-      final protocols = authToken == null || authToken.isEmpty
+      final protocols = encodedAuthToken == null
           ? null
           : [
               'phoenix',
-              'base64url.bearer.phx.${base64Encode(latin1.encode(authToken)).replaceAll('=', '')}',
+              'base64url.bearer.phx.$encodedAuthToken',
             ];
-      channel = WebSocketTransport(_webSocketChannelFactory?.call(mountPoint) ??
-          WebSocketChannel.connect(mountPoint, protocols: protocols));
-      _lastConnectionUri = mountPoint;
+      try {
+        channel = WebSocketTransport(
+            _webSocketChannelFactory?.call(mountPoint) ??
+                WebSocketChannel.connect(mountPoint, protocols: protocols));
+        _lastConnectionUri = mountPoint;
+      } catch (_) {
+        if (!_isActive(generation)) rethrow;
+        _recordWebSocketOpeningFailure();
+        if (!_fallbackEnabled || _primaryPassedHealthCheck) rethrow;
+        _transport = PhoenixSocketTransport.longPolling;
+        _fellBack = true;
+        _fallbackEstablished = false;
+        channel = _createLongPoll(mountPoint, authToken);
+      }
     }
     _activeTransport = channel;
     _transportEpoch++;
@@ -572,6 +595,25 @@ class ConnectionManager {
     }
 
     return channel;
+  }
+
+  PhoenixLongPoll _createLongPoll(Uri mountPoint, String? authToken) {
+    final channel = PhoenixLongPoll(mountPoint,
+        timeout: _options!.longPollTimeout == Duration.zero
+            ? const Duration(seconds: 20)
+            : _options!.longPollTimeout,
+        authToken: authToken,
+        client: _httpClientFactory());
+    _lastConnectionUri = channel.endpoint;
+    return channel;
+  }
+
+  void _recordWebSocketOpeningFailure() {
+    if (!_fallbackEnabled || !_primaryPassedHealthCheck) return;
+    if (++_consecutiveWebSocketOpeningFailures >= _openingFailureLimit) {
+      _primaryPassedHealthCheck = false;
+      _fallbackFromOpeningFailures = true;
+    }
   }
 
   void _closeChannel(PhoenixTransport channel, [int? code, String? reason]) {
@@ -898,10 +940,14 @@ class ConnectionManager {
     final remembered = canFallBack && _getSession()?.isNotEmpty == true;
     if (_fellBack &&
         !remembered &&
-        (explicitConnect || (_fallbackEstablished && _sessionReadable))) {
+        (explicitConnect ||
+            (_fallbackEstablished &&
+                (_sessionReadable || _fallbackFromOpeningFailures)))) {
       _fellBack = false;
       _fallbackEstablished = false;
       _fallbackFromInstability = false;
+      _fallbackFromOpeningFailures = false;
+      _consecutiveWebSocketOpeningFailures = 0;
       _primaryPassedHealthCheck = false;
       _unstableWebSocketConnections = 0;
     }
@@ -988,6 +1034,10 @@ class ConnectionManager {
   void _finishConnection(ConnectingState connecting, {bool validated = false}) {
     if (!identical(currentState, connecting)) return;
     final channel = connecting.channel;
+    if (!channel.skipHeartbeat) {
+      _consecutiveWebSocketOpeningFailures = 0;
+      _fallbackFromOpeningFailures = false;
+    }
     final state =
         ConnectedState(channel: channel, startingRef: connecting.currentRef);
     _startStabilityTracking(channel, _generation);
@@ -1004,7 +1054,8 @@ class ConnectionManager {
     if (!identical(currentState, state)) return;
     if (_fellBack && channel.skipHeartbeat) {
       _fallbackEstablished = true;
-      if (!_primaryPassedHealthCheck || _fallbackFromInstability) {
+      if (!_fallbackFromOpeningFailures &&
+          (!_primaryPassedHealthCheck || _fallbackFromInstability)) {
         _storeSession();
       }
     }
@@ -1093,6 +1144,9 @@ class ConnectionManager {
                 :final completer,
               )
           when channel == null || channel == currentChannel:
+        if (!currentChannel.skipHeartbeat) {
+          _recordWebSocketOpeningFailure();
+        }
         _closeChannel(currentChannel);
         if (currentChannel.skipHeartbeat) _addStateEvent(closeEvent);
 

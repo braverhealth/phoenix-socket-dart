@@ -229,6 +229,208 @@ void main() {
     });
   });
 
+  for (final failure in ['timeout', 'error', 'close', 'factory']) {
+    test('consecutive opening $failure failures re-enable temporary fallback',
+        () {
+      fakeAsync((time) {
+        final transports = <FakeTransport>[];
+        var attempts = 0;
+        final history = _History();
+        final server = LongPollServer();
+        final manager = ConnectionManager(
+            serverUri: _endpoint,
+            httpClientFactory: server.createClient,
+            webSocketChannelFactory: (_) {
+              if (attempts++ > 0 && failure == 'factory') {
+                throw StateError('WebSocket is blocked');
+              }
+              final ws = FakeTransport(readyImmediately: transports.isEmpty);
+              transports.add(ws);
+              return ws;
+            });
+        manager
+            .connect(PhoenixSocketOptions(
+                sessionStorage: history,
+                timeout: const Duration(seconds: 2),
+                longPollFallbackAfter: const Duration(seconds: 1),
+                reconnectDelays: const [Duration(milliseconds: 100)]))
+            .ignore();
+        _pump(time);
+        unawaited(transports.first.incoming.close());
+        _pump(time);
+        time.elapse(const Duration(milliseconds: 100));
+        if (failure == 'factory') {
+          time.elapse(const Duration(seconds: 1));
+        } else {
+          for (var i = 0; i < 3; i++) {
+            expect(manager.transport, PhoenixSocketTransport.webSocket);
+            if (failure == 'timeout') {
+              time.elapse(const Duration(seconds: 2));
+            } else if (failure == 'error') {
+              transports.last.readyCompleter
+                  .completeError(StateError('blocked'));
+              _pump(time);
+            } else {
+              unawaited(transports.last.incoming.close());
+              _pump(time);
+            }
+            expect(server.clients, isEmpty);
+            time.elapse(const Duration(milliseconds: 100));
+          }
+          // The next attempt gets the first-use deadline, not the normal timeout.
+          time.elapse(const Duration(seconds: 1));
+        }
+        _pump(time);
+        expect(manager.currentState, isA<ConnectedState>());
+        expect(manager.transport, PhoenixSocketTransport.longPolling);
+        expect(history.values, isEmpty,
+            reason: 'outages must not pin later sockets');
+        expect(server.clients, hasLength(1));
+        _dispose(manager, time);
+      });
+    });
+  }
+
+  test('a successful opening resets consecutive failure count', () {
+    fakeAsync((time) {
+      final transports = <FakeTransport>[];
+      final server = LongPollServer();
+      final manager = ConnectionManager(
+          serverUri: _endpoint,
+          httpClientFactory: server.createClient,
+          webSocketChannelFactory: (_) {
+            final ws = FakeTransport(readyImmediately: transports.isEmpty);
+            transports.add(ws);
+            return ws;
+          });
+      manager
+          .connect(PhoenixSocketOptions(
+              sessionStorage: _History(),
+              timeout: const Duration(seconds: 2),
+              longPollFallbackAfter: const Duration(seconds: 1),
+              reconnectDelays: const []))
+          .ignore();
+      _pump(time);
+      for (var cycle = 0; cycle < 2; cycle++) {
+        unawaited(transports.last.incoming.close());
+        _pump(time);
+        for (var failure = 0; failure < 2; failure++) {
+          transports.last.readyCompleter.completeError(StateError('restart'));
+          _pump(time);
+        }
+        // A slow opening remains allowed after two isolated failures.
+        time.elapse(const Duration(milliseconds: 1500));
+        expect(server.clients, isEmpty);
+        transports.last.readyCompleter.complete();
+        _pump(time);
+        expect(manager.currentState, isA<ConnectedState>());
+      }
+      expect(manager.transport, PhoenixSocketTransport.webSocket);
+      _dispose(manager, time);
+    });
+  });
+
+  test('temporary opening-failure fallback retries WebSocket after HTTP loss',
+      () {
+    fakeAsync((time) {
+      final transports = <FakeTransport>[];
+      final server = LongPollServer();
+      final manager = ConnectionManager(
+          serverUri: _endpoint,
+          httpClientFactory: server.createClient,
+          webSocketChannelFactory: (_) {
+            final ws = FakeTransport(
+                readyImmediately: transports.isEmpty || transports.length >= 5);
+            transports.add(ws);
+            return ws;
+          });
+      manager
+          .connect(PhoenixSocketOptions(
+              sessionStorage: _History()..unavailable = true,
+              timeout: const Duration(seconds: 2),
+              longPollFallbackAfter: const Duration(seconds: 1),
+              reconnectDelays: const []))
+          .ignore();
+      _pump(time);
+      unawaited(transports.first.incoming.close());
+      _pump(time);
+      for (var i = 0; i < 3; i++) {
+        transports.last.readyCompleter.completeError(StateError('blocked'));
+        _pump(time);
+      }
+      time.elapse(const Duration(seconds: 1));
+      expect(manager.transport, PhoenixSocketTransport.longPolling);
+      server.clients.single.expire();
+      _pump(time);
+      expect(manager.transport, PhoenixSocketTransport.webSocket);
+      expect(manager.currentState, isA<ConnectedState>());
+      expect(transports.last.sent.single[3], 'heartbeat');
+      _dispose(manager, time);
+    });
+  });
+
+  test('opening failure recovery respects the configured retry limit', () {
+    fakeAsync((time) {
+      final transports = <FakeTransport>[];
+      final server = LongPollServer();
+      final manager = ConnectionManager(
+          serverUri: _endpoint,
+          httpClientFactory: server.createClient,
+          webSocketChannelFactory: (_) {
+            final ws = FakeTransport(readyImmediately: transports.isEmpty);
+            transports.add(ws);
+            return ws;
+          });
+      manager
+          .connect(PhoenixSocketOptions(
+              sessionStorage: _History(),
+              maxReconnectionAttempts: 1,
+              longPollFallbackAfter: const Duration(seconds: 1),
+              reconnectDelays: const []))
+          .ignore();
+      _pump(time);
+      unawaited(transports.first.incoming.close());
+      _pump(time);
+      for (var i = 0; i < 2; i++) {
+        transports.last.readyCompleter.completeError(StateError('blocked'));
+        _pump(time);
+      }
+      expect(manager.currentState, isA<DisconnectedState>());
+      expect(server.clients, isEmpty);
+      _dispose(manager, time);
+    });
+  });
+
+  test('opening failures do not enable fallback when its option is disabled',
+      () {
+    fakeAsync((time) {
+      final transports = <FakeTransport>[];
+      final server = LongPollServer();
+      final manager = ConnectionManager(
+          serverUri: _endpoint,
+          httpClientFactory: server.createClient,
+          webSocketChannelFactory: (_) {
+            final ws = FakeTransport(readyImmediately: transports.isEmpty);
+            transports.add(ws);
+            return ws;
+          });
+      manager
+          .connect(const PhoenixSocketOptions(
+              maxReconnectionAttempts: 3, reconnectDelays: []))
+          .ignore();
+      _pump(time);
+      unawaited(transports.first.incoming.close());
+      _pump(time);
+      for (var i = 0; i < 4; i++) {
+        transports.last.readyCompleter.completeError(StateError('blocked'));
+        _pump(time);
+      }
+      expect(manager.currentState, isA<DisconnectedState>());
+      expect(server.clients, isEmpty);
+      _dispose(manager, time);
+    });
+  });
+
   for (final explicitConnect in [false, true]) {
     test(
         'cleared history retries WebSocket on ${explicitConnect ? 'explicit' : 'automatic'} reconnect',
@@ -416,6 +618,46 @@ void main() {
       expect(manager.transport, PhoenixSocketTransport.webSocket);
       expect(transports.last.sent.single[3], 'heartbeat');
       expect(history.values, isEmpty);
+      _dispose(manager, time);
+    });
+  });
+
+  test(
+      'an incompatible default WebSocket auth subprotocol selects HTTP without history',
+      () {
+    fakeAsync((time) {
+      final history = _History();
+      final server = LongPollServer();
+      final manager = ConnectionManager(
+          serverUri: _endpoint, httpClientFactory: server.createClient);
+      manager
+          .connect(
+              PhoenixSocketOptions(authToken: '00?', sessionStorage: history))
+          .ignore();
+      _pump(time);
+      expect(manager.currentState, isA<ConnectedState>());
+      expect(manager.transport, PhoenixSocketTransport.longPolling);
+      expect(server.requests.first.headers['X-Phoenix-AuthToken'], '00?');
+      expect(history.values, isEmpty);
+      _dispose(manager, time);
+    });
+  });
+
+  test(
+      'custom WebSocket factory owns auth even for incompatible default tokens',
+      () {
+    fakeAsync((time) {
+      final ws = FakeTransport(readyImmediately: true);
+      final server = LongPollServer();
+      final manager = ConnectionManager(
+          serverUri: _endpoint,
+          webSocketChannelFactory: (_) => ws,
+          httpClientFactory: server.createClient);
+      manager.connect(const PhoenixSocketOptions(authToken: '00?')).ignore();
+      _pump(time);
+      expect(manager.currentState, isA<ConnectedState>());
+      expect(manager.transport, PhoenixSocketTransport.webSocket);
+      expect(server.clients, isEmpty);
       _dispose(manager, time);
     });
   });

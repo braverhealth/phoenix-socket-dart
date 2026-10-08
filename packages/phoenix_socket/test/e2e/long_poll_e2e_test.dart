@@ -28,10 +28,11 @@ class TrackingClient extends http.BaseClient {
 }
 
 class NoSessionHistory implements PhoenixSocketSessionStore {
+  int writes = 0;
   @override
   String? getItem(String key) => null;
   @override
-  void setItem(String key, String value) {}
+  void setItem(String key, String value) => writes++;
   @override
   void removeItem(String key) {}
 }
@@ -294,6 +295,59 @@ void main() {
           isTrue);
     });
 
+    for (final token in ['00?', '00>']) {
+      test(
+          'default auth transport authenticates $token without changing its bytes',
+          () async {
+        final authenticated = PhoenixSocket(endpoint!,
+            socketOptions: PhoenixSocketOptions(
+              authToken: token,
+              params: {'expected_auth_token': token},
+              maxReconnectionAttempts: 0,
+            ));
+        addTearDown(authenticated.dispose);
+        expect(await authenticated.connect(), same(authenticated));
+        expect(
+            authenticated.transport,
+            token == '00?'
+                ? PhoenixSocketTransport.longPolling
+                : PhoenixSocketTransport.webSocket);
+        final channel = authenticated.addChannel(topic: '$topic-$token');
+        expect((await channel.join().future).isOk, isTrue);
+        expect(
+            (await channel
+                    .push('echo', {'authenticated': true}, expectingReply: true)
+                    .future)
+                .responseMap,
+            {'authenticated': true});
+      });
+    }
+
+    test('refreshed auth token restores WebSocket on the same socket',
+        () async {
+      var token = '00?';
+      final authenticated = PhoenixSocket(endpoint!,
+          socketOptions: PhoenixSocketOptions(
+            dynamicAuthToken: () => token,
+            dynamicParams: () async => {'expected_auth_token': token},
+            maxReconnectionAttempts: 0,
+          ));
+      addTearDown(authenticated.dispose);
+      await authenticated.connect();
+      expect(authenticated.transport, PhoenixSocketTransport.longPolling);
+      authenticated.close();
+      token = '00>';
+      expect(await authenticated.connect(), same(authenticated));
+      expect(authenticated.transport, PhoenixSocketTransport.webSocket);
+      expect(
+          (await authenticated
+                  .addChannel(topic: '$topic-refreshed-auth')
+                  .join()
+                  .future)
+              .isOk,
+          isTrue);
+    });
+
     test('forbidden connect exposes 403 and closes with 1008', () async {
       final forbidden = PhoenixSocket(endpoint!,
           socketOptions: const PhoenixSocketOptions(
@@ -331,6 +385,42 @@ void main() {
               .responseMap,
           {'fallback': true});
     });
+    test(
+        'proven WebSocket falls back after repeated rejected handshakes without recording history',
+        () async {
+      var attempts = 0;
+      final history = NoSessionHistory();
+      final recovering = PhoenixSocket(endpoint!,
+          socketOptions: PhoenixSocketOptions(
+            params: {'user_id': '$topic-opening-failures'},
+            longPollFallbackAfter: const Duration(seconds: 2),
+            reconnectDelays: const [Duration(milliseconds: 20)],
+            sessionStorage: history,
+          ),
+          webSocketChannelFactory: (uri) => WebSocketChannel.connect(
+              attempts++ == 0 ? uri : uri.replace(path: '/blocked-websocket')));
+      addTearDown(recovering.dispose);
+      await recovering.connect();
+      final channel = recovering.addChannel(topic: '$topic-opening-failures');
+      await channel.join().future;
+      final oldRef = channel.joinRef;
+      final closed = recovering.closeStream.first;
+      channel.push('disconnect', {}, expectingReply: false);
+      await closed;
+      await eventually(() =>
+          recovering.transport == PhoenixSocketTransport.longPolling &&
+          channel.canPush &&
+          channel.joinRef != oldRef);
+      expect(attempts, 5);
+      expect(history.writes, 0);
+      expect(
+          (await channel
+                  .push('echo', {'restored': true}, expectingReply: true)
+                  .future)
+              .responseMap,
+          {'restored': true});
+    });
+
     test(
         'repeated successful WebSocket joins and heartbeats followed by disconnect select HTTP',
         () async {
