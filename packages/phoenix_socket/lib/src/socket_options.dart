@@ -2,15 +2,18 @@ import 'dart:math';
 
 import 'message_serializer.dart';
 import 'message_codec.dart';
+import 'transport/session_store.dart';
+import 'transport/transport.dart';
+import 'transport/websocket_stability_policy.dart';
 
 /// Options for the open Phoenix socket.
 ///
-/// Provided durations are all in milliseconds.
+/// Timing options use Dart's [Duration] type.
 class PhoenixSocketOptions {
   /// Create a PhoenixSocketOptions
   const PhoenixSocketOptions({
     /// The duration after which a connection attempt
-    /// is considered failed
+    /// is considered failed when timed transport fallback is disabled.
     Duration? timeout,
 
     /// The interval between heartbeat roundtrips
@@ -46,16 +49,58 @@ class PhoenixSocketOptions {
     /// Either this or [params] car to be provided, but not both.
     this.dynamicParams,
     MessageCodec? serializer,
+    this.transport = PhoenixSocketTransport.webSocket,
+    this.longPollTimeout = const Duration(seconds: 20),
+    this.longPollFallbackAfter,
+    this.webSocketStability,
+    this.sessionStorage,
+    this.authToken,
+    this.dynamicAuthToken,
   })  : _timeout = timeout ?? const Duration(seconds: 10),
         serializer = serializer ?? const MessageSerializer(),
         _heartbeat = heartbeat ?? const Duration(seconds: 30),
         _heartbeatTimeout = heartbeatTimeout ?? const Duration(seconds: 10),
         assert(!(params != null && dynamicParams != null),
-            "Can't set both params and dynamicParams");
+            "Can't set both params and dynamicParams"),
+        assert(!(authToken != null && dynamicAuthToken != null),
+            "Can't set both authToken and dynamicAuthToken");
 
   /// The serializer used to serialize and deserialize messages on
-  /// applicable sockets.
+  /// applicable sockets. As in Phoenix JavaScript, explicitly selecting long
+  /// polling uses the default serializer; automatic fallback retains this codec.
   final MessageCodec serializer;
+
+  /// WebSocket by default; select HTTP long polling explicitly if needed.
+  final PhoenixSocketTransport transport;
+
+  /// Maximum duration of each long-poll GET or POST. Zero selects the default
+  /// 20 seconds, matching the reference Socket constructor.
+  final Duration longPollTimeout;
+
+  /// Optional WebSocket opening and health-check deadline before switching to
+  /// long polling. This replaces the opening timeout until WebSocket is proven.
+  /// Three consecutive failed openings after that re-enable this deadline;
+  /// fallback reached through those failures is not memorized.
+  /// Null or zero disables fallback, matching Phoenix JavaScript.
+  final Duration? longPollFallbackAfter;
+
+  /// Optional fallback after repeated short-lived WebSocket connections, even
+  /// when they answer their health probes. Can be used with or without timed
+  /// opening fallback. Null preserves the reference client's retry behavior.
+  final WebSocketStabilityPolicy? webSocketStability;
+
+  /// Optional fallback history. Defaults to browser sessionStorage on the web
+  /// and no persistent history on native platforms.
+  final PhoenixSocketSessionStore? sessionStorage;
+
+  /// Phoenix's optional auth token. Sent through the WebSocket subprotocol or
+  /// the X-Phoenix-AuthToken header on long-poll GETs, as in the reference client.
+  /// The default factory selects HTTP if standard Base64 contains '/', which
+  /// cannot form a valid WebSocket subprotocol with Phoenix 1.8.15's decoder.
+  final String? authToken;
+
+  /// Lazily refresh the auth token for each transport connection.
+  final String Function()? dynamicAuthToken;
   final int? maxReconnectionAttempts;
 
   final Duration _timeout;

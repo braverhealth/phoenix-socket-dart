@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:web_socket_channel/web_socket_channel.dart';
+import '../transport/transport.dart';
 
 import '../message.dart';
 import '../socket_options.dart';
@@ -57,7 +57,7 @@ class ReceiveMessage extends ConnectionEvent {
   });
 
   final dynamic payload;
-  final WebSocketChannel channel;
+  final PhoenixTransport channel;
 }
 
 class ChannelReady extends ConnectionEvent {
@@ -65,7 +65,7 @@ class ChannelReady extends ConnectionEvent {
     required this.channel,
   });
 
-  final WebSocketChannel channel;
+  final PhoenixTransport channel;
 
   @override
   String toString() => 'ChannelReady()';
@@ -78,7 +78,7 @@ class ChannelClosed extends ConnectionEvent {
     required this.reason,
   });
 
-  final WebSocketChannel? channel;
+  final PhoenixTransport? channel;
   final int? code;
   final String? reason;
 
@@ -93,10 +93,16 @@ class ChannelError extends ConnectionEvent {
     required this.stackTrace,
   });
 
-  final WebSocketChannel channel;
+  final PhoenixTransport channel;
   final Object error;
   final StackTrace stackTrace;
 
   @override
   String toString() => 'ChannelError($error)';
+}
+
+class TransportFallback extends ConnectionEvent {
+  TransportFallback(this.channel);
+
+  final PhoenixTransport channel;
 }

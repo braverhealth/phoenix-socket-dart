@@ -1,3 +1,17 @@
+## Unreleased
+
+- Return temporary outage fallback to WebSocket when the first HTTP session fails to open, preserving retry counts, backoff and queued traffic across transport changes.
+- Re-enable timed fallback after three consecutive failed openings of a previously healthy WebSocket, without memorizing outage-driven fallback.
+- Automatically use HTTP for default-factory auth tokens whose standard Base64 cannot form a valid Phoenix WebSocket subprotocol, preserving their original bytes.
+- Gate the first fallback-enabled WebSocket open and queued sends on its health probe, and use normal timeout/backoff after WebSocket has proved healthy.
+- Reconsider cleared/expired fallback history on new connection attempts and omit application connection parameters from resumed long-poll URLs.
+- Add optional WebSocket stability budgets to select HTTP after repeated short-lived connections, with healthy-uptime reset and progressive retry delays.
+- Fall back on transport errors/closes before the WebSocket health probe completes, including after opening.
+- Add Phoenix JavaScript v1.8.15-compatible HTTP long polling, NDJSON batching and binary uploads.
+- Add optional WebSocket fallback with health checks, session history, transport auth tokens and poll-specific timeouts.
+- Reuse channel/reconnect lifecycles, skip long-poll heartbeats and cancel owned HTTP requests on close.
+- Add upstream JavaScript reference fixtures, VM/Chrome lifecycle tests, and real HTTP/CORS E2E jobs.
+
 ## [1.0.0-rc2]
 
 - Add seeded fuzz/property, independent wire-vector and concurrency/resource stress coverage across all packages.

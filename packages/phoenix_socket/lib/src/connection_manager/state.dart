@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:web_socket_channel/web_socket_channel.dart';
+import '../transport/transport.dart';
 
 import '../message.dart';
 
@@ -29,7 +29,7 @@ class ConnectingState extends ConnectionState {
   })  : _ref = startingRef,
         queuedMessages = queuedMessages ?? [];
 
-  final WebSocketChannel channel;
+  final PhoenixTransport channel;
   final int reconnectionAttempts;
   final List<(Message, Completer<Message>?)> queuedMessages;
   final Completer<void> completer;
@@ -59,13 +59,31 @@ class ReconnectingState extends ConnectingState {
   String toString() => 'ReconnectingState($reconnectionAttempts)';
 }
 
+/// WebSocket is open at the transport layer; application traffic stays queued
+/// until the first health probe proves that the connection can exchange frames.
+class ValidatingState extends ConnectingState {
+  ValidatingState({
+    required super.channel,
+    required super.completer,
+    required super.reconnectionAttempts,
+    required this.healthCheckRef,
+    required super.startingRef,
+    super.queuedMessages,
+  });
+
+  final String healthCheckRef;
+
+  @override
+  String toString() => 'ValidatingState()';
+}
+
 class ConnectedState extends ConnectionState {
   ConnectedState({
     required this.channel,
     required int startingRef,
   }) : _ref = startingRef;
 
-  final WebSocketChannel channel;
+  final PhoenixTransport channel;
   final Map<String, Completer<Message>> pendingMessages = {};
 
   String? pendingHeartbeatRef;

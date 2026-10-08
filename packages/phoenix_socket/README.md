@@ -11,6 +11,30 @@ environments.
 
 Requires Dart 3.4 or newer.
 
+## HTTP long polling
+
+Select `PhoenixSocketOptions(transport: PhoenixSocketTransport.longPolling)`
+to use long polling, or set `longPollFallbackAfter: Duration(milliseconds: 2500)`
+to fall back from WebSocket. The implementation follows Phoenix JavaScript
+v1.8.15's wire protocol, including batching, session recovery and heartbeat suppression.
+Fallback-enabled sockets expose their first WebSocket open only after a health
+probe succeeds; later reconnects use normal WebSocket timeout/backoff. Resumed
+HTTP URLs carry only the transport token. Clearing fallback history allows
+WebSocket to be retried on the next connection attempt.
+Three consecutive failed openings re-enable timed fallback without recording
+history. Auth tokens that cannot fit Phoenix's WebSocket subprotocol select HTTP
+automatically; see the guide for the Phoenix 1.8.15 encoding constraint.
+If the temporary HTTP fallback also fails before opening, retry the previously
+working WebSocket with continued backoff. A working HTTP session stays selected
+until it ends.
+See the [long-polling guide](../../docs/long-polling.md) for server requirements,
+authentication, codec behavior and native/browser tests.
+
+Set `webSocketStability: WebSocketStabilityPolicy()` to switch after repeated
+short-lived connections, even when opening and heartbeat probes succeed. The
+optional policy defaults to three unstable losses and 30 seconds of healthy
+uptime before resetting its budget.
+
 ## Testing
 
 Run commands from `packages/phoenix_socket`. Run the unit and regression tests with:

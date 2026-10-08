@@ -1,4 +1,4 @@
-/// Dart library to interact with Phoenix Channels and Presence over WebSockets.
+/// Dart library for Phoenix Channels and Presence over WebSockets or long polling.
 ///
 /// This library uses web_socket_channel for WebSockets, making the API
 /// consistent across web and native environments.
@@ -26,3 +26,7 @@ export 'src/presence.dart';
 export 'src/push.dart';
 export 'src/pheonix_socket.dart';
 export 'src/socket_options.dart';
+export 'src/transport/long_poll.dart';
+export 'src/transport/session_store.dart';
+export 'src/transport/transport.dart';
+export 'src/transport/websocket_stability_policy.dart';

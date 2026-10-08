@@ -11,6 +11,8 @@ class FakeTransport extends StreamChannelMixin<dynamic>
     bool readyImmediately = false,
     this.decodeFrame,
     this.encodeFrame,
+    this.replyToHeartbeats = true,
+    this.afterClose,
   }) {
     sink = FakeTransportSink(this);
     if (readyImmediately) readyCompleter.complete();
@@ -21,6 +23,8 @@ class FakeTransport extends StreamChannelMixin<dynamic>
   final frames = <Object>[];
   final List<dynamic> Function(Object frame)? decodeFrame;
   final Object Function(List<dynamic> parts)? encodeFrame;
+  final bool replyToHeartbeats;
+  final Future<void> Function()? afterClose;
   final readyCompleter = Completer<void>();
   void Function(List<dynamic>)? onSend;
   void Function(Object)? onFrame;
@@ -66,7 +70,7 @@ class FakeTransportSink implements WebSocketSink {
         ? jsonDecode(data as String) as List<dynamic>
         : transport.decodeFrame!(data);
     transport.sent.add(message);
-    if (message[3] == 'heartbeat') {
+    if (message[3] == 'heartbeat' && transport.replyToHeartbeats) {
       transport.replyTo(message);
     } else {
       transport.onSend?.call(message);
@@ -80,6 +84,7 @@ class FakeTransportSink implements WebSocketSink {
     transport.closeReason = reason;
     if (!_done.isCompleted) _done.complete();
     await transport.incoming.close();
+    await transport.afterClose?.call();
   }
 
   @override

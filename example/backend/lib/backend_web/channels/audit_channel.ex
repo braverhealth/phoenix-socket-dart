@@ -26,6 +26,10 @@ defmodule BackendWeb.AuditChannel do
     {:reply, {:ok, %{}}, socket}
   end
 
+  def handle_in("binary_upload", {:binary, data}, socket) do
+    {:reply, {:ok, %{base64: Base.encode64(data), size: byte_size(data)}}, socket}
+  end
+
   def handle_in("stats", _payload, socket) do
     {:reply, {:ok, %{observed: socket.assigns.observed}}, socket}
   end

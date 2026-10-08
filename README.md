@@ -1,6 +1,7 @@
 # Phoenix Socket Dart
 
-Dart and Flutter clients for Phoenix Channels, with optional binary payload codecs.
+Dart and Flutter clients for Phoenix Channels over WebSockets or HTTP long
+polling, with optional binary payload codecs.
 
 | Package | Purpose |
 |---|---|
@@ -48,7 +49,8 @@ Published package names and Dart imports such as
 `package:phoenix_socket/phoenix_socket.dart` remain the same. Consumers pinned to
 older revisions continue using those revisions' original layout.
 
-See [binary APIs and migration](docs/binary-codecs.md), the
+See [HTTP long polling](docs/long-polling.md),
+[binary APIs and migration](docs/binary-codecs.md), the
 [resilience and stress coverage](docs/resilience-testing.md), the
 [release changelog](packages/phoenix_socket/CHANGELOG.md) and the
 [headless Chrome comparison](docs/chrome-codec-comparison.md).
