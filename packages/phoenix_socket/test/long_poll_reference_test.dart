@@ -80,8 +80,11 @@ void main() {
     final requests = session['requests'] as List;
     expect(client.requests, hasLength(requests.length));
     for (var i = 0; i < requests.length; i++) {
+      final referenceQuery =
+          Uri.parse(requests[i]['url'] as String).queryParameters;
+      // Connection parameters are deliberately omitted from resumed requests.
       expect(client.requests[i].request.url.queryParameters,
-          Uri.parse(requests[i]['url'] as String).queryParameters);
+          i == 0 ? referenceQuery : {'token': referenceQuery['token']!});
       expect(client.requests[i].request.headers, requests[i]['headers']);
     }
     expect(
@@ -109,7 +112,12 @@ void main() {
       if (i == 0) transport.send('buffered');
       expect(post.request.body, requests[i]['body']);
       expect(post.request.headers, requests[i]['headers']);
-      expect(post.request.url.toString(), requests[i]['url']);
+      final referenceUri = Uri.parse(requests[i]['url'] as String);
+      expect(
+          post.request.url,
+          referenceUri.replace(queryParameters: {
+            'token': referenceUri.queryParameters['token']!
+          }));
       post.reply({'status': 200});
     }
   });

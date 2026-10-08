@@ -86,12 +86,13 @@ class ConnectionManager {
   final Map<PhoenixTransport, StreamSubscription<dynamic>> _subscriptions = {};
   final Map<PhoenixTransport, Timer> _readyTimeouts = {};
   final Map<PhoenixTransport, Timer> _fallbackTimers = {};
-  final Map<PhoenixTransport, String> _healthChecks = {};
   PhoenixSocketTransport _transport = PhoenixSocketTransport.webSocket;
   PhoenixSocketTransport get transport => _transport;
   PhoenixSocketSessionStore? _sessionStorage;
+  bool _sessionReadable = false;
   bool _primaryPassedHealthCheck = false;
   bool _fellBack = false;
+  bool _fallbackEstablished = false;
   bool _fallbackFromInstability = false;
   int _unstableWebSocketConnections = 0;
   Timer? _stabilityTimer;
@@ -278,12 +279,7 @@ class ConnectionManager {
           pendingMessages[message.ref!] = completer;
         }
         try {
-          final frame = _serializer.encode(message);
-          if (frame is! String && frame is! Uint8List) {
-            throw const FormatException(
-                'Codec must encode String or Uint8List');
-          }
-          channel.send(frame);
+          channel.send(_encodeMessage(message));
         } catch (error, stackTrace) {
           if (completer != null && !completer.isCompleted) {
             pendingMessages.remove(message.ref);
@@ -479,6 +475,7 @@ class ConnectionManager {
       generation,
     );
     if (!_isActive(generation) || mountPoint == null) return null;
+    _refreshTransport();
     final authToken = _options!.dynamicAuthToken?.call() ?? _options!.authToken;
     if (!_isActive(generation)) return null;
     final PhoenixTransport channel;
@@ -541,7 +538,8 @@ class ConnectionManager {
         },
       );
       // Long polling has its own per-request timeout, just like the JS client.
-      final readyTimeout = channel.skipHeartbeat || _fallbackEnabled
+      final readyTimeout = channel.skipHeartbeat ||
+              (_fallbackEnabled && !_primaryPassedHealthCheck)
           ? null
           : Timer(_options!.timeout, () {
               if (!_isActive(generation)) return;
@@ -585,7 +583,6 @@ class ConnectionManager {
     }
     _readyTimeouts.remove(channel)?.cancel();
     _fallbackTimers.remove(channel)?.cancel();
-    _healthChecks.remove(channel);
     _subscriptions.remove(channel)?.cancel();
     Future.sync(() => channel.close(code, reason)).then<void>(
       (_) {},
@@ -606,8 +603,11 @@ class ConnectionManager {
 
   String? _getSession() {
     try {
-      return _sessionStorage?.getItem(_fallbackSessionKey);
+      final value = _sessionStorage?.getItem(_fallbackSessionKey);
+      _sessionReadable = _sessionStorage != null;
+      return value;
     } on Object {
+      _sessionReadable = false;
       return null;
     }
   }
@@ -622,7 +622,11 @@ class ConnectionManager {
 
   void _scheduleFallback(PhoenixTransport channel, int generation) {
     _fallbackTimers.remove(channel)?.cancel();
-    if (channel.skipHeartbeat || !_fallbackEnabled) return;
+    if (channel.skipHeartbeat ||
+        !_fallbackEnabled ||
+        _primaryPassedHealthCheck) {
+      return;
+    }
     _fallbackTimers[channel] = Timer(_options!.longPollFallbackAfter!, () {
       if (_isActive(generation) && identical(_activeTransport, channel)) {
         _add(TransportFallback(channel));
@@ -662,17 +666,18 @@ class ConnectionManager {
 
   bool _fallbackBeforeHealthCheck(PhoenixTransport channel) {
     if (!_fallbackEnabled ||
+        _primaryPassedHealthCheck ||
         channel.skipHeartbeat ||
         !identical(_activeTransport, channel)) {
       return false;
     }
-    return currentState is ConnectingState ||
-        _healthChecks.containsKey(channel);
+    return currentState is ConnectingState;
   }
 
   Future<ConnectionState?> _fallback(PhoenixTransport channel, int generation,
       {bool unstable = false}) async {
     if (!_isActive(generation) ||
+        (!unstable && _primaryPassedHealthCheck) ||
         !identical(_activeTransport, channel) ||
         channel.skipHeartbeat) {
       return null;
@@ -709,6 +714,7 @@ class ConnectionManager {
     _closeChannel(channel);
     _transport = PhoenixSocketTransport.longPolling;
     _fellBack = true;
+    _fallbackEstablished = false;
     _fallbackFromInstability = _fallbackFromInstability || unstable;
     onState(
         null,
@@ -813,18 +819,32 @@ class ConnectionManager {
   }
 
   Null _receiveMessage(PhoenixTransport channel, dynamic payload) {
+    if (currentState case ValidatingState validating
+        when validating.channel == channel) {
+      final Message message;
+      try {
+        message = _decodeMessage(payload);
+      } catch (error, stackTrace) {
+        _add(ChannelError(
+            channel: channel, error: error, stackTrace: stackTrace));
+        return null;
+      }
+      if (message.ref == validating.healthCheckRef) {
+        _primaryPassedHealthCheck = true;
+        _fallbackTimers.remove(channel)?.cancel();
+        _finishConnection(validating, validated: true);
+        if (currentState case ConnectedState connected
+            when connected.channel == channel) {
+          _receiveStreamController.add(message);
+        }
+      }
+      return null;
+    }
     if (currentState case ConnectedState connectedState
         when connectedState.channel == channel) {
       final Message message;
       try {
-        final Object frame = switch (payload) {
-          String value => value,
-          Uint8List value => value,
-          ByteBuffer value => value.asUint8List(),
-          List<int> value => Uint8List.fromList(value),
-          _ => throw const FormatException('Unsupported Phoenix frame'),
-        };
-        message = _serializer.decode(frame);
+        message = _decodeMessage(payload);
       } catch (error, stackTrace) {
         _add(ChannelError(
             channel: channel, error: error, stackTrace: stackTrace));
@@ -832,13 +852,6 @@ class ConnectionManager {
       }
 
       if (message.ref != null) {
-        if (message.ref == _healthChecks[channel]) {
-          _healthChecks.remove(channel);
-          _primaryPassedHealthCheck = true;
-          _fallbackTimers.remove(channel)?.cancel();
-          _webSocketHealthy = true;
-          _confirmWebSocketStability(channel);
-        }
         if (message.ref == connectedState.pendingHeartbeatRef) {
           connectedState.pendingHeartbeatRef = null;
           _webSocketHealthy = true;
@@ -858,6 +871,55 @@ class ConnectionManager {
     return null;
   }
 
+  Object _encodeMessage(Message message) {
+    final frame = _serializer.encode(message);
+    if (frame is! String && frame is! Uint8List) {
+      throw const FormatException('Codec must encode String or Uint8List');
+    }
+    return frame;
+  }
+
+  Message _decodeMessage(dynamic payload) =>
+      _serializer.decode(switch (payload) {
+        String value => value,
+        Uint8List value => value,
+        ByteBuffer value => value.asUint8List(),
+        List<int> value => Uint8List.fromList(value),
+        _ => throw const FormatException('Unsupported Phoenix frame'),
+      });
+
+  void _refreshTransport({bool explicitConnect = false}) {
+    final options = _options!;
+    if (options.transport == PhoenixSocketTransport.longPolling) {
+      _transport = PhoenixSocketTransport.longPolling;
+      return;
+    }
+    final canFallBack = _fallbackEnabled || options.webSocketStability != null;
+    final remembered = canFallBack && _getSession()?.isNotEmpty == true;
+    if (_fellBack &&
+        !remembered &&
+        (explicitConnect || (_fallbackEstablished && _sessionReadable))) {
+      _fellBack = false;
+      _fallbackEstablished = false;
+      _fallbackFromInstability = false;
+      _primaryPassedHealthCheck = false;
+      _unstableWebSocketConnections = 0;
+    }
+    if (!_fellBack) {
+      _transport = options.transport;
+      if (_transport == PhoenixSocketTransport.webSocket &&
+          _webSocketChannelFactory == null &&
+          !webSocketAvailable()) {
+        _transport = PhoenixSocketTransport.longPolling;
+      }
+    }
+    if (_transport == PhoenixSocketTransport.webSocket && remembered) {
+      _transport = PhoenixSocketTransport.longPolling;
+      _fellBack = true;
+      _fallbackEstablished = true;
+    }
+  }
+
   Future<ConnectionState?> _connect(
     PhoenixSocketOptions options,
     Completer<void> completer,
@@ -868,14 +930,7 @@ class ConnectionManager {
       case DisconnectedState():
         _options = options;
         _sessionStorage = options.sessionStorage ?? defaultSessionStore();
-        if (!_fellBack) {
-          _transport = options.transport;
-          if (_transport == PhoenixSocketTransport.webSocket &&
-              _webSocketChannelFactory == null &&
-              !webSocketAvailable()) {
-            _transport = PhoenixSocketTransport.longPolling;
-          }
-        }
+        _refreshTransport(explicitConnect: true);
         // The reference Socket constructor uses its default codec when the
         // initial transport is explicitly LongPoll. Automatic fallback keeps
         // the codec selected for the original WebSocket transport.
@@ -883,12 +938,6 @@ class ConnectionManager {
                 (!_fellBack && _transport == PhoenixSocketTransport.longPolling)
             ? const MessageSerializer()
             : options.serializer;
-        if (_transport == PhoenixSocketTransport.webSocket &&
-            (_fallbackEnabled || options.webSocketStability != null) &&
-            _getSession()?.isNotEmpty == true) {
-          _transport = PhoenixSocketTransport.longPolling;
-          _fellBack = true;
-        }
         return _startConnection(
           generation: generation,
           completer: completer,
@@ -912,59 +961,54 @@ class ConnectionManager {
   }
 
   Future<ConnectionState?> _channelReady(PhoenixTransport channel) async {
-    switch (currentState) {
-      case ConnectingState(
-                channel: final currentChannel,
-                :final currentRef,
-                :final queuedMessages,
-                :final completer,
-              ) ||
-              ReconnectingState(
-                channel: final currentChannel,
-                :final currentRef,
-                :final queuedMessages,
-                :final completer,
-              )
-          when currentChannel == channel:
-        final state = ConnectedState(
-          channel: channel,
-          startingRef: currentRef,
-        );
-
-        onState(
-          ChannelReady(channel: channel),
-          currentState,
-          state,
-        );
-
-        for (final (message, completer) in queuedMessages) {
-          _sendMessage(
-            message,
-            state: state,
-            completer: completer,
-          );
-        }
-
-        if (identical(_pendingConnection, completer)) _pendingConnection = null;
-        if (!completer.isCompleted) completer.complete();
-        if (identical(currentState, state)) {
-          _scheduleFallback(channel, _generation);
-          _startStabilityTracking(channel, _generation);
-          if (_fellBack &&
-              (!_primaryPassedHealthCheck || _fallbackFromInstability)) {
-            _storeSession();
-          }
-          if (!channel.skipHeartbeat && _fallbackEnabled) {
-            _sendHealthCheck(state);
-          }
-          _scheduleHeartbeat(state, immediately: !_fallbackEnabled);
-        }
-
-        return null;
-
-      case _:
-        return null;
+    if (currentState case ConnectingState connecting
+        when connecting.channel == channel && connecting is! ValidatingState) {
+      if (!channel.skipHeartbeat &&
+          _fallbackEnabled &&
+          !_primaryPassedHealthCheck) {
+        final probeRef = '${connecting.nextRef}';
+        final validating = ValidatingState(
+            channel: channel,
+            completer: connecting.completer,
+            reconnectionAttempts: connecting.reconnectionAttempts,
+            healthCheckRef: probeRef,
+            startingRef: connecting.currentRef,
+            queuedMessages: connecting.queuedMessages);
+        onState(ChannelReady(channel: channel), connecting, validating);
+        if (!identical(currentState, validating)) return null;
+        _scheduleFallback(channel, _generation);
+        _sendHealthCheck(validating);
+      } else {
+        _finishConnection(connecting);
+      }
     }
+    return null;
+  }
+
+  void _finishConnection(ConnectingState connecting, {bool validated = false}) {
+    if (!identical(currentState, connecting)) return;
+    final channel = connecting.channel;
+    final state =
+        ConnectedState(channel: channel, startingRef: connecting.currentRef);
+    _startStabilityTracking(channel, _generation);
+    _webSocketHealthy = validated;
+    onState(ChannelReady(channel: channel), connecting, state);
+    final queued = List.of(connecting.queuedMessages);
+    connecting.queuedMessages.clear();
+    for (final (message, completer) in queued) {
+      _sendMessage(message, state: state, completer: completer);
+    }
+    final completer = connecting.completer;
+    if (identical(_pendingConnection, completer)) _pendingConnection = null;
+    if (!completer.isCompleted) completer.complete();
+    if (!identical(currentState, state)) return;
+    if (_fellBack && channel.skipHeartbeat) {
+      _fallbackEstablished = true;
+      if (!_primaryPassedHealthCheck || _fallbackFromInstability) {
+        _storeSession();
+      }
+    }
+    _scheduleHeartbeat(state, immediately: !validated);
   }
 
   Future<ConnectionState?> _disconnect(
@@ -1172,14 +1216,14 @@ class ConnectionManager {
     );
   }
 
-  void _sendHealthCheck(ConnectedState state) {
-    final ref = '${state.nextRef}';
-    _healthChecks[state.channel] = ref;
-    final completer = Completer<Message>();
-    // The fallback timer owns this probe's deadline, not heartbeatTimeout.
-    // Its reply or transport replacement settles the ordinary pending waiter.
-    completer.future.ignore();
-    _sendMessage(Message.heartbeat(ref), completer: completer, state: state);
+  void _sendHealthCheck(ValidatingState state) {
+    final channel = state.channel;
+    try {
+      channel.send(_encodeMessage(Message.heartbeat(state.healthCheckRef)));
+    } catch (error, stackTrace) {
+      _add(
+          ChannelError(channel: channel, error: error, stackTrace: stackTrace));
+    }
   }
 
   Future<bool> _sendHeartbeat(ConnectedState state) async {

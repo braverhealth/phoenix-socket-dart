@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Gate the first fallback-enabled WebSocket open and queued sends on its health probe, and use normal timeout/backoff after WebSocket has proved healthy.
+- Reconsider cleared/expired fallback history on new connection attempts and omit application connection parameters from resumed long-poll URLs.
 - Add optional WebSocket stability budgets to select HTTP after repeated short-lived connections, with healthy-uptime reset and progressive retry delays.
 - Fall back on transport errors/closes before the WebSocket health probe completes, including after opening.
 - Add Phoenix JavaScript v1.8.15-compatible HTTP long polling, NDJSON batching and binary uploads.

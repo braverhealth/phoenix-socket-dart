@@ -207,6 +207,79 @@ void main() {
           isTrue);
     });
 
+    test('query authentication is omitted on resume and refreshed after expiry',
+        () async {
+      final authenticatedClients = <TrackingClient>[];
+      var credentials = 0;
+      final authenticated = PhoenixSocket(endpoint!,
+          socketOptions: PhoenixSocketOptions(
+            transport: PhoenixSocketTransport.longPolling,
+            reconnectDelays: const [Duration(milliseconds: 20)],
+            longPollTimeout: polling.longPollTimeout,
+            dynamicParams: () async {
+              final token = 'app-secret-${++credentials}';
+              return {
+                'token': token,
+                'expected_query_token': token,
+                'user_id': '$topic-query-auth'
+              };
+            },
+          ), httpClientFactory: () {
+        final client = TrackingClient();
+        authenticatedClients.add(client);
+        return client;
+      });
+      addTearDown(authenticated.dispose);
+      await authenticated.connect();
+      final channel = authenticated.addChannel(topic: '$topic-query-auth');
+      await channel.join().future;
+      final firstRef = channel.joinRef;
+      final closed = authenticated.closeStream.first;
+      channel.push('disconnect', {}, expectingReply: false);
+      await closed;
+      await eventually(() =>
+          authenticatedClients.length >= 2 &&
+          channel.canPush &&
+          channel.joinRef != firstRef);
+      expect(
+          (await channel
+                  .push('echo', {'reauthenticated': true}, expectingReply: true)
+                  .future)
+              .responseMap,
+          {'reauthenticated': true});
+      expect(credentials, authenticatedClients.length);
+      for (var i = 0; i < authenticatedClients.length; i++) {
+        final requests = authenticatedClients[i].requests;
+        expect(
+            requests.first.url.queryParameters['token'], 'app-secret-${i + 1}');
+        expect(requests.first.url.queryParameters['expected_query_token'],
+            'app-secret-${i + 1}');
+        expect(requests.where((r) => r.method == 'POST'), isNotEmpty);
+        for (final request in requests.skip(1)) {
+          expect(request.url.queryParameters.keys, ['token']);
+          expect(request.url.queryParameters['token'],
+              isNot(startsWith('app-secret-')));
+        }
+      }
+    });
+
+    test('incorrect application query token is rejected', () async {
+      final authenticated = PhoenixSocket(endpoint!,
+          socketOptions: const PhoenixSocketOptions(
+            transport: PhoenixSocketTransport.longPolling,
+            params: {
+              'token': 'wrong',
+              'expected_query_token': 'expected',
+              'user_id': 'invalid-query-auth'
+            },
+            maxReconnectionAttempts: 0,
+          ));
+      addTearDown(authenticated.dispose);
+      final error = authenticated.errorStream.first;
+      expect(await authenticated.connect(), isNull);
+      expect(((await error).error as PhoenixLongPollException).status, 403);
+    });
+
     test('default WebSocket factory uses the same Phoenix auth token contract',
         () async {
       final authenticated = PhoenixSocket(endpoint!,

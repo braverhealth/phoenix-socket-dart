@@ -73,9 +73,7 @@ class PhoenixLongPoll implements PhoenixTransport {
 
   Uri get _requestUri {
     if (_token == null) return endpoint;
-    final prefix = endpoint.hasQuery ? '${endpoint.query}&' : '';
-    return endpoint.replace(
-        query: '${prefix}token=${Uri.encodeComponent(_token!)}');
+    return endpoint.replace(queryParameters: {'token': _token!});
   }
 
   Future<Map<String, dynamic>?> _request(

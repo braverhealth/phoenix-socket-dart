@@ -1,6 +1,6 @@
 # Phoenix HTTP long polling
 
-The implementation follows Phoenix JavaScript **v1.8.15**, commit
+The wire protocol follows Phoenix JavaScript **v1.8.15**, commit
 `bd1801833b4fd7ceb02497cc7ba2d05e9bd391c8`:
 
 - [LongPoll transport](https://github.com/phoenixframework/phoenix/blob/v1.8.15/assets/js/phoenix/longpoll.js)
@@ -39,10 +39,15 @@ final socket = PhoenixSocket(
 
 Timed fallback is disabled by default. Browsers without a WebSocket constructor
 select long polling automatically. Timed fallback switches immediately on a WebSocket error
-before opening, or after the opening deadline. Opening WebSocket starts a fresh
-deadline for a heartbeat round trip; a valid reply cancels fallback. Replacing
-an already open transport fails its pending replies and makes channels rejoin.
-Once selected, long polling remains selected for that socket's lifetime.
+before its first health check, or after the initial opening deadline. Opening
+WebSocket starts a fresh deadline for a heartbeat round trip. Until its reply,
+`connect()` remains pending, no socket open event is emitted, and application
+messages and channel joins stay queued. A failed probe therefore sends them only
+through the selected HTTP session. After WebSocket has passed its first probe,
+later reconnects use normal WebSocket timeout/backoff without timed fallback.
+The optional stability policy still applies to repeated short-lived connections.
+Replacing an app-visible open transport fails its pending replies and makes
+channels rejoin.
 
 ### Repeated short-lived connections
 
@@ -71,7 +76,7 @@ The policy counts remote transport errors/closes, including a normal server
 close, and excludes explicit client close/dispose. Explicit client close also
 resets the budget. The existing limit on failed opening/reconnection attempts
 still applies. The stability policy can be used independently of timed opening
-fallback. A policy-triggered switch remains on long polling and records browser
+fallback. A policy-triggered switch selects long polling and records browser
 fallback history only after the HTTP session opens successfully.
 
 With timed fallback enabled, an error or close before the opening/health probe
@@ -84,6 +89,13 @@ Browser `sessionStorage` is the default; native applications can supply a
 after fallback opens and only if WebSocket has never passed its health check, or
 the stability budget selected HTTP despite successful probes. Stored history is
 consulted when timed fallback or a stability policy is enabled.
+It is re-read before each new connection attempt. Clearing or expiring the key
+allows the same socket to retry WebSocket on its next attempt, with a fresh
+initial health check. An active HTTP session is not interrupted. The first HTTP
+fallback must open before a missing key can trigger automatic recovery; forced
+long polling always stays on HTTP. Without readable session storage, automatic
+reconnects retain HTTP; explicit close/connect without remembered history can
+retry WebSocket.
 
 ## Protocol behavior
 
@@ -105,7 +117,8 @@ consulted when timed fallback or a stability policy is enabled.
   Socket constructor, zero selects the default. The lower-level `PhoenixLongPoll`
   transport accepts zero to disable its timeout.
   The existing `timeout` controls channel pushes and WebSocket opening when timed
-  fallback is disabled. With fallback enabled, its deadline controls opening.
+  fallback is disabled or WebSocket has already passed its initial health check.
+  For an unproven WebSocket, the fallback deadline controls opening.
 - Long polling skips Phoenix socket heartbeats; polling supplies liveness.
 - Closing cancels pending requests, delivery/batch timers and buffered writes.
   Late responses cannot affect a replacement session.
@@ -122,6 +135,12 @@ asynchronous callback. Requests and queued deliveries are cancelled on close.
 The default WebSocket factory sends it using the Phoenix bearer subprotocol.
 Long-poll GETs send `X-Phoenix-AuthToken`; POSTs send only their content type,
 matching the reference. Existing `params`/`dynamicParams` are also supported.
+Only the initial GET includes connection query parameters, including any
+application auth token. Once Phoenix supplies a session token, resumed GETs and
+POSTs contain only that transport token. Session expiry reconnects with freshly
+evaluated connection parameters and authentication. This omission of original
+parameters, the first-open health gate, and history recovery are deliberate
+client extensions to the reference implementation.
 A custom WebSocket factory remains responsible for its own subprotocols.
 
 For custom networking, supply `httpClientFactory:` to `PhoenixSocket`. Return a
@@ -146,7 +165,8 @@ Like the JavaScript Socket constructor, explicitly selecting long polling uses
 the default `MessageSerializer`, ignoring a custom `serializer`. Automatic
 fallback retains the original WebSocket codec. Applications using a custom codec
 must ensure their server produces compatible long-poll responses before enabling
-fallback. Application parameters are retained; negotiation is not silently changed.
+fallback. Each new session uses the application's connection parameters for
+codec negotiation; resumed requests use only the session token.
 
 ## Server configuration
 
@@ -170,8 +190,8 @@ From `packages/phoenix_socket`:
 
 ```sh
 node tool/long_poll_reference.mjs --check
-dart test test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/websocket_stability_test.dart
-dart test --platform chrome test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/long_poll_browser_test.dart test/websocket_stability_test.dart
+dart test test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/websocket_stability_test.dart test/long_poll_review_test.dart
+dart test --platform chrome test/long_poll_test.dart test/long_poll_reference_test.dart test/long_poll_socket_test.dart test/long_poll_browser_test.dart test/websocket_stability_test.dart test/long_poll_review_test.dart
 dart run tool/run_e2e.dart --long-poll --platform vm
 dart run tool/run_e2e.dart --long-poll --platform chrome
 ```
@@ -179,12 +199,14 @@ dart run tool/run_e2e.dart --long-poll --platform chrome
 The Node harness executes an unchanged, licensed copy of the upstream LongPoll
 implementation to generate portable expectations. VM and Chrome compare session
 requests, status/close behavior, batching, endpoint conversion and binary uploads
-to those expectations. Lifecycle tests cover fallback health, history, late
+to those expectations, with explicit assertions for the intentional resumed-query
+omission. Lifecycle tests cover fallback health, history, late
 callbacks, reconnect/rejoin, pending replies and repeated client cleanup.
 Stability tests use a controlled clock on VM and Chrome for retry progression,
 healthy-uptime boundaries, failure budgets and timer cleanup. Real-server E2E
 also repeatedly opens, joins, receives heartbeat replies, disconnects and
-verifies the eventual HTTP session and channel recovery.
+verifies the eventual HTTP session and channel recovery. Authenticated query-token
+tests check resumed request privacy and refreshed credentials after session expiry.
 
 E2E runs start only a test-owned Phoenix process on an OS-assigned loopback port
 and stop that exact process. Chrome uses real cross-origin HTTP requests and

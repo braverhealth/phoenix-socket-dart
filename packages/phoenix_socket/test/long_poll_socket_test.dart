@@ -98,19 +98,21 @@ void main() {
       () async {
     final ws = FakeTransport(readyImmediately: true, replyToHeartbeats: false);
     late ConnectionManager manager;
-    late ConnectedState opened;
+    late ValidatingState validating;
     ws.onSend = (_) {
-      opened = manager.currentState as ConnectedState;
+      validating = manager.currentState as ValidatingState;
       manager.close();
     };
     manager = ConnectionManager(
         serverUri: endpoint, webSocketChannelFactory: (_) => ws);
     addTearDown(manager.dispose);
-    await manager.connect(PhoenixSocketOptions(
-        longPollFallbackAfter: const Duration(seconds: 1),
-        sessionStorage: MemorySessionStore()));
+    await expectLater(
+        manager.connect(PhoenixSocketOptions(
+            longPollFallbackAfter: const Duration(seconds: 1),
+            sessionStorage: MemorySessionStore())),
+        throwsA(isA<SocketClosedError>()));
     expect(manager.currentState, isA<DisconnectedState>());
-    expect(opened.heartbeatTimeout?.isActive ?? false, isFalse);
+    expect(validating.completer.isCompleted, isTrue);
     expect(ws.sink.closeCalls, 1);
   });
 
@@ -155,13 +157,10 @@ void main() {
     expect(ws.sink.closeCalls, 1);
   });
 
-  test(
-      'a regular heartbeat reply does not satisfy a different fallback probe ref',
-      () async {
+  test('an unrelated reply does not satisfy the fallback probe ref', () async {
     final ws = FakeTransport(readyImmediately: true, replyToHeartbeats: false);
-    var heartbeats = 0;
     ws.onSend = (parts) {
-      if (parts[3] == 'heartbeat' && ++heartbeats > 1) ws.replyTo(parts);
+      ws.replyTo([null, 'different-ref', 'phoenix', 'heartbeat', {}]);
     };
     final server = LongPollServer();
     final socket = PhoenixSocket(endpoint,
@@ -176,7 +175,7 @@ void main() {
     await eventually(() =>
         socket.transport == PhoenixSocketTransport.longPolling &&
         socket.isConnected);
-    expect(heartbeats, greaterThan(1));
+    expect(ws.sent, hasLength(1));
   });
 
   test('auth token callback can cancel before an HTTP client is created',
@@ -211,7 +210,7 @@ void main() {
     expect(client.requests, isEmpty);
   });
 
-  test('fallback after a previously healthy WebSocket is not memorized',
+  test('a previously healthy WebSocket reconnect can exceed fallback deadline',
       () async {
     final first = FakeTransport(readyImmediately: true);
     final second = FakeTransport();
@@ -230,8 +229,12 @@ void main() {
     await socket.connect();
     await health;
     socket.close();
-    await socket.connect();
-    expect(socket.transport, PhoenixSocketTransport.longPolling);
+    final reconnect = socket.connect();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(socket.transport, PhoenixSocketTransport.webSocket);
+    expect(server.clients, isEmpty);
+    second.readyCompleter.complete();
+    await reconnect;
     expect(store.values, isEmpty);
   });
 
@@ -468,8 +471,7 @@ void main() {
     expect(store.values, isEmpty);
   });
 
-  test(
-      'opened WebSocket without a health reply falls back and rejoins its channel',
+  test('WebSocket without a health reply falls back before joining its channel',
       () async {
     final server = LongPollServer();
     final store = MemorySessionStore();
@@ -495,6 +497,7 @@ void main() {
         server.joins == 1 &&
         channel.canPush);
     expect(unhealthy.sink.closeCalls, 1);
+    expect(unhealthy.sent.where((parts) => parts[3] == 'phx_join'), isEmpty);
     expect(store.getItem('phx:fallback:LongPoll'), 'true');
   });
 

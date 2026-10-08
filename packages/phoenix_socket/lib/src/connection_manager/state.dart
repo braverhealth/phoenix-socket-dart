@@ -59,6 +59,24 @@ class ReconnectingState extends ConnectingState {
   String toString() => 'ReconnectingState($reconnectionAttempts)';
 }
 
+/// WebSocket is open at the transport layer; application traffic stays queued
+/// until the first health probe proves that the connection can exchange frames.
+class ValidatingState extends ConnectingState {
+  ValidatingState({
+    required super.channel,
+    required super.completer,
+    required super.reconnectionAttempts,
+    required this.healthCheckRef,
+    required super.startingRef,
+    super.queuedMessages,
+  });
+
+  final String healthCheckRef;
+
+  @override
+  String toString() => 'ValidatingState()';
+}
+
 class ConnectedState extends ConnectionState {
   ConnectedState({
     required this.channel,
